@@ -1,4 +1,3 @@
-
 ---
 title: "Technical Details of bonsai forest Models"
 output: rmarkdown::html_vignette
@@ -18,7 +17,6 @@ knitr::opts_chunk$set(
 library(bonsaiforest2) # Load package if needed for specific internal constants/examples
 ```
 
-
 ## Introduction
 
 This vignette details the statistical framework, notation, models, and prior specifications implemented within the `bonsaiforest2` package. It is intended for users seeking a deeper understanding of the underlying methodology used for Bayesian subgroup analysis.
@@ -31,22 +29,22 @@ For a practical guide on how to *use* the package functions, please see the main
 
 We establish the following notation:
 
-  * $i = 1, \dots, N$: Index for individual patients.
-  * $y_i$: The outcome for patient $i$.
-  * $s_i$: The binary treatment indicator for patient $i$ (e.g., $s_i=1$ for treatment, $s_i=0$ for control).
-  * $j = 1, \dots, J$: Index for the subgrouping *variable* (e.g., age group, region).
-  * $k = 1, \dots, K_j$: Index for the subgroup *level* within variable $j$.
-  * $l = 1, \dots, L$: Index for an overall subgroup level across all variables ($L = \sum_{j=1}^{J} K_j$).
-  * $x_{il}$: Indicator variable (0/1) for patient $i$ belonging to overall subgroup level $l$.
-  * $z_{il} = s_i \cdot x_{il}$: The interaction between treatment and subgroup level $l$ for patient $i$.
-  * $u_{iv}$: Value of the $v$-th additional non-subgroup covariate for patient $i$.
+-   $i = 1, \dots, N$: Index for individual patients.
+-   $y_i$: The outcome for patient $i$.
+-   $s_i$: The binary treatment indicator for patient $i$ (e.g., $s_i=1$ for treatment, $s_i=0$ for control).
+-   $j = 1, \dots, J$: Index for the subgrouping *variable* (e.g., age group, region).
+-   $k = 1, \dots, K_j$: Index for the subgroup *level* within variable $j$.
+-   $l = 1, \dots, L$: Index for an overall subgroup level across all variables ($L = \sum_{j=1}^{J} K_j$).
+-   $x_{il}$: Indicator variable (0/1) for patient $i$ belonging to overall subgroup level $l$.
+-   $z_{il} = s_i \cdot x_{il}$: The interaction between treatment and subgroup level $l$ for patient $i$.
+-   $u_{iv}$: Value of the $v$-th additional non-subgroup covariate for patient $i$.
 
 ### Prognostic vs. Predictive Effects
 
 In clinical trials, baseline characteristics can relate to outcomes in two ways:
 
-  * **Prognostic Effect**: Association with the outcome, irrespective of treatment (a **main effect**).
-  * **Predictive Effect**: Modifies the treatment effect (a **treatment-by-variable interaction**).
+-   **Prognostic Effect**: Association with the outcome, irrespective of treatment (a **main effect**).
+-   **Predictive Effect**: Modifies the treatment effect (a **treatment-by-variable interaction**).
 
 `bonsaiforest2` explicitly models both types of effects.
 
@@ -54,8 +52,8 @@ In clinical trials, baseline characteristics can relate to outcomes in two ways:
 
 The package constructs design matrices differently for prognostic and predictive effects based on modeling goals:
 
-  * **Prognostic Effects (`X` matrix):** Uses standard **dummy coding** (dropping one reference level per categorical variable). This avoids collinearity with the intercept and yields interpretable main effect coefficients relative to a baseline group.
-  * **Predictive Effects (`Z` matrix):** Uses **one-hot encoding** (creating a binary indicator for *every* level of each categorical variable, *without* dropping a reference). This treats all subgroup levels symmetrically under the shrinkage prior, reflecting an assumption of exchangeability for the interaction effects.
+-   **Prognostic Effects (`X` matrix):** Uses standard **dummy coding** (dropping one reference level per categorical variable). This avoids collinearity with the intercept and yields interpretable main effect coefficients relative to a baseline group.
+-   **Predictive Effects (`Z` matrix):** Uses **one-hot encoding** (creating a binary indicator for *every* level of each categorical variable, *without* dropping a reference). This treats all subgroup levels symmetrically under the shrinkage prior, reflecting an assumption of exchangeability for the interaction effects.
 
 ### General Global Model
 
@@ -63,43 +61,40 @@ The package primarily implements a global model structure [@wolbers2025using] wh
 
 $$
 g(\boldsymbol{\mu}) = \boldsymbol{\eta} = \mathbf{X_p}\boldsymbol{\beta_{1,p}} + \mathbf{X_n}\boldsymbol{\beta_{1,n}} + \mathbf{Z_p}\boldsymbol{\beta_{2,p}} + \mathbf{Z_n}\boldsymbol{\beta_{2,n}} + \mathbf{U}\boldsymbol{\beta_{3}}
-$$
-Where:
+$$ Where:
 
-* $g(\cdot)$ is the link function.
-* $\boldsymbol{\mu}$ is the vector of expected outcomes.
-* $\mathbf{X_n}$ contains columns for **unshrunk prognostic** effects (intercept, main treatment effect, specified main effects) using dummy coding. $\boldsymbol{\beta_{1,n}}$ are their coefficients.
-* $\mathbf{X_p}$ contains columns for **shrunk prognostic** effects (specified main effects) using dummy coding. $\boldsymbol{\beta_{1,p}}$ are their coefficients, assigned a shrinkage prior.
-* $\mathbf{Z_n}$ contains columns for **unshrunk predictive** effects (treatment interactions) using one-hot encoding. $\boldsymbol{\beta_{2,n}}$ are their coefficients.
-* $\mathbf{Z_p}$ contains columns for **shrunk predictive** effects (treatment interactions) using one-hot encoding. $\boldsymbol{\beta_{2,p}}$ are their coefficients, assigned a shrinkage prior.
-* $\mathbf{U}$ contains columns for additional **unshrunk prognostic** covariates. $\boldsymbol{\beta_{3}}$ are their coefficients.
+-   $g(\cdot)$ is the link function.
+-   $\boldsymbol{\mu}$ is the vector of expected outcomes.
+-   $\mathbf{X_n}$ contains columns for **unshrunk prognostic** effects (intercept, main treatment effect, specified main effects) using dummy coding. $\boldsymbol{\beta_{1,n}}$ are their coefficients.
+-   $\mathbf{X_p}$ contains columns for **shrunk prognostic** effects (specified main effects) using dummy coding. $\boldsymbol{\beta_{1,p}}$ are their coefficients, assigned a shrinkage prior.
+-   $\mathbf{Z_n}$ contains columns for **unshrunk predictive** effects (treatment interactions) using one-hot encoding. $\boldsymbol{\beta_{2,n}}$ are their coefficients.
+-   $\mathbf{Z_p}$ contains columns for **shrunk predictive** effects (treatment interactions) using one-hot encoding. $\boldsymbol{\beta_{2,p}}$ are their coefficients, assigned a shrinkage prior.
+-   $\mathbf{U}$ contains columns for additional **unshrunk prognostic** covariates. $\boldsymbol{\beta_{3}}$ are their coefficients.
 
 This structure allows flexible assignment of terms to shrunk or unshrunk categories:
 
-|                       | **Shrinkage Prior** | **Weakly Informative Prior** |
-| :-------------------- | :--------------------------------------- | :----------------------------------------- |
+|   | **Shrinkage Prior** | **Weakly Informative Prior** |
+|:----------------|:--------------------------|:---------------------------|
 | **Prognostic Effect** | $\mathbf{X_p}\boldsymbol{\beta_{1,p}}$ | $\mathbf{X_n}\boldsymbol{\beta_{1,n}}$ + $\mathbf{U}\boldsymbol{\beta_{3}}$ |
 | **Predictive Effect** | $\mathbf{Z_p}\boldsymbol{\beta_{2,p}}$ | $\mathbf{Z_n}\boldsymbol{\beta_{2,n}}$ |
 
 The linear predictor for a single patient $i$ is:
 
-$$\\eta\_i = \\underbrace{\\beta\_0 + \\beta\_{\\text{treat}}s\_i + \\sum \\beta^{\\text{prog, shrunk}} x\_i + \\sum \\beta^{\\text{prog, unshrunk}} x\_i + \\sum \\beta^{\\text{extra}} u\_i}*{\\text{Prognostic Component}} + \\underbrace{\\sum \\beta^{\\text{pred, shrunk}} z\_i + \\sum \\beta^{\\text{pred, unshrunk}} z\_i}*{\\text{Predictive Component}}
+$$\eta_i = \underbrace{\beta_0 + \beta_{\text{treat}}s_i + \sum \beta^{\text{prog, shrunk}} x_i + \sum \beta^{\text{prog, unshrunk}} x_i + \sum \beta^{\text{extra}} u_i}_{\text{Prognostic Component}} + \underbrace{\sum \beta^{\text{pred, shrunk}} z_i + \sum \beta^{\text{pred, unshrunk}} z_i}_{\text{Predictive Component}}
 $$*(Note: The indices and notation are simplified here for clarity compared to the full matrix form).*
-
-
 
 ## Endpoint-Specific Models
 
 The package supports four endpoint types by selecting the appropriate likelihood and link function within `brms`.
 
-| Endpoint        | Distribution / Model                            | Link Function                                                    | Notes                                                        |
-| :-------------- | :---------------------------------------------- | :--------------------------------------------------------------- | :----------------------------------------------------------- |
-| **Continuous** | Normal: $y_i \sim N(\mu_i, \sigma^2)$           | Identity: $\mu_i = \eta_i$                                       | Residual standard deviation $\sigma$ can be stratified.      |
-| **Binary** | Bernoulli: $y_i \sim \text{Bernoulli}(p_i)$      | Logit: $\text{logit}(p_i) = \log\left(\frac{p_i}{1-p_i}\right) = \eta_i$ |                                                              |
-| **Count** | Negative Binomial: $y_i \sim \text{NegBin}(\mu_i, \phi)$ | Log: $\log(\mu_i) = \eta_i$                                      | Overdispersion $\phi$ can be stratified.                   |
-| **Time-to-event** | Cox Proportional Hazards: $h_i(t) = h_0(t)\exp(\eta_i)$ | Log (on the hazard)                                              | Intercept absorbed by baseline hazard $h_0(t)$, modeled via `bhaz()` splines. $h_0(t)$ can be stratified. |
+| Endpoint | Distribution / Model | Link Function | Notes |
+|:--------------|:---------------|:---------------------|:-------------------|
+| **Continuous** | Normal: $y_i \sim N(\mu_i, \sigma^2)$ | Identity: $\mu_i = \eta_i$ | Residual standard deviation $\sigma$ can be stratified. |
+| **Binary** | Bernoulli: $y_i \sim \text{Bernoulli}(p_i)$ | Logit: $\text{logit}(p_i) = \log\left(\frac{p_i}{1-p_i}\right) = \eta_i$ |  |
+| **Count** | Negative Binomial: $y_i \sim \text{NegBin}(\mu_i, \phi)$ | Log: $\log(\mu_i) = \eta_i$ | Overdispersion $\phi$ can be stratified. |
+| **Time-to-event** | Cox Proportional Hazards: $h_i(t) = h_0(t)\exp(\eta_i)$ | Log (on the hazard) | Intercept absorbed by baseline hazard $h_0(t)$, modeled via `bhaz()` splines. $h_0(t)$ can be stratified. |
 
------
+------------------------------------------------------------------------
 
 ## Prior Specifications
 
@@ -109,7 +104,7 @@ Appropriate prior selection is crucial in Bayesian analysis, especially when usi
 
 For parameters *not* subject to shrinkage (intercept, main treatment effect, covariates in $\mathbf{X_n}$, $\mathbf{Z_n}$, $\mathbf{U}$), **weakly informative priors** are used. These provide minimal regularization, primarily to aid computation and prevent unreasonable parameter estimates.
 
-  * **Default:** $N(0, s^2)$, where $s$ is large but sensible (e.g., $s=10$ on the linear predictor scale). The `bonsaiforest2` package uses `normal(0, 10)` as the default. Users can override this.
+-   **Default:** $N(0, s^2)$, where $s$ is large but sensible (e.g., $s=10$ on the linear predictor scale). The `bonsaiforest2` package uses `normal(0, 10)` as the default. Users can override this.
 
 ### Shrinkage Priors for Penalized Terms ($\boldsymbol{\beta_{1,p}}, \boldsymbol{\beta_{2,p}}$)
 
@@ -119,9 +114,9 @@ These priors pull coefficients towards a common center (usually zero), effective
 
 #### Regularized Horseshoe Prior
 
-  * **Concept:** A highly effective global-local prior with a sharp peak at zero (strong shrinkage for null effects) and heavy tails (minimal shrinkage for large, true effects) [@wolbers2025using]. The "regularized" version adds slight penalization for very large effects.
-  * **Specification:**
-    $$\begin{aligned}
+-   **Concept:** A highly effective global-local prior with a sharp peak at zero (strong shrinkage for null effects) and heavy tails (minimal shrinkage for large, true effects) [@wolbers2025using]. The "regularized" version adds slight penalization for very large effects.
+
+-   **Specification:** $$\begin{aligned}
     \beta_{l} &\sim N(0, \tau^2 \tilde{\lambda}_l^2) \\
     \tilde{\lambda}_l^2 &= \frac{c^2 \lambda_l^2}{c^2 + \tau^2 \lambda_l^2} \\
     \lambda_l &\sim C^+(0, 1) \quad (\text{Local shrinkage}) \\
@@ -129,27 +124,29 @@ These priors pull coefficients towards a common center (usually zero), effective
     c^2 &\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2) \quad (\text{Regularization})
     \end{aligned}
     $$
-    
-  * **Hyperparameter Justification:** The global scale $\tau_0$ is key. `brms` (and `bonsaiforest2`) allows specification via `horseshoe()` arguments:
-      * `scale_global`: Directly sets $\tau_0$. A common default is `scale_global = 1`.
-      * `par_ratio`: Sets $\tau_0$ based on the expected proportion of non-zero coefficients ($p_{eff}$) out of the total ($L$), using $\tau_0 = (p_{eff}/(L-p_{eff})) / \sqrt{N}$ [@piironen2017sparsity; @bornkamp2025benchmarking]. This allows tailoring shrinkage based on prior belief about heterogeneity.
-  * **Package Default:** The default shrinkage prior in `bonsaiforest2` is `horseshoe(scale_global = 1)`, following @wolbers2025using. Users can specify alternatives (e.g., using `par_ratio`).
+
+-   **Hyperparameter Justification:** The global scale $\tau_0$ is key. `brms` (and `bonsaiforest2`) allows specification via `horseshoe()` arguments:
+
+    -   `scale_global`: Directly sets $\tau_0$. A common default is `scale_global = 1`.
+    -   `par_ratio`: Sets $\tau_0$ based on the expected proportion of non-zero coefficients ($p_{eff}$) out of the total ($L$), using $\tau_0 = (p_{eff}/(L-p_{eff})) / \sqrt{N}$ [@piironen2017sparsity; @bornkamp2025benchmarking]. This allows tailoring shrinkage based on prior belief about heterogeneity.
+
+-   **Package Default:** The default shrinkage prior in `bonsaiforest2` is `horseshoe(scale_global = 1)`, following @wolbers2025using. Users can specify alternatives (e.g., using `par_ratio`).
 
 #### R2D2 Prior
 
-  * **Concept:** Places a prior on the proportion of variance explained ($R^2$) by the shrunk coefficients, then allocates this variance using a Dirichlet distribution, which controls sparsity [@zhang2022bayesian; @bornkamp2025benchmarking].
-  * **Specification (Simplified):** Coefficients $\beta_l$ follow a distribution related to Double-Exponential (Laplace), where the individual variances depend on a global variance term $\omega$ (related to $R^2$ via a Beta-Prime or Beta distribution) and local allocation parameters $\boldsymbol{\phi}$ (from a Dirichlet distribution).
-    $$\begin{aligned}
-    \beta_{l} &\sim \\text{Kernel}(\sigma, \phi_l, \omega) \\
+-   **Concept:** Places a prior on the proportion of variance explained ($R^2$) by the shrunk coefficients, then allocates this variance using a Dirichlet distribution, which controls sparsity [@zhang2022bayesian; @bornkamp2025benchmarking].
+-   **Specification (Simplified):** Coefficients $\beta_l$ follow a distribution related to Double-Exponential (Laplace), where the individual variances depend on a global variance term $\omega$ (related to $R^2$ via a Beta-Prime or Beta distribution) and local allocation parameters $\boldsymbol{\phi}$ (from a Dirichlet distribution).
+
+$$\begin{aligned}
+    \beta_{l} &\sim \text{Kernel}(\sigma, \phi_l, \omega) \\
     \boldsymbol{\phi} &\sim \text{Dirichlet}(a_\pi, \dots, a_\pi) \\
     \omega &\sim \text{Beta-Prime}(a, b) \quad (\iff R^2 = \frac{\omega}{1+\omega} \sim \text{Beta}(a,b))
     \end{aligned}
     $$
-  * **Hyperparameter Justification:** Following @zhang2022bayesian:
-      * Set $b=0.5$ for heavy tails (recommended default).
-      * The Dirichlet concentration $a_\pi$ controls sparsity: smaller $a_\pi$ (e.g., 0.2) implies higher shrinkage (more sparsity); larger $a_\pi$ (e.g., 0.5 or 1.0) implies lower shrinkage.
-  * **Package Implementation:** Users can specify the R2D2 prior by providing the string `"R2D2(mean_R2=..., prec_R2=..., cons_D=...)"` to the prior arguments, where `cons_D` corresponds to $a_\pi$.
-
+-   **Hyperparameter Justification:** Following @zhang2022bayesian:
+    -   Set $b=0.5$ for heavy tails (recommended default).
+    -   The Dirichlet concentration $a_\pi$ controls sparsity: smaller $a_\pi$ (e.g., 0.2) implies higher shrinkage (more sparsity); larger $a_\pi$ (e.g., 0.5 or 1.0) implies lower shrinkage.
+-   **Package Implementation:** Users can specify the R2D2 prior by providing the string `"R2D2(mean_R2=..., prec_R2=..., cons_D=...)"` to the prior arguments, where `cons_D` corresponds to $a_\pi$.
 
 ## Estimation and Inference Procedure
 
@@ -169,14 +166,10 @@ Model coefficients typically represent *conditional* effects. To obtain *margina
 
 1.  **Create Counterfactuals:** For each subject $i$, predict their outcome under treatment ($s_i=1$) and control ($s_i=0$), keeping all other covariates $u_i, x_i$ as observed.
 2.  **Predict Outcomes:** Use the parameter values from the current MCMC draw to calculate the predicted outcome (e.g., probability, rate, mean, survival curve) for each subject under both scenarios.
-3.  **Average within Subgroups:** For a specific subgroup level $l$, calculate the average predicted outcome under treatment ($\hat{\mu}_{l, \text{treat}}$) and control ($\hat{\mu}_{l, \text{cont}}$) *only among subjects belonging to subgroup $l$*.
+3.  **Average within Subgroups:** For a specific subgroup level $l$, calculate the average predicted outcome under treatment ($\hat{\mu}_{l, \text{treat}}$) and control ($\hat{\mu}_{l, \text{cont}}$) *only among subjects belonging to subgroup* $l$.
 4.  **Calculate Effect Measure:** Compute the desired marginal effect based on the response type (e.g., $\hat{\mu}_{l, \text{treat}} - \hat{\mu}_{l, \text{cont}}$ for continuous; Odds Ratio for binary; Rate Ratio for count; Average Hazard Ratio for survival). This yields one draw from the posterior of the marginal effect for subgroup $l$.
 5.  **Repeat:** Repeat for all MCMC draws to get the full posterior distribution for each subgroup's marginal effect. Summaries (median, CrI) are then calculated from these distributions.
 
 This standardization ensures that subgroup comparisons are made on a comparable, marginal scale, accounting for differing covariate distributions across subgroups.
 
-
 ## References
-
-```
-```
