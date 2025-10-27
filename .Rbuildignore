@@ -1,0 +1,9 @@
+^.*\.Rproj$
+^\.Rproj\.user$
+^LICENSE\.md$
+TODO
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^doc$
+^Meta$
