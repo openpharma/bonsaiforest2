@@ -4,12 +4,17 @@
 \name{bonsaiforest2-package}
 \alias{bonsaiforest2}
 \alias{bonsaiforest2-package}
-\title{bonsaiforest2: What the Package Does (Title Case)}
+\title{bonsaiforest2: bonsaiforest2}
 \description{
 More about what it does (maybe more than one line). Continuation lines should be indented.
 }
 \author{
-\strong{Maintainer}: Jane Doe \email{jane@example.com}
+\strong{Maintainer}: Miriam Pedrera Gomez \email{miriam.pedrera_gomez@roche.com}
+
+Authors:
+\itemize{
+  \item Isaac Gravestock \email{john@example.com}
+}
 
 }
 \keyword{internal}

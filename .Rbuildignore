@@ -7,3 +7,4 @@ TODO
 ^pkgdown$
 ^doc$
 ^Meta$
+^README\.Rmd$

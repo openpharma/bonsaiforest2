@@ -5,5 +5,5 @@ TODO
 - checks pass -------------------------------------------------> DONE
 - tests -------------------------------------------------------> DONE
 - vignettes ---------------------------------------------------> DONE
-- pkgdown site -> check ssl error for downloading bootstrap
+- pkgdown site -> check ssl error for downloading bootstrap ---> DONE
 

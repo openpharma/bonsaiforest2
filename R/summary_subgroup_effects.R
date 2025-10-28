@@ -170,6 +170,7 @@ summary_subgroup_effects <- function(brms_fit,
 #' @importFrom rlang .data
 #' @importFrom ggplot2 ggplot aes geom_vline geom_errorbarh geom_point geom_text
 #'   annotate labs theme_classic theme element_text element_blank margin
+#'   coord_cartesian
 #' @importFrom checkmate assert_class assert_data_frame assert_string
 #'
 #' @exportS3Method graphics::plot
@@ -247,16 +248,32 @@ plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
   min_ci <- min(plot_data$CI_Lower, na.rm = TRUE)
   max_ci <- max(plot_data$CI_Upper, na.rm = TRUE)
   x_range <- max_ci - min_ci
-  pos_estimate <- max_ci + (x_range * 0.15)
+  pos_estimate <- max_ci + (x_range * 0.15) # Position for the text table
 
   # --- 4. Build the ggplot ---
   message("Generating plot...")
   p <- ggplot(plot_data, aes(y = .data$y_axis_label, x = .data$Median)) +
+
+    # --- Additions & Fixes ---
+
+    # 1. (ADDED) Add the vertical null effect line
+    geom_vline(xintercept = null_effect_line, linetype = "dashed", color = "grey50") +
+
+    # 2. (EXISTING) The error bars
     geom_errorbarh(aes(xmin = .data$CI_Lower, xmax = .data$CI_Upper), height = 0.2, color = "black") +
+
+    # 3. (ADDED) The point estimate (the missing dot)
+    geom_point(shape = 22, size = 3, fill = "black", color = "black") +
+
+    # --- Text Annotations ---
+
+    # Text for the estimate values
     geom_text(aes(label = .data$estimate_label), x = pos_estimate, hjust = 0, size = 3.5)  +
-    #geom_text(aes(label = ess_label), x = pos_ess, hjust = 0, size = 3.5) +
+
+    # Text for the column header
     annotate("text", x = pos_estimate, y = nrow(plot_data) + 0.8, label = "Estimate (95% CI)", hjust = 0, fontface = "bold", size = 3.5) +
-    #annotate("text", x = pos_ess, y = nrow(plot_data) + 0.8, label = "ESS", hjust = 0, fontface = "bold", size = 3.5) +
+
+    # --- Labels & Theme ---
     labs(title = title, x = x_lab, y = "") +
     theme_classic(base_size = 12) +
     theme(
@@ -265,8 +282,12 @@ plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
       axis.ticks.y = element_blank(),
       axis.text.y = element_text(hjust = 0, color = "black"),
       legend.position = "none",
+      # Ensure right margin is large enough for the text table
       plot.margin = margin(1, 8, 1, 1, "lines")
-    )
+    ) +
+
+    # 4. (ADDED) This is the key fix to prevent text from being cut off
+    coord_cartesian(clip = "off")
 
   message("Done.")
   return(p)

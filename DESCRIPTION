@@ -1,13 +1,18 @@
 Package: bonsaiforest2
 Type: Package
-Title: What the Package Does (Title Case)
+Title: bonsaiforest2
 Version: 0.1.0
 Authors@R: c(
     person(
-      "Jane", "Doe",
-      email = "jane@example.com",
+      "Miriam", "Pedrera Gomez",
+      email = "miriam.pedrera_gomez@roche.com",
       role = c("aut", "cre")
-    )
+    ), 
+    person(
+      "Isaac", "Gravestock", 
+      email = "john@example.com", 
+      role = "aut"
+    )   
   )
 Description: More about what it does (maybe more than one line).
     Continuation lines should be indented.
