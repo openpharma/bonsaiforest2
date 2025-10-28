@@ -22,10 +22,10 @@
 #'   ('shprogeffect'). E.g., "~ region + center".
 #' @param stratification_formula_str A formula string specifying a stratification
 #'   variable, e.g., "~ strata_var".
-#' @param predictive_effect_priors A **named list** with elements `shrunk` and/or `unshrunk`
+#' @param predictive_effect_priors A named list with elements `shrunk` and/or `unshrunk`
 #'   containing the priors for predictive effects. Can be strings or `brmsprior` objects.
 #'   E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)")`.
-#' @param prognostic_effect_priors A **named list** with elements `shrunk` and/or `unshrunk`
+#' @param prognostic_effect_priors A named list with elements `shrunk` and/or `unshrunk`
 #'   containing the priors for prognostic effects.
 #'   E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 10)")`.
 #' @param stanvars An object created by `brms::stanvar()` to add custom Stan code,

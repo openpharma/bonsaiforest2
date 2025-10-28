@@ -6,7 +6,7 @@
 #' components of the model.
 #'
 #' @section Prior Specification:
-#' Priors for prognostic and predictive effects should be provided as **named lists**.
+#' Priors for prognostic and predictive effects should be provided as named lists.
 #' This makes the code explicit and prevents errors. For example:
 #' `prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)")`.
 #' The function accepts prior definitions as character strings (e.g., `"normal(0, 1)"`)
@@ -17,9 +17,9 @@
 #' @param data A data.frame from `prepare_formula_model`.
 #' @param response_type The type of the outcome variable. One of "binary", "count",
 #'   "continuous", or "survival".
-#' @param predictive_effect_priors A **named list** with elements `shrunk` and/or `unshrunk`
+#' @param predictive_effect_priors A named list with elements `shrunk` and/or `unshrunk`
 #'   containing the priors for predictive effects.
-#' @param prognostic_effect_priors A **named list** with elements `shrunk` and/or `unshrunk`
+#' @param prognostic_effect_priors A named list with elements `shrunk` and/or `unshrunk`
 #'   containing the priors for prognostic effects.
 #' @param stanvars An object created by `brms::stanvar()` to add custom Stan code.
 #' @param ... Additional arguments passed directly to `brms::brm()`.

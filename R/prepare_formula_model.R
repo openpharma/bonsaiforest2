@@ -40,7 +40,7 @@
 #'     the range of unique event times and adding a small buffer. This creates a
 #'     "safe" interval for placing internal knots.
 #'   \item \strong{Internal Knot Placement:} It calculates internal knots using
-#'     quantiles of the event times that fall strictly *within* the boundary knots.
+#'     quantiles of the event times that fall strictly within the boundary knots.
 #'     This prevents knots from being placed at the exact edges of the data, which
 #'     can cause numerical instability.
 #'   \item \strong{Fallback for Sparse Data:} If there are too few unique event
@@ -195,7 +195,7 @@ prepare_formula_model <- function(data,
     NULL # Pass NULL if the resolved list is empty
   }
 
-  # Now call the processing functions with the *resolved* formula strings
+  # Now call the processing functions with the resolved formula strings
   shrunk_pred_out <- .process_predictive_terms(
     shrunk_pred_str_resolved, # Use the resolved string
     processed_data,

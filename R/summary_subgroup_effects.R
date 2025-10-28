@@ -12,7 +12,7 @@
 #'   "continuous", or "survival".
 #' @param subgroup_vars A character vector of subgrouping variable names.
 #'   Defaults to "auto", which detects subgroups from the model. Set to `NULL`
-#'   to get *only* the overall effect.
+#'   to get only the overall effect.
 #'
 #' @return An object of class `subgroup_summary`, which is a list containing:
 #' \item{estimates}{A `tibble` combining the overall and subgroup-specific

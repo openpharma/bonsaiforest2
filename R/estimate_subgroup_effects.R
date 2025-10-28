@@ -16,13 +16,13 @@
 #'     both scenarios.
 #'   \item Calculates the treatment effect (e.g., difference or ratio) for each
 #'     subject and posterior draw.
-#'   \item Averages these individual-level effects *within* each subgroup to
+#'   \item Averages these individual-level effects within each subgroup to
 #'     produce the final marginal subgroup estimates.
 #' }
 #'
 #' @param brms_fit A fitted `brmsfit` object from `fit_brms_model()` or
 #'   `run_brms_analysis()`.
-#' @param original_data A `data.frame` containing the *original* data *before*
+#' @param original_data A `data.frame` containing the original data before
 #'   it was processed by `prepare_formula_model()`. This is essential for
 #'   correctly identifying the original subgroup factor levels.
 #' @param trt_var A character string specifying the name of the treatment variable.
@@ -80,7 +80,7 @@
 #'   )
 #'
 #'   # 3. Estimate subgroup effects
-#'   # Note: We pass the *original* `sim_data`, not the processed model data.
+#'   # Note: We pass the original `sim_data`, not the processed model data.
 #'   effects <- estimate_subgroup_effects(
 #'     brms_fit = full_fit,
 #'     original_data = sim_data,
@@ -187,7 +187,7 @@ estimate_subgroup_effects <- function(brms_fit,
 #' for an "Overall" marginal effect calculation by adding an "Overall" column.
 #'
 #' @param brms_fit The fitted `brmsfit` object.
-#' @param original_data The *original* user-supplied data.frame.
+#' @param original_data The original user-supplied data.frame.
 #' @param trt_var The character string name of the treatment variable.
 #' @param subgroup_vars The user's input: `NULL`, `"auto"`, or a character
 #'   vector of subgroup variable names.
@@ -248,9 +248,9 @@ estimate_subgroup_effects <- function(brms_fit,
 #'
 #' @description
 #' This function is crucial for marginal effect estimation.
-#' 1.  **Control Dataset:** Sets the treatment variable to 0 and all related
+#' 1.  Control Dataset: Sets the treatment variable to 0 and all related
 #'     interaction dummy columns to 0.
-#' 2.  **Treatment Dataset:** Sets the treatment variable to 1. Critically, it
+#' 2.  Treatment Dataset: Sets the treatment variable to 1. Critically, it
 #'     then reconstructs the dummy interaction columns (e.g.,
 #'     `subgroup_S1_x_trt`). It uses the `original_data` (which contains the
 #'     original factors) to determine which dummy should be 1, based on the
@@ -258,7 +258,7 @@ estimate_subgroup_effects <- function(brms_fit,
 #'
 #' @param model_data The data.frame from the `brms_fit` object (`brms_fit$data`).
 #'   This data has the dummy interaction columns.
-#' @param original_data The *original* data.frame, which contains the
+#' @param original_data The original data.frame, which contains the
 #'   categorical subgroup variables (e.g., `subgroup` as a factor).
 #' @param trt_var The character string name of the treatment variable.
 #'
@@ -326,27 +326,27 @@ estimate_subgroup_effects <- function(brms_fit,
 #'
 #' This is the core prediction engine for marginal effects. It handles two
 #' distinct model types:
-#' 1.  **Non-survival models:** Calls `brms::posterior_epred` on the
+#' 1.  Non-survival models: Calls `brms::posterior_epred` on the
 #'     combined control and treatment datasets.
-#' 2.  **Survival models:** This is more complex. It calls
+#' 2.  Survival models: This is more complex. It calls
 #'     `brms::posterior_linpred` to get the linear predictor (`lp`),
-#'     and *manually reconstructs* the cumulative baseline hazard (`H0`)
+#'     and manually reconstructs the cumulative baseline hazard (`H0`)
 #'     from the model's spline parameters (`sbhaz`).
 #'
 #' @param brms_fit The fitted `brmsfit` object.
 #' @param data_control The counterfactual "all control" dataset.
 #' @param data_treatment The counterfactual "all treatment" dataset.
 #' @param response_type The outcome type ("survival", "continuous", etc.).
-#' @param original_data The *original* data, used for survival models to get
+#' @param original_data The original data, used for survival models to get
 #'   event times and stratification levels.
 #' @param ndraws An integer for the number of posterior draws, or `NULL`
 #'   to use all draws.
 #'
 #' @return A list. The contents depend on `response_type`:
 #' \itemize{
-#'   \item For **non-survival**: `list(pred_control, pred_treatment)` where
+#'   \item For non-survival: `list(pred_control, pred_treatment)` where
 #'     each is a [draws x observations] matrix from `posterior_epred`.
-#'   \item For **survival**: `list(H0_posterior, linpred_control,
+#'   \item For survival: `list(H0_posterior, linpred_control,
 #'     linpred_treatment, strat_var, original_data)`. `H0_posterior`
 #'     is a list of [draws x times] matrices (one per stratum), and the
 #'     `linpred` objects are [draws x observations] matrices.
@@ -500,7 +500,7 @@ estimate_subgroup_effects <- function(brms_fit,
 #' 2.  For each variable, it loops through all its `levels`.
 #' 3.  It finds all subjects (`subgroup_indices`) belonging to that level.
 #' 4.  For non-survival models, it takes the `rowMeans` of predictions for
-#'     those subjects to get a *marginal* posterior outcome for control and
+#'     those subjects to get a marginal posterior outcome for control and
 #'     treatment, then computes the effect (e.g., difference, log-odds ratio, rate ratio).
 #' 5.  For survival models, it passes the indices to
 #'     `.calculate_survival_ahr_draws` to get the marginal effect draws.
@@ -746,10 +746,10 @@ estimate_subgroup_effects <- function(brms_fit,
 #' This function implements the survival calculation at the core of the AHR estimation.
 #' It uses two different methods depending on stratification:
 #'
-#' 1.  **Non-stratified:** It computes S(t) using the "average hazard" method:
+#' 1.  Non-stratified: It computes S(t) using the "average hazard" method:
 #'     $S(t|\text{draw}) = \exp(-H_0(t|\text{draw}) \times \text{mean}(\exp(\eta_{\text{subgroup}}|\text{draw})))$
 #'
-#' 2.  **Stratified:** It calculates the *individual* survival curve for each
+#' 2.  Stratified: It calculates the individual survival curve for each
 #'     subject in the subgroup, using their specific stratum's baseline hazard:
 #'     $S_i(t) = \exp(-H_{0, \text{stratum}_i}(t|\text{draw}) \times \exp(\eta_i|\text{draw}))$
 #'     It then computes the marginal survival by averaging these individual curves:
@@ -761,7 +761,7 @@ estimate_subgroup_effects <- function(brms_fit,
 #' @param sub_indices A numeric vector of row indices for the current subgroup.
 #' @param strat_variable The character string name of the stratification variable,
 #'   or `NULL`.
-#' @param full_data The *original* data.frame, used to map subjects in
+#' @param full_data The original data.frame, used to map subjects in
 #'   `sub_indices` to their stratum.
 #'
 #' @return A [draws x times] matrix, where each row is the marginal survival
