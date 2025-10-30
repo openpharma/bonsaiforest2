@@ -25,8 +25,8 @@ fit_brms_model(
 \item{predictive_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
 containing the priors for predictive effects.}
 
-\item{prognostic_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
-containing the priors for prognostic effects.}
+\item{prognostic_effect_priors}{A named list with elements `shrunk`, `unshrunk`,
+and/or `intercept` containing the priors for prognostic effects.}
 
 \item{stanvars}{An object created by `brms::stanvar()` to add custom Stan code.}
 
@@ -45,7 +45,7 @@ components of the model.
 
 Priors for prognostic and predictive effects should be provided as named lists.
 This makes the code explicit and prevents errors. For example:
-`prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)")`.
+`prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)", intercept = "normal(0, 10)")`.
 The function accepts prior definitions as character strings (e.g., `"normal(0, 1)"`)
 or as full `brmsprior` objects, which is useful for defining complex
 hierarchical or parameter-specific priors.
@@ -87,12 +87,13 @@ if (require("brms") && require("survival")) {
     formula = prepared_model$formula,
     data = prepared_model$data,
     response_type = "survival",
-    prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)"),
+    # Note: intercept prior is not needed for survival models
+    prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 2)"),
     predictive_effect_priors = list(shrunk = "horseshoe(1)"),
     chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
   )
 
   print(fit)
-  }
+ }
 }
 }

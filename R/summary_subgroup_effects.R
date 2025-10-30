@@ -260,7 +260,7 @@ plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
     geom_vline(xintercept = null_effect_line, linetype = "dashed", color = "grey50") +
 
     # 2. (EXISTING) The error bars
-    geom_errorbarh(aes(xmin = .data$CI_Lower, xmax = .data$CI_Upper), height = 0.2, color = "black") +
+    geom_errorbar(aes(xmin = .data$CI_Lower, xmax = .data$CI_Upper), height = 0.2, color = "black", orientation = "y") +
 
     # 3. (ADDED) The point estimate (the missing dot)
     geom_point(shape = 22, size = 3, fill = "black", color = "black") +

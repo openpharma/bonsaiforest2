@@ -47,7 +47,7 @@ variable, e.g., "~ strata_var".}
 containing the priors for predictive effects. Can be strings or `brmsprior` objects.
 E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)")`.}
 
-\item{prognostic_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
+\item{prognostic_effect_priors}{A named list with elements `shrunk`, `unshrunk` and/or `intercept`
 containing the priors for prognostic effects.
 E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 10)")`.}
 

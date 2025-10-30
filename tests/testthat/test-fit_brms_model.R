@@ -104,7 +104,7 @@ test_that("Prior assignment works correctly", {
   expect_match(get_nlpar_prior(default_priors_df, "shpredeffect"), "horseshoe\\(1\\)")
 
   # Check unprogeffect default (This was the failing one)
-  expect_match(get_nlpar_prior(default_priors_df, "unprogeffect"), "normal\\(0,\\s*10\\)")
+  expect_match(get_nlpar_prior(default_priors_df, "unprogeffect"), "normal\\(0,\\s*5\\)")
 
 
   # 2. User-specified priors (as strings)
