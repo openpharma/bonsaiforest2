@@ -35,8 +35,6 @@
 #'   (e.g., risk difference, rate ratio).
 #' @param ndraws An integer specifying the number of posterior draws to use.
 #'   If `NULL` (default), all available draws are used.
-#' @param parallel Logical. If `TRUE`, parallel processing is enabled via the
-#'   `future` package (especially recommended for "survival" models).
 #'
 #' @return
 #' A `data.frame` (tibble) where each row corresponds to a subgroup
@@ -86,8 +84,7 @@
 #'     original_data = sim_data,
 #'     trt_var = "trt",
 #'     subgroup_vars = c("subgroup", "region"),
-#'     response_type = "survival",
-#'     parallel = FALSE
+#'     response_type = "survival"
 #'   )
 #'
 #'   print(effects)
@@ -98,8 +95,7 @@ estimate_subgroup_effects <- function(brms_fit,
                                       trt_var,
                                       subgroup_vars = "auto",
                                       response_type = c("continuous", "binary", "count", "survival"),
-                                      ndraws = NULL,
-                                      parallel = TRUE) {
+                                      ndraws = NULL) {
 
   # --- 1. Validate inputs and determine which subgroups to analyze ---
   checkmate::assert_class(brms_fit, "brmsfit")
@@ -126,7 +122,6 @@ estimate_subgroup_effects <- function(brms_fit,
   )
 
   checkmate::assert_count(ndraws, null.ok = TRUE, positive = TRUE)
-  checkmate::assert_logical(parallel, len = 1)
 
   prep <- .prepare_subgroup_vars(
     brms_fit = brms_fit,
@@ -135,11 +130,7 @@ estimate_subgroup_effects <- function(brms_fit,
     subgroup_vars = subgroup_vars
   )
 
-  # Set up parallel processing if requested
-  if (parallel && response_type == "survival") {
-    future::plan(future::multisession, workers = min(4, parallel::detectCores() - 1))
-    on.exit(future::plan(future::sequential), add = TRUE)
-  }
+
 
   # --- 2. Create counterfactual datasets for "all treated" vs "all control" ---
   message("Step 1: Creating counterfactual datasets...")
@@ -167,8 +158,7 @@ estimate_subgroup_effects <- function(brms_fit,
     original_data = prep$data,
     subgroup_vars = prep$subgroup_vars,
     is_overall = prep$is_overall,
-    response_type = response_type,
-    parallel = parallel
+    response_type = response_type
   )
 
   message("Done.")
@@ -504,7 +494,6 @@ estimate_subgroup_effects <- function(brms_fit,
 #'     treatment, then computes the effect (e.g., difference, log-odds ratio, rate ratio).
 #' 5.  For survival models, it passes the indices to
 #'     `.calculate_survival_ahr_draws` to get the marginal effect draws.
-#' 6.  It supports parallel processing via `future.apply` for the survival case.
 #'
 #' @param posterior_preds The list of posterior predictions from
 #'   `.get_posterior_predictions`. Its structure differs for survival vs.
@@ -514,8 +503,6 @@ estimate_subgroup_effects <- function(brms_fit,
 #' @param is_overall A logical flag. If TRUE, only one "Overall" group is computed.
 #' @param response_type The outcome type ("continuous", "binary", etc.). This
 #'   controls the effect measure (e.g., difference vs. ratio).
-#' @param parallel Logical. If TRUE, enables `future.apply` for parallel
-#'   processing of survival model subgroups.
 #'
 #' @return A named list with two elements:
 #' \item{estimates}{A `tibble` with one row per subgroup level, containing
@@ -525,14 +512,13 @@ estimate_subgroup_effects <- function(brms_fit,
 #'
 #' @noRd
 #'
-.calculate_and_summarize_effects <- function(posterior_preds, original_data, subgroup_vars, is_overall, response_type, parallel = TRUE) {
+.calculate_and_summarize_effects <- function(posterior_preds, original_data, subgroup_vars, is_overall, response_type) {
   # --- Assertions ---
   checkmate::assert_list(posterior_preds)
   checkmate::assert_data_frame(original_data)
   checkmate::assert_character(subgroup_vars, min.len = 1)
   checkmate::assert_logical(is_overall, len = 1)
   checkmate::assert_string(response_type)
-  checkmate::assert_logical(parallel, len = 1)
 
   all_results_list <- list()
   all_draws_list <- list()
@@ -563,45 +549,7 @@ estimate_subgroup_effects <- function(brms_fit,
 
     level_results_list <- list()
 
-    # OPTIMIZATION: Parallel processing for survival models with multiple subgroups
-    if (response_type == "survival" && parallel && length(subgroup_levels) > 1) {
 
-      level_results <- future.apply::future_lapply(subgroup_levels, function(level) {
-        subgroup_indices <- which(current_data_subgroups == level)
-
-        effect_draws <- .calculate_survival_ahr_draws(
-          linpred_control = posterior_preds$linpred_control,
-          linpred_treatment = posterior_preds$linpred_treatment,
-          H0_posterior_list = posterior_preds$H0_posterior,
-          indices = subgroup_indices,
-          strat_var = posterior_preds$strat_var,
-          original_data = posterior_preds$original_data
-        )
-
-        subgroup_name <- if (is_overall) "Overall" else paste0(current_subgroup_var, ": ", level)
-        point_estimate <- median(effect_draws, na.rm = TRUE)
-        ci <- quantile(effect_draws, probs = c(0.025, 0.975), na.rm = TRUE)
-
-        list(
-          draws = effect_draws,
-          result = tibble::tibble(
-            Subgroup = subgroup_name,
-            Median = point_estimate,
-            CI_Lower = ci[1],
-            CI_Upper = ci[2]
-          )
-        )
-      }, future.seed = TRUE)
-
-      # Extract results and draws
-      for (i in seq_along(subgroup_levels)) {
-        level <- subgroup_levels[i]
-        subgroup_name <- if (is_overall) "Overall" else paste0(current_subgroup_var, ": ", level)
-        all_draws_list[[subgroup_name]] <- level_results[[i]]$draws
-        level_results_list[[level]] <- level_results[[i]]$result
-      }
-
-    } else {
       # Sequential processing for non-survival or single subgroup
       for (level in subgroup_levels) {
         subgroup_indices <- which(current_data_subgroups == level)
@@ -651,7 +599,7 @@ estimate_subgroup_effects <- function(brms_fit,
           CI_Lower = ci[1],
           CI_Upper = ci[2]
         )
-      }
+
     }
 
     all_results_list[[current_subgroup_var]] <- dplyr::bind_rows(level_results_list)

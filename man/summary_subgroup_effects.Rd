@@ -25,7 +25,7 @@ processing by `prepare_formula_model`).}
 
 \item{subgroup_vars}{A character vector of subgrouping variable names.
 Defaults to "auto", which detects subgroups from the model. Set to `NULL`
-to get *only* the overall effect.}
+to get only the overall effect.}
 }
 \value{
 An object of class `subgroup_summary`, which is a list containing:

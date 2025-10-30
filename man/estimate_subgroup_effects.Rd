@@ -10,15 +10,14 @@ estimate_subgroup_effects(
   trt_var,
   subgroup_vars = "auto",
   response_type = c("continuous", "binary", "count", "survival"),
-  ndraws = NULL,
-  parallel = TRUE
+  ndraws = NULL
 )
 }
 \arguments{
 \item{brms_fit}{A fitted `brmsfit` object from `fit_brms_model()` or
 `run_brms_analysis()`.}
 
-\item{original_data}{A `data.frame` containing the *original* data *before*
+\item{original_data}{A `data.frame` containing the original data before
 it was processed by `prepare_formula_model()`. This is essential for
 correctly identifying the original subgroup factor levels.}
 
@@ -35,9 +34,6 @@ interaction terms.}
 
 \item{ndraws}{An integer specifying the number of posterior draws to use.
 If `NULL` (default), all available draws are used.}
-
-\item{parallel}{Logical. If `TRUE`, parallel processing is enabled via the
-`future` package (especially recommended for "survival" models).}
 }
 \value{
 A `data.frame` (tibble) where each row corresponds to a subgroup
@@ -57,7 +53,7 @@ The estimation follows these steps:
     both scenarios.
   \item Calculates the treatment effect (e.g., difference or ratio) for each
     subject and posterior draw.
-  \item Averages these individual-level effects *within* each subgroup to
+  \item Averages these individual-level effects within each subgroup to
     produce the final marginal subgroup estimates.
 }
 }
@@ -95,14 +91,13 @@ if (require("brms") && require("survival")) {
   )
 
   # 3. Estimate subgroup effects
-  # Note: We pass the *original* `sim_data`, not the processed model data.
+  # Note: We pass the original `sim_data`, not the processed model data.
   effects <- estimate_subgroup_effects(
     brms_fit = full_fit,
     original_data = sim_data,
     trt_var = "trt",
     subgroup_vars = c("subgroup", "region"),
-    response_type = "survival",
-    parallel = FALSE
+    response_type = "survival"
   )
 
   print(effects)

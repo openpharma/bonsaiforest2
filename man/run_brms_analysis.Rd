@@ -43,11 +43,11 @@ E.g., "~ trt:subgroup1".}
 \item{stratification_formula_str}{A formula string specifying a stratification
 variable, e.g., "~ strata_var".}
 
-\item{predictive_effect_priors}{A **named list** with elements `shrunk` and/or `unshrunk`
+\item{predictive_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
 containing the priors for predictive effects. Can be strings or `brmsprior` objects.
 E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)")`.}
 
-\item{prognostic_effect_priors}{A **named list** with elements `shrunk` and/or `unshrunk`
+\item{prognostic_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
 containing the priors for prognostic effects.
 E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 10)")`.}
 

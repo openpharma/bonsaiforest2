@@ -89,7 +89,7 @@ robust method for calculating spline knots to ensure stability:
     the range of unique event times and adding a small buffer. This creates a
     "safe" interval for placing internal knots.
   \item \strong{Internal Knot Placement:} It calculates internal knots using
-    quantiles of the event times that fall strictly *within* the boundary knots.
+    quantiles of the event times that fall strictly within the boundary knots.
     This prevents knots from being placed at the exact edges of the data, which
     can cause numerical instability.
   \item \strong{Fallback for Sparse Data:} If there are too few unique event

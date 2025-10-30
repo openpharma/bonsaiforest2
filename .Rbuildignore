@@ -8,3 +8,4 @@ TODO
 ^doc$
 ^Meta$
 ^README\.Rmd$
+^\.gitlab-ci\.yml$

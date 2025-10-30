@@ -39,8 +39,7 @@ test_that("Basic functionality works (overall and specific subgroups)", {
     original_data = original_test_data,
     trt_var = "trt",
     subgroup_vars = NULL, # Explicitly request overall
-    response_type = "continuous",
-    parallel = FALSE # Avoid parallel overhead in tests
+    response_type = "continuous"
   )
 
   expect_s3_class(res_overall$estimates, "tbl_df")
@@ -58,8 +57,7 @@ test_that("Basic functionality works (overall and specific subgroups)", {
     original_data = original_test_data,
     trt_var = "trt",
     subgroup_vars = c("region", "sex"), # Request specific subgroups
-    response_type = "continuous",
-    parallel = FALSE
+    response_type = "continuous"
   )
 
   expect_equal(nrow(res_specific$estimates), 5) # 3 region levels + 2 sex levels
@@ -77,8 +75,7 @@ test_that("'auto' subgroup detection works", {
     original_data = original_test_data,
     trt_var = "trt",
     subgroup_vars = "auto", # Use auto-detection
-    response_type = "continuous",
-    parallel = FALSE
+    response_type = "continuous"
   )
 
   # Should detect 'region' and 'sex' from the interaction terms in minimal_brms_fit$data
@@ -98,8 +95,7 @@ test_that("ndraws argument works", {
     trt_var = "trt",
     subgroup_vars = "sex",
     response_type = "continuous",
-    ndraws = NULL, # Use all draws (which is iter - warmup = 5 in this case)
-    parallel = FALSE
+    ndraws = NULL
   )
   expect_equal(nrow(res_full$draws), 5) # Check based on iter/warmup
 
@@ -110,8 +106,7 @@ test_that("ndraws argument works", {
     trt_var = "trt",
     subgroup_vars = "sex",
     response_type = "continuous",
-    ndraws = 3, # Request fewer draws
-    parallel = FALSE
+    ndraws = 3
   )
   expect_equal(nrow(res_subset$draws), 3) # Check if subsetting worked
 })
@@ -160,9 +155,5 @@ test_that("Assertions catch invalid inputs", {
     estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = original_test_data, trt_var = "trt", response_type = "continuous", ndraws = 0),
     regexp = "Must be >= 1" # <-- Update this pattern
   )
-  # Invalid parallel
-  expect_error(
-    estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = original_test_data, trt_var = "trt", response_type = "continuous", parallel = "yes"),
-    regexp = "Must be of type 'logical'"
-  )
+
 })
