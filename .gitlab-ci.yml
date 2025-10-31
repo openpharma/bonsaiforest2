@@ -1,2 +1,6 @@
 include:
   - component: $CI_SERVER_FQDN/roche-r/gitlab-ci/r@main
+
+.r-environment:
+  variables:
+    R_REPOS: 'c(cmdstanr = "https://stan-dev.r-universe.dev", CRAN = "https://cloud.r-project.org")'

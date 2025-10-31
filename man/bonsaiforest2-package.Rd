@@ -13,7 +13,7 @@ More about what it does (maybe more than one line). Continuation lines should be
 
 Authors:
 \itemize{
-  \item Isaac Gravestock \email{john@example.com}
+  \item Isaac Gravestock \email{isaac.gravestock@roche.com}
 }
 
 }
