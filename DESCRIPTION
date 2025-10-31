@@ -10,7 +10,7 @@ Authors@R: c(
     ), 
     person(
       "Isaac", "Gravestock", 
-      email = "john@example.com", 
+      email = "isaac.gravestock@roche.com", 
       role = "aut"
     )   
   )
@@ -38,6 +38,9 @@ RoxygenNote: 7.3.3
 Suggests: 
     knitr,
     rmarkdown,
+    cmdstanr,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
+Additional_repositories: 'https://stan-dev.r-universe.dev'
+

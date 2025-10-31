@@ -242,7 +242,7 @@ plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
     ) %>%
     arrange(.data$sort_group, .data$Subgroup) %>%
     # Create the y-axis factor. The order is now correct. We reverse it so "Overall" is at the top of the plot.
-    mutate(y_axis_label = factor(.data$Subgroup, levels = rev(unique(.$Subgroup))))
+    mutate(y_axis_label = factor(.data$Subgroup, levels = rev(unique(.data$Subgroup))))
 
   # --- 3. Determine Plot Limits & Table Positions ---
   min_ci <- min(plot_data$CI_Lower, na.rm = TRUE)
