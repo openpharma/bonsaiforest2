@@ -65,9 +65,9 @@ This is your main workhorse function for setting up and fitting the model. You p
 -   `response_formula_str`: Defines the outcome and main treatment effect (e.g., `"outcome ~ trt"`).
 -   `response_type`: `"continuous"`, `"binary"`, `"count"`, or `"survival"`.
 -   `unshrunk_prognostic_formula_str`: Main effects (not treatment interactions) to estimate without strong shrinkage (e.g., `"~ age"`).
--   `shrunk_prognostic_formula_str`: Main effects to estimate *with* shrinkage.
--   `unshrunk_predictive_formula_str`: Treatment interactions to estimate *without* strong shrinkage (e.g., `"~ prespecified_marker:trt"`).
--   `shrunk_predictive_formula_str`: Treatment interactions to estimate *with* shrinkage (e.g., `"~ region:trt + sex:trt"`). Often used for exploratory subgroups.
+-   `shrunk_prognostic_formula_str`: Main effects to estimate with shrinkage.
+-   `unshrunk_predictive_formula_str`: Treatment interactions to estimate without strong shrinkage (e.g., `"~ prespecified_marker:trt"`).
+-   `shrunk_predictive_formula_str`: Treatment interactions to estimate with shrinkage (e.g., `"~ region:trt + sex:trt"`). Often used for exploratory subgroups.
 -   `prognostic_effect_priors`, `predictive_effect_priors`: Lists specifying priors for shrunk/unshrunk terms (see next section).
 -   `stanvars`: Optional object from `brms::stanvar()` for custom Stan code (e.g., for hierarchical priors).
 -   `...`: Other arguments passed directly to `brms::brm()` (like `chains`, `iter`, `cores`).

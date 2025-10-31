@@ -12,16 +12,16 @@ bibliography: references.bib
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  echo = FALSE # Generally hide code in technical doc unless illustrating a point
+  echo = FALSE 
 )
-library(bonsaiforest2) # Load package if needed for specific internal constants/examples
+library(bonsaiforest2) 
 ```
 
 ## Introduction
 
 This vignette details the statistical framework, notation, models, and prior specifications implemented within the `bonsaiforest2` package. It is intended for users seeking a deeper understanding of the underlying methodology used for Bayesian subgroup analysis.
 
-For a practical guide on how to *use* the package functions, please see the main user guide vignette: `vignette("using-bonsaiforest", package = "bonsaiforest2")`.
+For a practical guide on how to use the package functions, please see the main user guide vignette: `vignette("using-bonsaiforest", package = "bonsaiforest2")`.
 
 ## General Model Framework
 

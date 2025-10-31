@@ -254,11 +254,10 @@ fit_brms_model <- function(formula, data, response_type,
       prior = do.call(brms::set_prior, args),
       default_used = default_used
     ))
-    # --- END REVISION ---
   }
 
   if (inherits(prior_to_use, "brmsprior")) {
-    # --- THIS BLOCK IS ALSO REVISED ---
+
     msg <- paste("Re-targeting 'brmsprior' object for nlpar:", target_nlpar)
     if (!is.null(target_class)) msg <- paste(msg, "class:", target_class)
     if (!is.null(target_coef)) msg <- paste(msg, "coef:", target_coef)
