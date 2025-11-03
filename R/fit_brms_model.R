@@ -123,7 +123,7 @@ fit_brms_model <- function(formula, data, response_type,
     # Unshrunk Prognostic (Intercept)
     list(nlpar = "unprogeffect", class = "b", coef = "Intercept", # <-- CHANGED
          user_prior = prognostic_effect_priors$intercept,
-         default = "normal(0, 10)",
+         default = "normal(0, 5)",
          label = "prognostic intercept"),
 
     # Shrunk Predictive (b) - No intercept by definition
@@ -135,7 +135,7 @@ fit_brms_model <- function(formula, data, response_type,
     # Unshrunk Predictive (b) - No intercept by definition
     list(nlpar = "unpredeffect", class = "b", coef = NULL,
          user_prior = predictive_effect_priors$unshrunk,
-         default = "normal(0, 5)",
+         default = "normal(0, 10)",
          label = "unshrunk predictive (b)")
   )
 

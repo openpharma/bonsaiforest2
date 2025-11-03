@@ -61,9 +61,7 @@ The package primarily implements a global model structure [@wolbers2025using] wh
 
 $$
 g(\boldsymbol{\mu}) = \boldsymbol{\eta} = \mathbf{X_p}\boldsymbol{\beta_{1,p}} + \mathbf{X_n}\boldsymbol{\beta_{1,n}} + \mathbf{Z_p}\boldsymbol{\beta_{2,p}} + \mathbf{Z_n}\boldsymbol{\beta_{2,n}} + \mathbf{U}\boldsymbol{\beta_{3}}
-$$ 
-
-Where:
+$$ Where:
 
 -   $g(\cdot)$ is the link function.
 -   $\boldsymbol{\mu}$ is the vector of expected outcomes.
