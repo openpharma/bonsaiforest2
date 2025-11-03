@@ -104,129 +104,53 @@ plot(my_summary, title = "My Forest Plot", x_lab = "Effect Measure (e.g., AHR)")
 
 It automatically arranges the subgroups, adds reference lines, and formats the estimates with credible intervals.
 
-
-
 ## Specifying Priors
 
-You can control the priors used for the different model components via the `prognostic_effect_priors` and `predictive_effect_priors` arguments in `fit_brms_model`.
+You can control the priors used for the four different components (shrunk/unshrunk prognostic/predictive) via the `prognostic_effect_priors` and `predictive_effect_priors` arguments in `run_brms_analysis`. Each argument expects a **named list** like `list(shrunk = ..., unshrunk = ...)`.
 
-  * `predictive_effect_priors` expects a named list like `list(shrunk = ..., unshrunk = ...)`.
-  * `prognostic_effect_priors` expects a named list like `list(shrunk = ..., unshrunk = ..., intercept = ...)`.
-  
+-   **Default:** If you provide `NULL` (or omit the arguments), defaults are used: `horseshoe(1)` for shrunk effects and `normal(0, 10)` for unshrunk effects.
+-   **Simple Strings:** You can provide standard `brms` prior strings.
+-   **Advanced Priors:** You can use strings for advanced priors like `r2d2` or provide `brmsprior` objects (e.g., for custom hierarchical structures using `stanvars`).
 
-### Prior Formats
+For a detailed explanation of the statistical properties of different shrinkage priors (Horseshoe, R2D2) and how hyperparameters are chosen, see the 'Technical Details' vignette (`vignette('technical-details', package = 'bonsaiforest2')`).
 
-You can provide priors in several formats:
+Here are some examples:
 
-  * **`NULL` (Default):** If you provide `NULL` or omit an argument, the function's built-in defaults are used.
-  * **Simple Strings:** You can provide standard `brms` prior strings (e.g., `"normal(0, 1)"`).
-  * **Advanced Priors:** You can use strings for advanced priors like `"R2D2(mean_R2 = 0.5, prec_R2 = 1)"` or provide full `brmsprior` objects (e.g., for custom hierarchical structures using `stanvars`).
-
-
-### Default Priors
-
-If priors are not specified, the function applies the following defaults (as defined in the `fit_brms_model` code):
-
-  * **Prognostic Shrunk:** `horseshoe(1)`
-  * **Prognostic Unshrunk:** `normal(0, 5)`
-  * **Prognostic Intercept:** `normal(0, 10)`
-  * **Predictive Shrunk:** `horseshoe(1)`
-  * **Predictive Unshrunk:** `normal(0, 5)`
-
-**Note:** The intercept prior is *not* applied for `response_type = "survival"`, as Cox models do not have a global intercept.
-
-
-### Prior Recommendations for non-shrunk terms
-
-While the defaults are sensible, for continuous outcomes, we recommend setting weakly informative priors scaled to your data. A common approach is to base priors on the standard deviation (SD) of the outcome variable.
-
-For example, if you pre-calculate `my_sd <- sd(my_data$outcome)`:
-
-  * **Prognostic Intercept:** We recommend a wide prior, such as `normal(0, 10 * my_sd)`.
-  * **Prognostic Unshrunk:** We recommend a prior scaled to the outcome, such as `normal(0, my_sd)`.
-
-You can implement this as shown in **Example 3** below.
-
-For a detailed explanation of shrinkage priors (Horseshoe, R2D2), see the 'Technical Details' vignette (`vignette('technical-details', package = 'bonsaiforest2')`).
-
-
-Here are some examples of how to set priors:
-
-```{r}
-# Assume 'f' is a brmsformula and 'd' is a data.frame from prepare_formula_model
-
-# Example 1: Use default priors
-# (horseshoe for shrunk, normal(0, 5)/normal(0, 10) for unshrunk)
-fit <- fit_brms_model(
-  formula = f, data = d, ...,
+```{r prior-examples, eval=FALSE}
+# Example 1: Use default priors (horseshoe for shrunk, normal(0,10) for unshrunk)
+run_brms_analysis(
+  data = my_data, ...,
   predictive_effect_priors = NULL, # Or omit
   prognostic_effect_priors = NULL  # Or omit
 )
 
-# Example 2: Specify all priors using strings
-# This example clearly shows the new 'intercept' argument
-fit <- fit_brms_model(
-  formula = f, data = d, ...,
-  predictive_effect_priors = list(
-    shrunk = "student_t(3, 0, 2.5)",
-    unshrunk = "normal(0, 5)"
-  ),
-  prognostic_effect_priors = list(
-    shrunk = "lasso(1)",
-    unshrunk = "normal(0, 10)",
-    intercept = "student_t(3, 0, 10)" 
-  )
+# Example 2: Specify different priors using strings
+run_brms_analysis(
+  data = my_data, ...,
+  predictive_effect_priors = list(shrunk = "student_t(3, 0, 2.5)", unshrunk = "normal(0, 5)"),
+  prognostic_effect_priors = list(shrunk = "lasso(1)",            unshrunk = "normal(0, 10)")
 )
 
-# Example 3: Use recommended weakly informative priors (e.g., for continuous outcome)
-# 1. Pre-calculate the standard deviation of the outcome
-my_sd <- sd(d$my_outcome_variable) 
-
-# 2. Create prior strings based on the SD
-intercept_prior_str <- paste0("normal(0, ", round(10 * my_sd, 2), ")")
-unshrunk_prior_str  <- paste0("normal(0, ", round(my_sd, 2), ")")
-
-# 3. Pass these strings to the function
-fit <- fit_brms_model(
-  formula = f, data = d, ...,
-  prognostic_effect_priors = list(
-    shrunk = "horseshoe(1)",         # Keep shrinkage prior
-    unshrunk = unshrunk_prior_str,    # Use scaled prior
-    intercept = intercept_prior_str   # Use wide, scaled prior
-  )
-  # predictive_effect_priors will use defaults
-)
-
-
-# Example 4: Use R2D2 prior for shrunk predictive effects
+# Example 3: Use R2D2 prior for shrunk predictive effects
 r2d2_prior_string <- "R2D2(mean_R2 = 0.5, prec_R2 = 1)"
-fit <- fit_brms_model(
-  formula = f, data = d, ...,
-  predictive_effect_priors = list(shrunk = r2d2_prior_string)
-  # prognostic_effect_priors and unshrunk predictive will use defaults
+run_brms_analysis(
+  data = my_data, ...,
+  predictive_effect_priors = list(shrunk = r2d2_prior_string) # Only specify shrunk part
+  # Unshrunk part (if any) will use default or needs to be specified
 )
 
-# Example 5: Custom hierarchical prior using stanvars
-# This is an advanced use case for defining a new hyperparameter 'tau_pred'
-# and setting a prior on it, which is then shared by the shrunk predictive effects.
-
-# 1. Define the hyperparameter 'tau_pred' for the Stan code
-stanvars_pred <- stanvar(scode = "  real<lower=0> tau_pred;", block = "parameters")
-
-# 2. Define the prior object using Stan code snippets
-#    - Places a normal(0, tau_pred) prior on the b_shpredeffect vector
-#    - Places a half-normal(0, 1) prior on tau_pred itself
-hierarchical_prior_pred <-
-  set_prior("target += normal_lpdf(b_shpredeffect | 0, tau_pred)", check = FALSE) +
-  set_prior("target += normal_lpdf(tau_pred | 0, 1) - normal_lccdf(0 | 0, 1);", check = FALSE)
-
-# 3. Pass both objects to the function
-fit <- fit_brms_model(
-  formula = f, data = d, ...,
-  predictive_effect_priors = list(shrunk = hierarchical_prior_pred),
-  stanvars = stanvars_pred
-)
+# Example 4: Custom hierarchical prior (requires stanvars)
+# (See technical vignette or function documentation for full setup)
+# stanvars_pred <- stanvar(...)
+# hierarchical_prior <- set_prior(...) + set_prior(...)
+# run_brms_analysis(
+#   data = my_data, ...,
+#   predictive_effect_priors = list(shrunk = hierarchical_prior),
+#   stanvars = stanvars_pred
+# )
 ```
+
+------------------------------------------------------------------------
 
 ## Practical Examples
 
