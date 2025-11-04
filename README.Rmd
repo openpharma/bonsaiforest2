@@ -27,7 +27,7 @@ You can install the development version of `bonsaiforest2` from its GitLab repos
 
 ```{r, eval=FALSE}
 # install.packages("remotes") 
-remotes::install_gitlab("statistical-engineering/bonsaiforest2", host = "code.roche.com") 
+remotes::install_github("openpharma/bonsaiforest2")
 ```
 
 ## Example

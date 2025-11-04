@@ -20,7 +20,7 @@ GitLab repository:
 
 ``` r
 # install.packages("remotes") 
-remotes::install_gitlab("statistical-engineering/bonsaiforest2", host = "code.roche.com") 
+remotes::install_github("openpharma/bonsaiforest2")
 ```
 
 ## Example
@@ -73,6 +73,6 @@ plot(effect_summary) # Display plot
     #> # A tibble: 3 × 4
     #>   Subgroup  Median CI_Lower CI_Upper
     #>   <chr>      <dbl>    <dbl>    <dbl>
-    #> 1 Overall    0.399  -0.145     0.939
-    #> 2 region: A  0.440  -0.271     0.875
-    #> 3 region: B  0.544  -0.0111    1.48
+    #> 1 Overall    0.346  -0.0276    0.837
+    #> 2 region: A  0.260  -0.569     0.776
+    #> 3 region: B  0.457   0.0312    1.45
