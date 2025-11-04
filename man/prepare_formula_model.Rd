@@ -41,8 +41,9 @@ These are typically interactions with the treatment variable.}
 variable, e.g., "~ strata_var".}
 }
 \value{
-A list with `formula` (a `brmsformula` object) and `data` (the
-  modified data.frame).
+A list with three elements: `formula` (a `brmsformula` object),
+  `data` (the modified data.frame), and `response_type` (the
+  character string of the response type).
 }
 \description{
 This function serves as a powerful pre-processor for building complex Bayesian

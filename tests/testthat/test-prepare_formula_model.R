@@ -49,7 +49,8 @@ test_that("Basic functionality works (binary/continuous)", {
   # Check output structure
   expect_s3_class(res_bin$formula, "brmsformula")
   expect_s3_class(res_bin$data, "data.frame")
-  expect_named(res_bin, c("formula", "data"))
+  expect_named(res_bin, c("formula", "data", "response_type")) # <-- UPDATED
+  expect_equal(res_bin$response_type, "binary") # <-- NEW
 
   # Check data modifications
   expect_true(all(res_bin$data$trt %in% c(0, 1)))
@@ -65,6 +66,7 @@ test_that("Basic functionality works (binary/continuous)", {
     response_type = "continuous",
     shrunk_prognostic_formula_str = "~ age" # Put age in shrunk this time
   )
+  expect_equal(res_cont$response_type, "continuous")
   expect_equal(get_formula_rhs(res_cont$formula), c("shprogeffect", "unprogeffect"))
   expect_equal(get_formula_rhs(res_cont$formula, "unprogeffect"), "trt")
   expect_equal(get_formula_rhs(res_cont$formula, "shprogeffect"), "age")
@@ -81,11 +83,8 @@ test_that("Predictive terms (interactions) are processed correctly", {
   )
 
   # Check for new dummy columns in data
-  # Add this line for debugging:
-  print(names(res_int$data))
-
-  # Failing line (around 84):
   expect_true(all(c("subgroup1_S1_x_trt", "subgroup1_S2_x_trt") %in% names(res_int$data)))
+  expect_true(all(c("region_A_x_trt", "region_B_x_trt") %in% names(res_int$data)))
 
   # Check that dummy columns look correct (0 or 1)
   expect_true(all(res_int$data$subgroup1_S1_x_trt %in% c(0, 1)))
@@ -98,6 +97,9 @@ test_that("Predictive terms (interactions) are processed correctly", {
 
   # Check hierarchical integrity: main effects subgroup1 and region added to unprogeffect
   expect_equal(get_formula_rhs(res_int$formula, "unprogeffect"), c("region", "subgroup1", "trt"))
+
+  # Check returned response type
+  expect_equal(res_int$response_type, "continuous")
 })
 
 # --- Test Overlaps and Defaults ---
@@ -113,6 +115,8 @@ test_that("Term overlaps and defaults are handled", {
     ),
     regexp = "Prioritizing as unshrunk: age"
   )
+  expect_equal(res_overlap_prog$response_type, "continuous")
+
   # Check that 'age' ended up in unshrunk
   expect_equal(get_formula_rhs(res_overlap_prog$formula, "unprogeffect"), c("age", "region", "trt"))
   expect_equal(get_formula_rhs(res_overlap_prog$formula, "shprogeffect"), "subgroup1")
@@ -128,6 +132,8 @@ test_that("Term overlaps and defaults are handled", {
     ),
     regexp = "Prioritizing as shrunk: trt:region"
   )
+  expect_equal(res_overlap_pred$response_type, "continuous")
+
   # Check that 'trt:region' dummies ended up in shrunk
   expect_equal(get_formula_rhs(res_overlap_pred$formula, "shpredeffect"), c("region_A_x_trt", "region_B_x_trt", "subgroup2_X_x_trt", "subgroup2_Y_x_trt"))
   expect_equal(get_formula_rhs(res_overlap_pred$formula, "unpredeffect"), c("subgroup1_S1_x_trt", "subgroup1_S2_x_trt"))
@@ -151,6 +157,10 @@ test_that("Count models handle offset", {
     response_formula_str = "n_events + offset(log_days) ~ trt",
     response_type = "count"
   )
+  # Check output structure
+  expect_named(res_count, c("formula", "data", "response_type"))
+  expect_equal(res_count$response_type, "count")
+
   # Check that offset is included correctly in the main formula string
   main_form_str <- deparse(res_count$formula$formula)
   expect_true(grepl("n_events ~ unprogeffect \\+ log_days", main_form_str))
@@ -164,6 +174,7 @@ test_that("Stratification works for continuous and count", {
     response_type = "continuous",
     stratification_formula_str = "~ region"
   )
+  expect_equal(res_cont_strat$response_type, "continuous")
   expect_true("sigma" %in% names(res_cont_strat$formula$pforms))
   expect_true(grepl("sigma ~ region", deparse(res_cont_strat$formula$pforms$sigma)))
 
@@ -174,6 +185,7 @@ test_that("Stratification works for continuous and count", {
     response_type = "count",
     stratification_formula_str = "~ region"
   )
+  expect_equal(res_count_strat$response_type, "count")
   expect_true("shape" %in% names(res_count_strat$formula$pforms))
   expect_true(grepl("shape ~ region", deparse(res_count_strat$formula$pforms$shape)))
 })
@@ -185,6 +197,10 @@ test_that("Survival models work (basic, stratified, fallback)", {
     response_formula_str = "Surv(time, status) ~ trt",
     response_type = "survival"
   )
+  # Check output structure
+  expect_named(res_surv, c("formula", "data", "response_type"))
+  expect_equal(res_surv$response_type, "survival")
+
   main_form_str <- paste(deparse(res_surv$formula$formula), collapse = "")
   expect_true(grepl("time \\| cens\\(1 - status\\)", main_form_str))
   expect_true(grepl("\\+ bhaz\\(", main_form_str)) # bhaz term added
@@ -197,6 +213,8 @@ test_that("Survival models work (basic, stratified, fallback)", {
     response_type = "survival",
     stratification_formula_str = "~ region"
   )
+  expect_equal(res_surv_strat$response_type, "survival")
+
   main_form_str_strat <- paste(deparse(res_surv_strat$formula$formula), collapse = "")
   expect_true(grepl("\\+ bhaz\\(", main_form_str_strat))
   expect_true(grepl("gr = region", main_form_str_strat)) # Stratification added
@@ -212,6 +230,8 @@ test_that("Survival models work (basic, stratified, fallback)", {
     ),
     regexp = "Not enough unique event times to compute quantile knots"
   )
+  expect_equal(res_surv_sparse$response_type, "survival")
+
   # Check that it fell back to Cox model (no bhaz term)
   main_form_str_sparse <- deparse(res_surv_sparse$formula$formula)
   expect_false(grepl("\\+ bhaz\\(", main_form_str_sparse))
@@ -220,6 +240,9 @@ test_that("Survival models work (basic, stratified, fallback)", {
 
 # --- Test Error Conditions ---
 test_that("Assertions and error checks work", {
+  # This entire block tests for errors, so the function never returns.
+  # No changes are needed here.
+
   # Invalid response type
   expect_error(
     prepare_formula_model(test_data, "outcome ~ trt", response_type = "wrong"),
@@ -228,7 +251,7 @@ test_that("Assertions and error checks work", {
   # Formula string without ~
   expect_error(
     prepare_formula_model(test_data, "outcome", response_type = "continuous"),
-    regexp = "Must comply to pattern '~'" # <-- Update this pattern
+    regexp = "Must comply to pattern '~'"
   )
   # trt_var not in data
   expect_error(
@@ -243,11 +266,11 @@ test_that("Assertions and error checks work", {
   # Strat var not in data (continuous)
   expect_error(
     prepare_formula_model(test_data, "outcome ~ trt", response_type = "continuous", stratification_formula_str = "~ missing_var"),
-    regexp = "Must be a subset of" # <-- Update this pattern
+    regexp = "Must be a subset of"
   )
   # Survival formula doesn't start with Surv
   expect_error(
     prepare_formula_model(test_data, "time ~ trt", response_type = "survival"),
-    regexp = "Must comply to pattern" # <-- Update this pattern
+    regexp = "Must comply to pattern"
   )
 })

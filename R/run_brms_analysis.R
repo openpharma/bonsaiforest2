@@ -86,9 +86,9 @@ run_brms_analysis <- function(data,
                               unshrunk_predictive_formula_str = NULL,
                               shrunk_prognostic_formula_str = NULL,
                               stratification_formula_str = NULL,
-                              predictive_effect_priors = NULL,
-                              prognostic_effect_priors = NULL,
-                              stanvars = NULL, # <-- NEW ARGUMENT
+                              predictive_effect_priors = list(), # Use list() as default
+                              prognostic_effect_priors = list(), # Use list() as default
+                              stanvars = NULL,
                               ...) {
 
   # --- 1. Prepare the Formula and Data ---
@@ -106,15 +106,16 @@ run_brms_analysis <- function(data,
 
   # --- 2. Fit the Bayesian Model ---
   message("\nStep 2: Fitting the brms model...")
+
+  # --- THIS IS THE MODIFIED PART ---
   model_fit <- fit_brms_model(
-    formula = prepared_model$formula,
-    data = prepared_model$data,
-    response_type = response_type,
+    prepared_model = prepared_model, # Pass the entire list
     predictive_effect_priors = predictive_effect_priors,
     prognostic_effect_priors = prognostic_effect_priors,
-    stanvars = stanvars, # <-- PASSING IT DOWN
+    stanvars = stanvars,
     ...
   )
+  # --- END OF MODIFICATION ---
 
   # --- 3. Return the Final Model ---
   message("\nAnalysis complete.")

@@ -83,8 +83,9 @@
 #' @param stratification_formula_str A formula string specifying the stratification
 #'   variable, e.g., "~ strata_var".
 #'
-#' @return A list with `formula` (a `brmsformula` object) and `data` (the
-#'   modified data.frame).
+#' @return A list with three elements: `formula` (a `brmsformula` object),
+#'   `data` (the modified data.frame), and `response_type` (the
+#'   character string of the response type).
 #'
 #' @importFrom stringr str_squish str_split str_starts str_match str_trim str_remove str_detect str_replace_all
 #' @importFrom checkmate assert_data_frame assert_string assert_choice assert_subset assert_numeric assert_character
@@ -233,7 +234,7 @@ prepare_formula_model <- function(data,
   )
 
   # --- 7. Return Final List ---
-  return(list(formula = final_formula_obj, data = processed_data))
+  return(list(formula = final_formula_obj, data = processed_data,response_type=response_type ))
 }
 
 

@@ -153,20 +153,21 @@ For a detailed explanation of shrinkage priors (Horseshoe, R2D2), see the 'Techn
 Here are some examples of how to set priors:
 
 ```{r}
-# Assume 'f' is a brmsformula and 'd' is a data.frame from prepare_formula_model
+# Assume 'prep_model' is a list object returned from prepare_formula_model()
+# It contains prep_model$formula, prep_model$data, and prep_model$response_type
 
 # Example 1: Use default priors
 # (horseshoe for shrunk, normal(0, 5)/normal(0, 10) for unshrunk)
 fit <- fit_brms_model(
-  formula = f, data = d, ...,
+  prepared_model = prep_model, ...,
   predictive_effect_priors = NULL, # Or omit
   prognostic_effect_priors = NULL  # Or omit
 )
 
 # Example 2: Specify all priors using strings
-# This example clearly shows the new 'intercept' argument
+# This example clearly shows the 'intercept' argument
 fit <- fit_brms_model(
-  formula = f, data = d, ...,
+  prepared_model = prep_model, ...,
   predictive_effect_priors = list(
     shrunk = "student_t(3, 0, 2.5)",
     unshrunk = "normal(0, 5)"
@@ -179,8 +180,9 @@ fit <- fit_brms_model(
 )
 
 # Example 3: Use recommended weakly informative priors (e.g., for continuous outcome)
-# 1. Pre-calculate the standard deviation of the outcome
-my_sd <- sd(d$my_outcome_variable) 
+# 1. Pre-calculate the standard deviation of the outcome from the prepared data
+#    (Assuming the outcome variable column is named 'my_outcome_variable')
+my_sd <- sd(prep_model$data$my_outcome_variable) 
 
 # 2. Create prior strings based on the SD
 intercept_prior_str <- paste0("normal(0, ", round(10 * my_sd, 2), ")")
@@ -188,9 +190,9 @@ unshrunk_prior_str  <- paste0("normal(0, ", round(my_sd, 2), ")")
 
 # 3. Pass these strings to the function
 fit <- fit_brms_model(
-  formula = f, data = d, ...,
+  prepared_model = prep_model, ...,
   prognostic_effect_priors = list(
-    shrunk = "horseshoe(1)",         # Keep shrinkage prior
+    shrunk = "horseshoe(1)",       # Keep shrinkage prior
     unshrunk = unshrunk_prior_str,    # Use scaled prior
     intercept = intercept_prior_str   # Use wide, scaled prior
   )
@@ -201,7 +203,7 @@ fit <- fit_brms_model(
 # Example 4: Use R2D2 prior for shrunk predictive effects
 r2d2_prior_string <- "R2D2(mean_R2 = 0.5, prec_R2 = 1)"
 fit <- fit_brms_model(
-  formula = f, data = d, ...,
+  prepared_model = prep_model, ...,
   predictive_effect_priors = list(shrunk = r2d2_prior_string)
   # prognostic_effect_priors and unshrunk predictive will use defaults
 )
@@ -222,7 +224,7 @@ hierarchical_prior_pred <-
 
 # 3. Pass both objects to the function
 fit <- fit_brms_model(
-  formula = f, data = d, ...,
+  prepared_model = prep_model, ...,
   predictive_effect_priors = list(shrunk = hierarchical_prior_pred),
   stanvars = stanvars_pred
 )

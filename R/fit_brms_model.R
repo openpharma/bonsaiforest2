@@ -13,10 +13,8 @@
 #' or as full `brmsprior` objects, which is useful for defining complex
 #' hierarchical or parameter-specific priors.
 #'
-#' @param formula A `brmsformula` object from `prepare_formula_model`.
-#' @param data A data.frame from `prepare_formula_model`.
-#' @param response_type The type of the outcome variable. One of "binary", "count",
-#'   "continuous", or "survival".
+#' @param prepared_model A list object returned from `prepare_formula_model()`.
+#'   It must contain the elements `formula`, `data`, and `response_type`.
 #' @param predictive_effect_priors A named list with elements `shrunk` and/or `unshrunk`
 #'   containing the priors for predictive effects.
 #' @param prognostic_effect_priors A named list with elements `shrunk`, `unshrunk`,
@@ -59,13 +57,9 @@
 #'   )
 #'
 #'   # 3. Fit the model
-#'   # We use \donttest{} because fitting a model can be slow
-#'   # and is not suitable for automated CRAN checks.
 #'   \donttest{
 #'   fit <- fit_brms_model(
-#'     formula = prepared_model$formula,
-#'     data = prepared_model$data,
-#'     response_type = "survival",
+#'     prepared_model = prepared_model,
 #'     # Note: intercept prior is not needed for survival models
 #'     prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 2)"),
 #'     predictive_effect_priors = list(shrunk = "horseshoe(1)"),
@@ -75,21 +69,37 @@
 #'   print(fit)
 #'  }
 #' }
-fit_brms_model <- function(formula, data, response_type,
+fit_brms_model <- function(prepared_model,
                            predictive_effect_priors = list(),
                            prognostic_effect_priors = list(),
                            stanvars = NULL,
                            ...) {
 
-  # --- 1. Argument Validation (with checkmate) ---
-  checkmate::assert_class(formula, "brmsformula")
-  checkmate::assert_data_frame(data, min.rows = 1)
-  checkmate::assert_choice(response_type,
-                           choices = c("binary", "count", "continuous", "survival")
+  # --- 1. Argument Validation (Validate-First) ---
+
+  # 1a. Validate the container and its structure
+  checkmate::assert_list(prepared_model, names = "named", .var.name = "prepared_model")
+  checkmate::assert_names(
+    names(prepared_model),
+    must.include = c("formula", "data", "response_type"),
+    .var.name = "prepared_model"
+  )
+
+  # 1b. Validate the contents of the container
+  checkmate::assert_class(prepared_model$formula, "brmsformula")
+  checkmate::assert_data_frame(prepared_model$data, min.rows = 1)
+  checkmate::assert_choice(
+    prepared_model$response_type,
+    choices = c("binary", "count", "continuous", "survival")
   )
   checkmate::assert_list(predictive_effect_priors, names = "named", null.ok = TRUE)
   checkmate::assert_list(prognostic_effect_priors, names = "named", null.ok = TRUE)
   checkmate::assert_class(stanvars, "stanvars", null.ok = TRUE)
+
+  # --- Unpack  ---
+  formula <- prepared_model$formula
+  data <- prepared_model$data
+  response_type <- prepared_model$response_type
 
   # --- 2. Determine brms Family ---
   model_family <- switch(

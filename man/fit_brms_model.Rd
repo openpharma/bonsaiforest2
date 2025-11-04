@@ -5,9 +5,7 @@
 \title{Fit a Bayesian Hierarchical Model using brms}
 \usage{
 fit_brms_model(
-  formula,
-  data,
-  response_type,
+  prepared_model,
   predictive_effect_priors = list(),
   prognostic_effect_priors = list(),
   stanvars = NULL,
@@ -15,12 +13,8 @@ fit_brms_model(
 )
 }
 \arguments{
-\item{formula}{A `brmsformula` object from `prepare_formula_model`.}
-
-\item{data}{A data.frame from `prepare_formula_model`.}
-
-\item{response_type}{The type of the outcome variable. One of "binary", "count",
-"continuous", or "survival".}
+\item{prepared_model}{A list object returned from `prepare_formula_model()`.
+It must contain the elements `formula`, `data`, and `response_type`.}
 
 \item{predictive_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
 containing the priors for predictive effects.}
@@ -80,13 +74,9 @@ if (require("brms") && require("survival")) {
   )
 
   # 3. Fit the model
-  # We use \donttest{} because fitting a model can be slow
-  # and is not suitable for automated CRAN checks.
   \donttest{
   fit <- fit_brms_model(
-    formula = prepared_model$formula,
-    data = prepared_model$data,
-    response_type = "survival",
+    prepared_model = prepared_model,
     # Note: intercept prior is not needed for survival models
     prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 2)"),
     predictive_effect_priors = list(shrunk = "horseshoe(1)"),

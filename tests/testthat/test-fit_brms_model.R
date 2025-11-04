@@ -3,9 +3,6 @@
 # --- Setup: Prepare sample data and formula ---
 # (We need this setup before the tests run)
 
-# Load brms explicitly for helper functions if needed in tests
-# library(brms)
-
 # Sample data
 test_data_fit <- data.frame(
   outcome = rnorm(20),
@@ -16,9 +13,10 @@ test_data_fit <- data.frame(
   region = factor(sample(c("A", "B"), 20, replace = TRUE))
 )
 # Ensure trt is factor initially for prepare_formula_model
-test_data_fit$trt <- factor(test_data_fit$trt, levels=c(0, 1))
+test_data_fit$trt <- factor(test_data_fit$trt, levels = c(0, 1))
 
 # Prepare a basic formula object (continuous)
+# This now correctly returns a list with formula, data, and response_type
 prep_cont <- prepare_formula_model(
   data = test_data_fit,
   response_formula_str = "outcome ~ trt",
@@ -27,7 +25,7 @@ prep_cont <- prepare_formula_model(
   shrunk_predictive_formula_str = "~ trt:region"
 )
 
-# Prepare a basic formula object (survival) - needed for some prior tests
+# Prepare a basic formula object (survival)
 prep_surv <- prepare_formula_model(
   data = test_data_fit,
   response_formula_str = "Surv(time, status) ~ trt",
@@ -37,13 +35,14 @@ prep_surv <- prepare_formula_model(
 
 
 # --- Helper to run minimal brms models ---
+# This helper is perfect as-is, it passes `...` to fit_brms_model
 run_quick_brm <- function(...) {
   # Suppress messages and use minimal settings for speed
   suppressMessages(
-    fit_brms_model(..., chains = 1, iter = 10, warmup = 5, refresh = 0,
+    fit_brms_model(..., chains = 1, iter = 1000, warmup = 50, refresh = 0,
                    # Use a minimal backend if available (or keep default)
                    backend = "cmdstanr", # Faster startup usually
-                   cores=1)
+                   cores = 1)
   )
 }
 
@@ -52,17 +51,14 @@ run_quick_brm <- function(...) {
 test_that("Basic model fitting works for different response types", {
   # Test continuous model
   fit_cont <- run_quick_brm(
-    formula = prep_cont$formula,
-    data = prep_cont$data,
-    response_type = "continuous"
+    prepared_model = prep_cont
   )
   expect_s3_class(fit_cont, "brmsfit")
 
   # Test survival model
+
   fit_surv <- run_quick_brm(
-    formula = prep_surv$formula,
-    data = prep_surv$data,
-    response_type = "survival"
+    prepared_model = prep_surv
   )
   expect_s3_class(fit_surv, "brmsfit")
 
@@ -72,28 +68,24 @@ test_that("Basic model fitting works for different response types", {
 test_that("Prior assignment works correctly", {
   # 1. Default priors (empty lists passed)
   fit_default <- run_quick_brm(
-    formula = prep_cont$formula,
-    data = prep_cont$data,
-    response_type = "continuous",
+    prepared_model = prep_cont,
     predictive_effect_priors = list(), # Explicitly empty
     prognostic_effect_priors = list()  # Explicitly empty
   )
   expect_s3_class(fit_default, "brmsfit")
 
-  # --- Revised Prior Check using the prior data frame ---
-  default_priors_df <- as.data.frame(fit_default$prior) # Get priors as a data frame
+  default_priors_df <- as.data.frame(fit_default$prior)
 
-  # Function to get prior for a specific nlpar (REVISED)
+  # Helper function (no change needed)
   get_nlpar_prior <- function(df, nlpar_name) {
-    # Explicitly find rows matching the nlpar
-    rows <- which(df$nlpar == nlpar_name)
-    # If no rows found, return NA
-    if(length(rows) == 0) return(NA_character_)
-    # Get the prior value from the *first* matching row
+    rows <- which(df$nlpar == nlpar_name & df$class == "b" & df$coef == "")
+    if (nlpar_name == "unprogeffect") {
+      # Need to find the non-intercept 'b' prior
+      rows <- which(df$nlpar == "unprogeffect" & df$class == "b" & df$coef == "")
+    }
+    if (length(rows) == 0) return(NA_character_)
     prior_val <- df[rows[1], "prior"]
-    # Now prior_val is guaranteed to be length 1 (or NA if the cell was empty)
-    # Check if the single value is NA or empty string
-    if(is.na(prior_val) || prior_val == "") return(NA_character_)
+    if (is.na(prior_val) || prior_val == "") return(NA_character_)
     return(prior_val)
   }
 
@@ -103,15 +95,13 @@ test_that("Prior assignment works correctly", {
   # Check shpredeffect default
   expect_match(get_nlpar_prior(default_priors_df, "shpredeffect"), "horseshoe\\(1\\)")
 
-  # Check unprogeffect default (This was the failing one)
+  # Check unprogeffect default (for class 'b' non-intercept)
   expect_match(get_nlpar_prior(default_priors_df, "unprogeffect"), "normal\\(0,\\s*5\\)")
 
 
   # 2. User-specified priors (as strings)
   fit_user_string <- run_quick_brm(
-    formula = prep_cont$formula,
-    data = prep_cont$data,
-    response_type = "continuous",
+    prepared_model = prep_cont,
     predictive_effect_priors = list(shrunk = "normal(0, 1)"), # Custom shrunk prior
     prognostic_effect_priors = list(shrunk = "normal(0, 2)", unshrunk = "normal(0, 3)")
   )
@@ -129,67 +119,90 @@ test_that("Prior assignment works correctly", {
 
   # 3. User-specified priors (as brmsprior object - re-targeting check)
   complex_prior <- "R2D2(mean_R2 = 0.5, prec_R2 = 1)"
+  # --- UPDATED CALL ---
   fit_user_brmsprior <- run_quick_brm(
-    formula = prep_cont$formula,
-    data = prep_cont$data,
-    response_type = "continuous",
-    prognostic_effect_priors = list(shrunk = complex_prior) # Apply complex prior to shrunk prog
+    prepared_model = prep_cont,
+    prognostic_effect_priors = list(shrunk = complex_prior) # Apply complex prior
   )
   expect_s3_class(fit_user_brmsprior, "brmsfit")
-  prior_summary_brmsprior <- capture.output(print(fit_user_brmsprior$prior))
-  # --- Revised Prior Check using the prior data frame ---
+
   brmsprior_priors_df <- as.data.frame(fit_user_brmsprior$prior)
 
-  # Check if the R2D2 prior was correctly applied to the nlpar
-  expect_match(get_nlpar_prior(brmsprior_priors_df, "shprogeffect"), "R2D2\\(") # Check it starts with R2D2(
-
-  # Check that the default horseshoe wasn't used for shprogeffect
+  # Check if the R2D2 prior was correctly applied
+  expect_match(get_nlpar_prior(brmsprior_priors_df, "shprogeffect"), "R2D2\\(")
   expect_false(grepl("horseshoe", get_nlpar_prior(brmsprior_priors_df, "shprogeffect")))
 })
 
 test_that("Stanvars argument is accepted", {
   # Create a dummy stanvar
   sv <- brms::stanvar(scode = "real dummy_var;", block = "parameters")
+
+  # --- UPDATED CALL ---
   fit_stanvar <- run_quick_brm(
-    formula = prep_cont$formula,
-    data = prep_cont$data,
-    response_type = "continuous",
+    prepared_model = prep_cont,
     stanvars = sv
   )
   expect_s3_class(fit_stanvar, "brmsfit")
-  # Check if stanvar code is included (requires looking at generated Stan code)
-  # This is a basic check; deeper checks are complex.
   expect_true(grepl("dummy_var", fit_stanvar$model))
 })
 
 
 test_that("Assertions work for invalid inputs", {
-  # Invalid formula class
+  # This block calls fit_brms_model directly to test assertions
+
+  # --- NEW: Test prepared_model object itself ---
+  # Invalid type (not a list)
   expect_error(
-    fit_brms_model(formula = lm(outcome ~ 1, data=test_data_fit), data = prep_cont$data, response_type = "continuous"),
+    fit_brms_model(prepared_model = "not a list"),
+    regexp = "Must be of type 'list'"
+  )
+
+  # Missing required names
+  bad_list_1 <- list(formula = prep_cont$formula, data = prep_cont$data) # Missing response_type
+  expect_error(
+    fit_brms_model(prepared_model = bad_list_1),
+    # --- THIS IS THE FIX ---
+    # The error message starts with "Names must include" or contains "missing elements"
+    regexp = "missing elements.*'response_type'"
+  )
+
+  # --- NEW: Test contents of prepared_model ---
+  # Invalid formula class inside list
+  bad_list_2 <- prep_cont
+  bad_list_2$formula <- "outcome ~ trt" # Is a string, not brmsformula
+  expect_error(
+    fit_brms_model(prepared_model = bad_list_2),
     regexp = "Must inherit from class 'brmsformula'"
   )
-  # Invalid data
+
+  # Invalid data class inside list
+  bad_list_3 <- prep_cont
+  bad_list_3$data <- as.matrix(prep_cont$data) # Is a matrix
   expect_error(
-    fit_brms_model(formula = prep_cont$formula, data = as.matrix(prep_cont$data), response_type = "continuous"),
-    regexp = "Must be of type 'data.frame'" # <-- Update this pattern
+    fit_brms_model(prepared_model = bad_list_3),
+    regexp = "Must be of type 'data.frame'"
   )
-  # Invalid response_type
+
+  # Invalid response_type inside list
+  bad_list_4 <- prep_cont
+  bad_list_4$response_type <- "gaussian" # Not one of the allowed choices
   expect_error(
-    fit_brms_model(formula = prep_cont$formula, data = prep_cont$data, response_type = "gaussian"),
+    fit_brms_model(prepared_model = bad_list_4),
     regexp = "Must be element of set"
   )
+
+  # --- Test other arguments (priors, stanvars) ---
   # Invalid prior list (not named)
-  # Around line 183
   expect_error(
-    fit_brms_model(formula = prep_cont$formula, data = prep_cont$data, response_type = "continuous",
+    fit_brms_model(prepared_model = prep_cont,
                    prognostic_effect_priors = list("normal(0,1)")), # Unnamed list
-    regexp = "Must have names" # <-- Update this pattern
+    regexp = "Must have names"
   )
+
   # Invalid stanvars class
   expect_error(
-    fit_brms_model(formula = prep_cont$formula, data = prep_cont$data, response_type = "continuous",
+    fit_brms_model(prepared_model = prep_cont,
                    stanvars = list("dummy")), # Not a stanvars object
-    regexp = "Must inherit from class 'stanvars'" # <-- Update this pattern
+    regexp = "Must inherit from class 'stanvars'"
   )
 })

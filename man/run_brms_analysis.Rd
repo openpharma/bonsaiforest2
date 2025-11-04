@@ -13,8 +13,8 @@ run_brms_analysis(
   unshrunk_predictive_formula_str = NULL,
   shrunk_prognostic_formula_str = NULL,
   stratification_formula_str = NULL,
-  predictive_effect_priors = NULL,
-  prognostic_effect_priors = NULL,
+  predictive_effect_priors = list(),
+  prognostic_effect_priors = list(),
   stanvars = NULL,
   ...
 )
