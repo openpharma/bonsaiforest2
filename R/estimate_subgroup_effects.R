@@ -732,16 +732,19 @@ estimate_subgroup_effects <- function(brms_fit,
     H0_post <- H0_post_list[["_default_"]]
     n_times <- nrow(H0_post)
 
-    # OPTIMIZATION: Vectorized matrix operations instead of loops
-    exp_eta <- exp(subgroup_linpred)  # n_draws x n_subjects
-
-    # Calculate marginal survival using matrix operations
     S_marginal <- matrix(NA, nrow = n_draws, ncol = n_times)
+
     for (i in 1:n_draws) {
-      h0_i <- H0_post[, i]
-      eta_exp_i <- exp_eta[i, ]
-      # Vectorized calculation: exp(-h0 * mean(exp(eta)))
-      S_marginal[i, ] <- exp(-h0_i * mean(eta_exp_i))
+      # 1. Get components for this draw
+      h0_i <- H0_post[, i]                  # Vector of length n_times
+      eta_i <- subgroup_linpred[i, ]         # Vector of length n_subjects_in_subgroup
+
+      # 2. Calculate individual survival curves
+      #    This creates an [n_times x n_subjects_in_subgroup] matrix
+      S_individual_by_time <- exp(-outer(h0_i, exp(eta_i)))
+
+      # 3. Average the survival curves (the correct G-comp step)
+      S_marginal[i, ] <- rowMeans(S_individual_by_time, na.rm = TRUE) # <--- THE "AVERAGE SURVIVAL" METHOD
     }
 
     return(S_marginal)
