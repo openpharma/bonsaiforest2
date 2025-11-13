@@ -1,0 +1,419 @@
+---
+title: "bonsaiforest2: Statistical Specifications"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{bonsaiforest2: Statistical Specifications}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+bibliography: references.bib
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  echo = FALSE,
+  eval = FALSE # Set eval=TRUE when actually building vignette in package
+)
+library(bonsaiforest2)
+```
+
+## 1. Scope of this document
+
+This document describes the statistical methods implemented in the `bonsaiforest2` R package for Bayesian subgroup analysis of continuous, binary, count, and time-to-event outcomes in randomized clinical trials (RCTs).
+
+The package unabled the implementation of both a **global modeling approach** [@wolbers2025using], that estimates all main (prognostic) and interaction (predictive) effects in a single model, and a **One-variable-at a time** [@wang2024bayesian], that estimates the interaction effects using a different model for each subgrouping variable. This contrasts with traditional methods that analyze subgroups separately or one variable at a time.
+
+The core features described in this document are:
+
+1.  **Flexible Model Specification:** A unified framework to distinguish between:
+    -   **Prognostic** (main) vs. **Predictive** (interaction) effects.
+    -   **Shrunk** vs. **Unshrunk** coefficients, allowing exploratory terms to be penalized while pre-specified terms are not.
+2.  **Advanced Shrinkage Priors:** Implementation of state-of-the-art shrinkage priors, including the **Regularized Horseshoe** [@piironen2017sparsity; @wolbers2025using] and **R2D2** [@zhang2022bayesian], to provide robust control of false-positive findings while identifying potential heterogeneity.
+3.  **Marginal Effect Estimation:** Use of **standardization (G-computation)** to derive interpretable *marginal* subgroup treatment effects, which average over the covariate distributions within each subgroup [@wolbers2025using].
+
+This document is structured as follows: Section 2 provides a conceptual introduction to subgroup analysis challenges and the Bayesian shrinkage solution. Section 3 details the statistical methodology, including notation, the global and the one-variable at a time models, endpoint-specific likelihoods, prior specifications, and the standardization procedure. Section 4 maps these statistical methods to the core functions in the `bonsaiforest2` package. 
+
+## 2. Introduction to Subgroup Analysis and Estimation
+
+### 2.1 The Challenge of Subgroup Analysis
+
+Exploratory subgroup analyses are a standard part of RCT reporting, typically visualized in forest plots to assess the consistency of treatment effects. However, their interpretation is notoriously difficult due to several statistical challenges:
+
+-   **Low Power:** Subgroups have smaller sample sizes, leading to low precision (wide confidence intervals) and an inability to detect true, modest differences in effect.
+-   **Multiplicity:** Examining many subgroups (e.g., 20 or more) inflates the risk of false-positive findings. Investigators may focus on the most extreme results, which are often spurious.
+-   **Overfitting:** Standard subgroup-specific estimates (fitting a model only to data within that subgroup) are unbiased but have high variance, leading to an overestimation of heterogeneity.
+
+This has led to the common recommendation that the *overall* treatment effect is often a more reliable estimate for a subgroup than the estimate derived from the subgroup's data alone.
+
+### 2.2 Prognostic vs. Predictive Effects
+
+To build a meaningful model, it is crucial to distinguish how a baseline variable relates to the outcome:
+
+-   **Prognostic Effect**: A variable is **prognostic** if it is associated with the clinical outcome, regardless of the treatment received. It describes the natural course of the disease. In a model, this is a **main effect**.
+-   **Predictive Effect**: A variable is **predictive** if its value modifies the magnitude or direction of the treatment's effect. It identifies heterogeneity. In a model, this is a **treatment-by-variable interaction**.
+
+`bonsaiforest2` is built to model both types of effects explicitly and apply different modeling strategies (e.g., shrinkage) to each.
+
+### 2.3 The Role of Bayesian Shrinkage
+
+Bayesian shrinkage methods directly address the challenges of subgroup analysis by providing a principled compromise between the two extremes of "no pooling" (subgroup-specific estimates) and "full pooling" (overall population estimate).
+
+This compromise, often called **partial pooling**, is achieved using hierarchical models. Subgroup effects are assumed to be *exchangeable* (drawn from a common distribution). This assumption allows subgroups to "borrow strength" from each other:
+
+-   Subgroups with **small sample sizes** and extreme results are "shrunk" heavily toward the overall mean, reducing their variance.
+-   Subgroups with **large sample sizes** and strong evidence of a real effect are shrunk less, allowing their data to dominate.
+
+This results in estimates with a better **bias-variance trade-off**: we accept a small amount of bias (by pulling real effects slightly toward the mean) in exchange for a large reduction in variance, leading to a lower overall error and better control of spurious findings.
+
+### 2.4 Conditional vs. Marginal Estimands
+
+When covariates are included in a non-linear model (like a logistic or Cox model), the resulting coefficients represent **conditional** effects. For example, the treatment effect is the effect for a patient with a *specific set* of covariate values (e.g., the reference values).
+
+This is problematic for forest plots, where we want to know the **marginal** effect: "What is the average treatment effect for *all patients* in the 'Female' subgroup, averaging over their different ages, regions, etc.?".
+
+Because different subgroups have different covariate distributions (e.g., the `age >= 65` subgroup will have a different health status profile than the `age < 65` group), these conditional coefficients are not directly comparable.
+
+`bonsaiforest2` solves this by using **Standardization (G-computation)**. This procedure correctly averages over the specific covariate distribution of each subgroup to estimate a valid marginal treatment effect, ensuring all subgroups are compared on the same interpretable scale.
+
+## 3. Statistical Methodology
+
+### 3.1 Setting and Notation
+
+We establish the following notation for the global model:
+
+-   $i = 1, \dots, N$: Index for individual patients.
+-   $y_i$: The outcome for patient $i$.
+-   $s_i$: The binary treatment indicator ($s_i=1$ for treatment, $s_i=0$ for control).
+-   $l = 1, \dots, L$: Index for an overall subgroup level (e.g., "Male", "Female", "EU", "NA").
+-   $x_{il}$: Indicator (0/1) for patient $i$ belonging to subgroup level $l$ (used for prognostic effects).
+-   $z_{il} = s_i \cdot x_{il}$: The interaction between treatment and subgroup level $l$ (used for predictive effects).
+-   $u_{iv}$: Value of the $v$-th additional non-subgroup covariate for patient $i$.
+-   $\boldsymbol{\mu}$: The $N \times 1$ vector of expected outcomes.
+-   $g(\cdot)$: A link function (e.g., logit, log).
+-   $\boldsymbol{\eta}$: The $N \times 1$ vector of the linear predictor.
+
+### 3.2. Design Matrix Considerations
+
+A critical implementation detail is the construction of the design matrix for the subgroup-by-treatment interactions.
+
+We will then follow the same idea as in the `bonsaiforest` library. We will treat prognostic effects and predictive effects differently, as they serve different purposes in the model:
+
+-   **For prognostic effects :** The goal is interpretability and avoiding collinearity with the intercept. Here, standard dummy coding is the appropriate choice. For each of the J subgrouping variables, one level is dropped as a reference, resulting in L−J total columns for the subgroup main effects.
+
+-   **For predictive effects:** The goal is to treat all subgroup levels symmetrically under the assumption of exchangeability. Using one-hot encoding is essential here. This ensures that the shrinkage prior pulls all predictive effects toward a common center without privileging a reference level.
+
+### 3.3 The Global Model
+
+The package enables the implementation of a global model [@wolbers2025using] where all effects are estimated in a single, comprehensive regression formula.
+
+#### 3.3.1 Full Model Equation
+
+***Matrix form:***
+
+The model for the linear predictor, $\boldsymbol{\eta}$, for all $N$ patients is given by:
+
+$$g(\boldsymbol{\mu}) = \boldsymbol{\eta} = \underbrace{\mathbf{X_p}\boldsymbol{\beta_{1,p}}}_{\text{Penalized prognostic effects}} +\underbrace{\mathbf{X_n}\boldsymbol{\beta_{1,n}}}_{\text{Non-penalized prognostic effects}} +\underbrace{\mathbf{Z_p}\boldsymbol{\beta_{2,p}}}_{\text{Penalized predictive effects}} +$$ $$ \underbrace{\mathbf{Z_n}\boldsymbol{\beta_{2,n}}}_{\text{Non-penalized predictive effects}}+ \underbrace{\mathbf{U}\boldsymbol{\beta_{3}}}_{\text{Extra prognostic effects}} $$
+
+The Bayesian hierarchical structure is applied as follows:
+
+-   **Penalized Coefficients**: $\boldsymbol{\beta_{1,p}}$ and $\boldsymbol{\beta_{2,p}}$ are given shrinkage priors.
+
+-   **Non-Penalized Coefficients**: $\boldsymbol{\beta_{1,n}}$ and $\boldsymbol{\beta_{2,n}}$ are given standard, weakly informative priors.
+
+-   **Extra prognostic effects Coefficients**: $\boldsymbol{\beta_3}$ are given standard, weakly informative priors.
+
+**Components definition:**
+
+-   $\boldsymbol{\mu}$ is the $N \times 1$ vector of expected outcomes for all patients.
+
+-   $g(\cdot)$ is the link function (e.g., logit for binary data).
+
+-   $\mathbf{X}= [\mathbf{X_p} \;\;  \mathbf{X}_n]$ is the $N \times M$ design matrix for the **prognostic effects**[^1]. It typically includes:
+
+    -   An intercept column. (I guess we won't like to penalize the intercept so it will be contained in $\mathbf{X}_n$).
+
+    -   A column for the main treatment effect.
+
+    -   Columns for the prognostic effects of each subgroup level (using dummy coding, so one reference level per factor is dropped). Each prognostic effect will be contained in $\mathbf{X}_n$ or $\mathbf{X}_p$ depending if we want to shrink or not the effect.
+
+        Example:
+
+    ```{r}
+    # 1. Create your data as a data frame
+    design_matrix_df <- data.frame(
+      Patient    = c(1, 2, 3, 4),
+      Intercept  = c(1, 1, 1, 1),
+      trt        = c(0, 1, 0, 1),
+      sexF       = c(0, 1, 1, 0),
+      regionUS   = c(0, 0, 1, 1),
+      regionAsia = c(0, 1, 0, 0)
+    )
+
+    # 2. Use knitr::kable() to format and print the table
+    knitr::kable(
+      design_matrix_df,
+      caption = "An example design matrix for a global subgroup model.",
+      align = c('l', 'c', 'c', 'c', 'c') # Align columns (l=left, c=center)
+    )
+    ```
+
+    *Note:* M=1+1+L-J= 1 degree for the intercept+ 1 for the treatment effect + L (Number of subgroups) - J(Number of variables) because we get the reference levels out.
+
+-   $\boldsymbol{\beta_{1,p}}$ is the $P \times 1$ vector of coefficients for the prognostic effects that we want to shrink. We will give an shrinkage prior to this coefficients.
+
+-   $\boldsymbol{\beta_{1,n}}$ is the $(M-P) \times 1$ vector of coefficients for the prognostic effects that we don't want to shrink.
+
+-   $\mathbf{Z}= [\mathbf{Z_p} \;\;  \mathbf{Z}_n]$ is the $N \times L$ design matrix for the **predictive effects**. Its columns represent the interaction between the treatment and each of the $L$ subgroup levels across all subgrouping variables. This matrix is constructed without dropping a reference level to treat all subgroups symmetrically.
+
+[^1]: Note that this is different from what they do in the @wang2024bayesian where they give shrinkage priors to all the coefficients. This can also be done in our library.
+
+```{r}
+# Manually creating the interaction matrix for clarity
+interaction_matrix <- data.frame(
+  Patient      = 1:6,
+  `trt:sexM`   = c(0, 0, 0, 1, 0, 0),
+  `trt:sexF`   = c(0, 1, 0, 0, 0, 1),
+  `trt:regionEU` = c(0, 1, 0, 0, 0, 0),
+  `trt:regionUS` = c(0, 0, 0, 1, 0, 0),
+  `trt:regionAsia` = c(0, 0, 0, 0, 0, 1)
+)
+
+# Using knitr::kable for a nice output
+knitr::kable(
+  interaction_matrix,
+  align = 'c',
+  col.names = c("Patient", "trt x sexM", "trt x sexF", "trt x regionEU", "trt x regionUS", "trt x regionAsia")
+)
+```
+
+-   $\boldsymbol{\beta_{2,p}}$ is the $R \times 1$ vector of coefficients for the predictive effects that we want to shrink. We will give an shrinkage prior to this coefficients.
+-   $\boldsymbol{\beta_{2,n}}$ is the $(L-R) \times 1$ vector of coefficients for the predictive effects that we don't want to shrink.
+-   $U$ is the $N \times V$ design matrix for the extra variables we want to take into account in the fitting of the model. This will also be **unpenalized.**
+-   $\boldsymbol{\beta_3}$ is the $V \times 1$ vector of extra prognostic effects coefficients
+
+|   | **Shrinkage** | **Not Shrinkage** |
+|:-----------------|:--------------------------|:--------------------------|
+| **Prognostic Effect** | $\mathbf{X_p}\boldsymbol{\beta_{1,p}}$ | $\mathbf{X_n}\boldsymbol{\beta_{1,n}}$ |
+| **Predictive Effect** | $\mathbf{Z_p}\boldsymbol{\beta_{2,p}}$ | $\mathbf{Z_n}\boldsymbol{\beta_{2,n}}$ |
+
+***Linear form:***
+
+To make it more concrete, the linear predictor for a single patient $i$ can be written as:
+
+$$
+\eta_i = \underbrace{\beta_0 + \beta_{\text{treat}}s_i + \underbrace{\sum_{l=1}^{P} \beta^l_{1,p}x^{il}_n}_\text{penalized}+ \underbrace{\sum_{l=P+1}^{M}  \beta^l_{1,n}x^{il}_n}_\text{Not penalized}+\underbrace{\sum_{v=1}^{V} \beta_{3}^vu^{iv}}_{\text{Extra }}}_{\text{Prognostic Effects}} + \underbrace{\underbrace{\sum_{l=1}^{L-R} \beta_{2,p}^l z_p^{il}}_{\text{penalized }} + \underbrace{\sum_{l=L-R+1}^{L} \beta_{2,n}^l z_n^{il}}_{\text{Not penalized}} }_{\text{Predictive effects}}
+$$
+
+**Note**: See that even if $z^{il}=x^{il}\cdot s^{i}$, as the prognostic effect or the predicitve effect of the same subgrouping variable may be penalized or not, we separate it in $X$ and $z$ in the formula.
+
+#### 3.3.2 Example
+
+A randomized, double-blind trial comparing a new drug, **DrugX**, against a **placebo** in patients with hypertension.
+
+-   **Primary Endpoint (**$Y_{i}$): Change from baseline in systolic blood pressure (SBP) in mmHg at 6 months.
+-   **Subgroups of Interest**:
+    -   **Age Group**: `<65` vs. `≥65` years.
+    -   **Sex**: `Male` vs. `Female`.
+    -   **Kidney Function**: eGFR `<60` (impaired) vs. `≥60` (normal).
+-   **Covariates**: `BaselineSBPᵢ`, `BMIᵢ`, `Smokerᵢ` (binary).
+
+**Global Model with Shrinkage**
+
+The outcome is assumed to be normally distributed: $Y_{i} \sim N(\mu_{i}, \sigma^2)$.
+
+The linear predictor $\mu_{i}$ is modeled as:
+
+$$
+\mu_{i} = \underbrace{\beta_0}_{\text{Intercept}} + \underbrace{\beta_{\text{treat}} \cdot \text{Treatment}_i}_{\text{Main Trt Effect}} + \underbrace{\sum_{k=1}^{K} \alpha_k \cdot \text{Subgroup}_{ik}}_{\text{Prognostic Subgroup Effects}} + \underbrace{\sum_{k=1}^{K} \gamma_k \cdot (\text{Subgroup}_{ik} \cdot \text{Treatment}_i)}_{\text{Shrunken Predictive Effects}} + \underbrace{\sum_{j=1}^{J} \delta_j \cdot \text{Covariate}_{ij}}_{\text{Extra Prognostic effects}}
+$$
+
+$$
+=\underbrace{\beta_0}_{\text{Intercept}} + \underbrace{\beta_{\text{treat}} \cdot \text{Treatment}_i}_{\text{Main Trt Effect}} + \underbrace{\alpha_1 \cdot \text{Age Group}_i+\alpha_2 \cdot \text{Sex}_i+\alpha_3 \cdot \text{eGFR}_i}_{\text{Prognostic Subgroup Effects}}+
+$$
+
+$$
++ \underbrace{\gamma_1 \cdot (\text{Age Group}_i\cdot \text{Treatment}_i)+\gamma_2 \cdot (\text{Sex}_i\cdot \text{Treatment}_i)+\gamma_3 \cdot (\text{eGFR}_i\cdot \text{Treatment}_i)}_{\text{Predictive Effects}} + \underbrace{\delta_1 \cdot \text{BaselineSBP}_i+\delta_2 \cdot \text{BMI}_i+\delta_3 \cdot \text{Smoker}_i}_{\text{Extra Prognostic effects}}
+$$
+
+
+### 3.4. One-Variable-at-a-Time Model
+
+The **one-variable-at-a-time model** [@wang2024bayesian] is a Bayesian hierarchical model (BHM) that improves upon standard subgroup analysis by borrowing information across subgroup levels to produce more stable and reliable estimates. Instead of analyzing each subgroup level in isolation, it analyzes all levels *within a single subgrouping variable* (e.g., all age groups) together in one model.
+
+For example, for the variable *Sex* (with levels Male and Female), you would fit one hierarchical model. In this single model, the treatment effects for Male ($\beta_{2,\text{sex,male}}$) and Female ($\beta_{2,\text{sex,female}}$) are treated as exchangeable and are linked by a common prior distribution. Then, a completely separate hierarchical model would be fit for the variable *Region*.
+
+#### 3.4.1 Full Model Equation
+
+For a given subgrouping variable $j$, we can specify a flexible linear predictor that allows for some covariate effects to be constant across the levels of $j$, while others are allowed to vary.
+
+Let's partition the patient-level covariates into two sets:
+
+-   $\mathbf{u}_i$: A vector of covariates assumed to have a **constant prognostic effect** across all levels of the subgrouping variable $j$.
+
+-   $\mathbf{v}_i$: A vector of covariates for which there is a strong *a priori* reason to believe their prognostic effect **varies** across the levels $k$ of the subgrouping variable $j$.
+
+The linear predictor for patient $i$ in level $k$ of variable $j$ is then: $$g(\mu_{i,j,k}) = \beta_{1,j,k} + \beta_{2,j,k}z_i + \boldsymbol{\beta}_{3,j}\mathbf{u}_i + \boldsymbol{\beta}_{4,j,k}\mathbf{v}_i$$
+
+-   $\beta_{2,j,k}$: The predictive effect for level $k$ of variable $j$. This is the primary parameter of interest for shrinkage.
+-   $\boldsymbol{\beta}_{3,j}\mathbf{u}_i$: The effect of covariates assumed to be **constant** across levels. The coefficient vector $\boldsymbol{\beta}_{3,j}$ does **not** have a $k$ subscript.
+-   $\boldsymbol{\beta}_{4,j,k}\mathbf{v}_i$: The effect of covariates assumed to be **level-specific**. The coefficient vector $\boldsymbol{\beta}_{4,j,k}$ **does** have a $k$ subscript, allowing its effect to be different for each subgroup level. This can be seen as an interaction between variable $x_j$ and $v_i$.
+
+Note that for coefficients $\boldsymbol{\beta}_{3,j}$ and $\boldsymbol{\beta}_{4,j,k}$ we can use shrinkage or standard priors depending in our prior beliefs.
+
+#### 3.4.2 Example
+
+Similarly to the example showed for the Global model. The example below is for the **Age Group** variable, where $k \in \{ \text{<65}, \text{≥65} \}$.
+
+The outcome for a patient *i* in age subgroup *k* is: $Y_{ik} \sim N(\mu_{ik}, \sigma_k^2)$.
+
+The linear predictor $\mu_{ik}$ is:
+
+$$
+\mu_{ik} = \underbrace{\beta_{1,k}}_{\text{Subgroup Intercept}} + \underbrace{\beta_{2,k} \cdot \text{Treatment}_i}_{\text{Predictive Effect}} + \underbrace{\delta_1 \cdot \text{BMI}_i + \delta_2 \cdot \text{Smoker}_i}_{\text{Constant Prognostic Effects}} + \underbrace{\delta_{3,k} \cdot \text{BaselineSBP}_i}_{\text{Varying Prognostic Effect}}
+$$
+
+-   Here, $\beta_{1,k}$ (subgroup-specific intercept) and $\beta_{2,k}$ (subgroup-specific predictive effect) are given hierarchical priors to borrow information across age groups. For example: $\beta_{2,k} \sim N(\mu_2, \tau_2^2)$.
+-   The effect of Baseline SBP is also allowed to vary by age group ($\delta_{3,k}$), while BMI and Smoking effects are assumed constant
+
+
+
+### 3.5 Endpoint-Specific Models
+
+The package supports four primary endpoint types by specifying the appropriate likelihood and link function for $g(\boldsymbol{\mu}) = \boldsymbol{\eta}$.
+
+| Endpoint | Distribution / Model | Link Function | Notes |
+|:-----------------|:-----------------|:-----------------|:-----------------|
+| **Continuous** | Normal: $y_i \sim N(\mu_i, \sigma^2)$ | Identity: $\mu_i = \eta_i$ | $\sigma$ can be stratified (e.g., `sigma ~ 0 + clinic_site`). |
+| **Binary** | Bernoulli: $y_i \sim \text{Bernoulli}(p_i)$ | Logit: $\text{logit}(p_i) = \eta_i$ |  |
+| **Count** | Negative Binomial: $y_i \sim \text{NegBin}(\mu_i, \phi)$ | Log: $\log(\mu_i) = \eta_i$ | $\phi$ (overdispersion) can be stratified. Supports `offset()`. |
+| **Time-to-event** | Cox Proportional Hazards: $h_i(t) = h_0(t)\exp(\eta_i)$ | Log (on the hazard) | Intercept is absorbed by the baseline hazard $h_0(t)$. $h_0(t)$ can be stratified. |
+
+### 3.6 Prior Specifications
+
+#### 3.6.1 Weakly Informative Priors (Unshrunk Terms)
+
+For all non-penalized coefficients ($\boldsymbol{\beta_{1,n}}, \boldsymbol{\beta_{2,n}}, \boldsymbol{\beta_{3}}$), we use weakly informative priors to aid computational stability without strongly influencing the posterior.
+
+-   **Default:** `normal(0, 10)`. This is a common, weakly regularizing prior on the linear predictor scale. Users can specify their own, e.g., `student_t(3, 0, 2.5)`.
+
+#### 3.6.2 Regularized Horseshoe Prior (Shrunk Terms)
+
+This is the default shrinkage prior in `bonsaiforest2`, recommended for its excellent adaptive shrinkage properties [@wolbers2025using; @piironen2017sparsity].
+
+-   **Concept:** A global-local prior. It has an infinitely tall spike at zero (to aggressively shrink noise) and heavy tails (to leave true, large signals unshrunk) .
+-   **Hierarchical Specification** :
+
+$$\begin{aligned}
+      \beta_{2,l} &\sim N(0, \tau^2 \tilde{\lambda}_l^2) \\
+      \tilde{\lambda}_l^2 &= \frac{c^2 \lambda_l^2}{c^2 + \tau^2 \lambda_l^2} \\
+      \lambda_l &\sim C^+(0, 1) \quad (\text{Local shrinkage}) \\
+      \tau &\sim C^+(0, \tau_0) \quad (\text{Global shrinkage}) \\
+      c^2 &\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
+      \end{aligned}
+      $$
+
+
+-   **Hyperparameter Justification**: The package supports two ways to set the crucial global scale $\tau_0$:
+    1.  **Fixed Default (`scale_global`):** `horseshoe(scale_global = 1)`. This is the package default, a robust, general-purpose choice [@wolbers2025using].
+    2.  **Elicited Prior (`par_ratio`):** Sets $\tau_0$ based on the *prior* belief about the number of effective (non-zero) subgroups, $p_{eff}$, out of the total $L$ [@bornkamp2025benchmarking; @piironen2017sparsity]. This is specified via $\text{par_ratio} = \frac{p_{eff}}{L - p_{eff}}$. This scales the prior based on sample size ($N$) and the expected sparsity.
+
+#### 3.6.3 R2D2 Prior (Shrunk Terms)
+
+-   **Concept:** This prior is uniquely derived by first placing a prior on the model's coefficient of determination, $R^2$, which quantifies the proportion of variance explained by the predictors. This is arguably more intuitive than specifying priors directly on coefficients.
+
+-   **Hierarchical Specification (Marginal Version):** $$
+      \begin{aligned}
+      \beta_{2,l} &\sim DE(\sigma \sqrt{\phi_l \omega / 2}) \quad (\text{Double-Exponential/Laplace kernel}) \\
+      \boldsymbol{\phi} &= (\phi_1, \dots, \phi_L) \sim \text{Dirichlet}(a_\pi, \dots, a_\pi) \quad (\text{Local shrinkage}) \\
+      \omega &\sim \text{Beta-Prime}(a, b) \quad (\text{Global shrinkage})
+      \end{aligned}
+      $$ This is equivalent to assuming that the proportion of variance explained by the interaction terms follows $R^2 = \frac{\omega}{1+\omega} \sim \text{Beta}(a,b)$.
+
+-   **Justification of Hyperparameters:**
+
+    -   @zhang2022bayesian provide clear guidance. A fully automatic approach is to set $b=0.5$ to achieve Cauchy-like heavy tails.
+
+    -   The concentration parameter $a_\pi$ controls sparsity. A smaller $a_\pi$ (e.g., 0.2) implies higher shrinkage, concentrating the prior variance on fewer coefficients, while a larger $a_\pi$ (e.g., 0.5) spreads the variance more evenly, implying lower shrinkage.
+
+    -   **Default Recommendation:** Set $b=0.5$ and offer options for the user based on desired shrinkage strength:
+
+        -   **High Shrinkage:** $a_\pi=0.2$
+
+        -   **Low Shrinkage:** $a_\pi=0.5$
+
+#### 3.6.4. Normal Hierarchical Prior (for One-Variable-at-a-Time Model)
+
+This is the standard hierarchical model for subgroup analysis, which assumes that treatment effects for levels within a subgrouping variable are drawn from a common normal distribution. It's less complex than the Horseshoe or R2D2 priors but provides effective shrinkage, especially when the number of subgroup levels is small.
+
+-   **Hierarchical Specification:** For a given subgrouping variable $j$ with levels $k=1, \dots, K_j$:
+
+$$\begin{aligned} \beta_{2,j,k} &\sim \mathcal{N}(\mu_{2,j}, \tau^2_{2,j}) \quad (\text{Level-specific treatment effects}) \\
+    \mu_{2,j} &\sim \mathcal{N}(0, s^2) \quad (\text{Common mean effect}) \\ \tau_{2,j} &\sim \text{Half-Normal}(a) \quad (\text{Between-subgroup heterogeneity}) \end{aligned}
+    $$
+
+-   **Justification of Hyperparameters:** The key is setting the scale parameter a for the Half-Normal prior on the between-subgroup standard deviation, $\tau_{2,j}$, as this controls the degree of shrinkage. As recommended by @bornkamp2025benchmarking, this can be linked to the planned treatment effect ( $\delta_{plan}$) from the trial protocol, making the prior choice interpretable and consistent across different endpoints. The choice of a implies a prior on the plausible difference in treatment effects between any two subgroups.
+
+### 3.7 Estimation (MCMC)
+
+The joint posterior distribution of all parameters is complex and has no closed-form solution. We use Markov Chain Monte Carlo (MCMC) methods to draw samples from this distribution. Specifically, the package uses the **No-U-Turn Sampler (NUTS)**, an efficient variant of Hamiltonian Monte Carlo (HMC), as implemented in **Stan** via the `brms` package. The output is a set of posterior samples (e.g., 4000 draws) representing the joint posterior distribution.
+
+### 3.8 Standardization for Marginal Effects (G-computation)
+
+To obtain interpretable *marginal* effects for each subgroup, the package implements a standardization (G-computation) procedure. This process is repeated for *each* MCMC draw to generate a full posterior distribution of the marginal effect.
+
+**For a single MCMC draw, the step-by-step process is:**
+
+1.  **Select Parameters:** Take one draw from the joint posterior distribution for all model parameters (all $\boldsymbol{\beta}$'s, $\sigma$, $\phi$, etc.).
+
+2.  **Create Counterfactuals:** For *every patient* $i$ in the original dataset, create two scenarios:
+
+    -   Scenario A: Patient $i$'s covariates, with treatment $s_i=0$ (Control).
+    -   Scenario B: Patient $i$'s covariates, with treatment $s_i=1$ (Treatment).
+
+3.  **Predict Outcomes:** Use the model formula and the parameters from Step 1 to predict the outcome for *every patient* under both Scenario A ($\hat{\mu}_{i,0}$) and Scenario B ($\hat{\mu}_{i,1}$).
+
+4.  **Average within Subgroups:** For a subgroup of interest $l$ (e.g., "Female"):
+
+    -   Calculate the average predicted outcome under control: $\hat{\mu}_{l,0} = \text{mean}(\hat{\mu}_{i,0})$ for all $i$ where $x_{il}=1$.
+    -   Calculate the average predicted outcome under treatment: $\hat{\mu}_{l,1} = \text{mean}(\hat{\mu}_{i,1})$ for all $i$ where $x_{il}=1$.
+
+5.  **Calculate Effect Measure:** Compute the marginal effect for subgroup $l$ from these averaged predictions. This depends on the endpoint type:
+
+    -   **Continuous:** Mean Difference = $\hat{\mu}_{l,1} - \hat{\mu}_{l,0}$.
+    -   **Binary:** Odds Ratio = $\frac{\hat{\mu}_{l,1} / (1 - \hat{\mu}_{l,1})}{\hat{\mu}_{l,0} / (1 - \hat{\mu}_{l,0})}$ (where $\hat{\mu}$ is the predicted probability).
+    -   **Count:** Rate Ratio = $\hat{\mu}_{l,1} / \hat{\mu}_{l,0}$ (where $\hat{\mu}$ is the predicted rate).
+    -   **Time-to-Event:** Average Hazard Ratio (AHR). This is the most complex, as it requires predicting the full survival curve $S_i(t)$ for each patient. The marginal survival curves $\hat{S}_{l,0}(t)$ and $\hat{S}_{l,1}(t)$ are calculated, and the AHR is computed from them, as the marginal curves may not be proportional.
+
+6.  **Repeat:** This process (Steps 1-5) is repeated for all MCMC draws, yielding a full posterior distribution (e.g., 4000 values) for the marginal effect of each subgroup. The final point estimate (median) and 95% credible interval are taken from this distribution.
+
+
+## 4. Mapping of Statistical Methods to `bonsaiforest2` Functions
+
+This section connects the statistical methodology (Section 3) to the core package functions.
+
+-   **`run_brms_analysis()`**
+
+    -   **Maps to:** Sections 3.2 (Global Model), 3.3 (Endpoints), 3.4 (Priors), 3.5 (Estimation).
+    -   **Action:** This function is the primary model-fitting engine.
+        -   It constructs the design matrices $\mathbf{X_n}, \mathbf{X_p}, \mathbf{Z_n}, \mathbf{Z_p}, \mathbf{U}$ based on the formula string arguments (e.g., `unshrunk_prognostic_formula_str`, `shrunk_predictive_formula_str`).
+        -   It assigns the specified priors (e.g., `predictive_effect_priors = list(shrunk = "horseshoe(par_ratio = 0.1)")`).
+        -   It builds and passes the full `brmsformula` and data to `brms::brm()` to run the Stan MCMC sampler.
+        -   It handles stratification via the `stratification_formula_str` argument, which adds terms like `bhaz(country)` or `sigma ~ country` to the `brmsformula`.
+
+-   **`summary_subgroup_effects()`**
+
+    -   **Maps to:** Section 3.6 (Standardization / G-computation).
+    -   **Action:** This function implements the full G-computation procedure.
+        -   It takes the fitted `brms_fit` object (containing posterior samples) and the `original_data`.
+        -   It automatically detects the subgroups specified in the model (or uses the `subgroup_vars` argument).
+        -   It iterates through each posterior sample, generates counterfactual predictions, averages within subgroups, and calculates the marginal effect measure (e.g., AHR, OR) based on the `response_type`.
+        -   It returns a `subgroup_summary` object containing the posterior distributions of the marginal effects.
+
+-   **`plot()`**
+
+    -   **Maps to:** Final visualization of Section 3.6 results.
+    -   **Action:** This is a method for `subgroup_summary` objects. It takes the summarized posterior distributions (median and 95% CrI) for the overall and subgroup effects and generates a forest plot.
+
+
+## 5. References
