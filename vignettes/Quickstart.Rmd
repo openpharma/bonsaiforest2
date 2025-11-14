@@ -29,7 +29,7 @@ The `bonsaiforest2` package consists of 3 core functions which are typically cal
 
 This example makes use of Bayesian modeling, which requires the installation of the `brms` package and a working Stan installation (e.g., via `cmdstanr`).
 
-```{r setup, eval=TRUE, echo=FALSE, results='hide'}
+```{r setup, eval=FALSE, echo=FALSE, results='hide'}
 install.packages("brms")
 install.packages("cmdstanr")
 cmdstanr::install_cmdstan()
