@@ -1,0 +1,297 @@
+---
+title: "Quickstart"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Quickstart}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5,
+  eval = FALSE # Set eval=TRUE when actually building vignette in package
+)
+```
+
+## 1. Introduction
+
+The purpose of this vignette is to provide a 15-minute quickstart guide to the core functions of the `bonsaiforest2` package.
+
+The `bonsaiforest2` package consists of 3 core functions which are typically called in sequence:
+
+1.  `run_brms_analysis()` - Prepares the model formula and fits the Bayesian model using `brms`.
+2.  `summary_subgroup_effects()` - Calculates the marginal overall and subgroup treatment effects.
+3.  `plot()` - Creates a forest plot from the summary object.
+
+This example makes use of Bayesian modeling, which requires the installation of the `brms` package and a working Stan installation (e.g., via `cmdstanr`).
+
+```{r setup, eval=FALSE, echo=FALSE, results='hide'}
+install.packages("brms")
+install.packages("cmdstanr")
+cmdstanr::install_cmdstan()
+```
+
+## 2. The Data
+
+We will use a simulated example dataset representing a clinical trial for blood pressure. The relevant endpoint is the change in Systolic Blood Pressure (SBP) from baseline (`sbp_change`).
+
+We consider an **analysis model** where we want to find the treatment effect (`trt`) on `sbp_change`. The model will adjust for `baseline_sbp` as a **prognostic** variable (predictor of the outcome) and explore `region` and `comorbidity` as **predictive** variables (potential treatment effect modifiers).
+
+First, let's load the libraries and create the data.
+
+```{r load-packages}
+# Load the main package
+library(bonsaiforest2)
+
+# Load other required packages
+library(brms)
+library(dplyr)
+```
+
+```{r ex-data}
+# Create the example data
+set.seed(123)
+n_patients <- 200
+continuous_data <- data.frame(
+  id = 1:n_patients,
+  sbp_change = rnorm(n_patients, mean = -5, sd = 10),
+  trt = sample(0:1, n_patients, replace = TRUE),
+  baseline_sbp = rnorm(n_patients, mean = 140, sd = 15),
+  region = factor(sample(c("NA", "EU", "APAC"), n_patients, replace = TRUE)),
+  comorbidity = factor(sample(c("Yes", "No"), n_patients, replace = TRUE, prob = c(0.4, 0.6)))
+)
+
+# `bonsaiforest2` expects the treatment variable to be a factor
+continuous_data$trt <- factor(continuous_data$trt, levels = c(0, 1))
+
+head(continuous_data)
+#>   id sbp_change trt baseline_sbp region comorbidity
+#> 1  1  -10.60306   0     164.2111     EU          No
+#> 2  2   -2.76104   1     144.1794     EU          No
+#> 3  3    8.33288   0     151.7821   APAC         Yes
+#> 4  4   -1.78207   0     156.1213     EU         Yes
+#> 5  5   -3.89635   1     144.5772     NA          No
+#> 6  6   11.78502   0     118.8055   APAC         Yes
+```
+
+## 3. `run_brms_analysis()`
+
+The `run_brms_analysis()` function is the first step. It builds the model formula and fits the `brms` model, applying shrinkage priors to exploratory terms.
+
+**Key Arguments:**
+
+-   `data`: Your input `data.frame`.
+-   `response_formula_str`: Defines the outcome and main treatment effect (e.g., `"outcome ~ trt"`).
+-   `response_type`: `"continuous"`, `"binary"`, `"count"`, or `"survival"`.
+-   `shrunk_predictive_formula_str`: Treatment interactions to estimate with shrinkage (e.g., `"~ region:trt + sex:trt"`).
+-   `unshrunk_prognostic_formula_str`: Main effects (not treatment interactions) to estimate without strong shrinkage (e.g., `"~ age"`).
+-   `shrunk_prognostic_formula_str`: Main effects to estimate with shrinkage.
+-   `unshrunk_predictive_formula_str`: Treatment interactions to estimate without strong shrinkage (e.g., `"~ prespecified_marker:trt"`).
+-   `prognostic_effect_priors`, `predictive_effect_priors`: Lists specifying priors for shrunk/unshrunk terms.
+-   `stanvars`: Optional object from `brms::stanvar()` for custom Stan code (e.g., for hierarchical priors).
+-   `...`: Other arguments passed directly to `brms::brm()` (like `chains`, `iter`, `cores`).
+
+For this example, we will:
+
+-   Define the response as `sbp_change ~ trt`.
+-   Adjust for `baseline_sbp` as an **unshrunk prognostic** variable.
+-   Explore `region` and `comorbidity` as **shrunk predictive** variables. We also include `~ 1` in the shrunk predictive formula to apply shrinkage to the overall treatment effect (intercept of the interactions).
+
+```{r ex-fit}
+# iter and chains are set low for a quick example.
+# For a real analysis, use more iterations (e.g., iter = 2000).
+continuous_model_fit <- run_brms_analysis(
+  data = continuous_data,
+  response_formula_str = "sbp_change ~ trt",
+  response_type = "continuous",
+  unshrunk_prognostic_formula_str = "~ baseline_sbp",
+  # Shrink intercept (1), region interaction, and comorbidity interaction
+  shrunk_predictive_formula_str = "~ 1 + region:trt + comorbidity:trt",
+  chains = 1, iter = 200, warmup = 100, cores = 1,
+  refresh = 0, backend = "cmdstanr" # Use cmdstanr if available
+)
+
+continuous_model_fit
+#> Family: gaussian
+#>   Links: mu = identity; sigma = identity
+#> Formula: sbp_change ~ trt + baseline_sbp + trt:regionAPAC + trt:regionEU + trt:regionNA + trt:comorbidityNo + trt:comorbidityYes
+#>    Data: . (Number of observations: 200)
+#> Samples: 1 chains, each with iter = 200; warmup = 100; thin = 1;
+#>          total post-warmup samples = 100
+#>
+#> Population-Level Effects:
+#>                    Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#> Intercept             3.81      5.95    -7.79    15.82 1.01       89      100
+#> trt1                 -2.88      1.80    -6.41     0.73 1.00      100      100
+#> baseline_sbp         -0.05      0.04    -0.13     0.03 1.01       89      100
+#> trt1:regionAPAC      -0.02      1.58    -3.26     2.99 1.00      100      100
+#> trt1:regionEU         0.08      1.61    -3.07     3.26 1.00      100      100
+#> trt1:regionNA         0.03      1.54    -2.92     3.16 1.00      100      100
+#> trt1:comorbidityNo   -0.07      1.31    -2.61     2.45 1.00      100      100
+#> trt1:comorbidityYes   0.16      1.35    -2.52     2.77 1.00      100      100
+#>
+#> Family Specific Parameters:
+#>       Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
+#> sigma     9.93      0.50     8.99    10.96 1.00      100      100
+#>
+#> Samples were drawn using cmdstanr.
+```
+
+## 4. `summary_subgroup_effects()`
+
+The next step is to use the fitted model to generate interpretable subgroup effects. This is done with `summary_subgroup_effects()`.
+
+This function uses **G-computation** to estimate the *marginal* treatment effect for each subgroup (e.g., "what is the average effect for all patients in the 'EU' region?"), averaging over all other covariates like `baseline_sbp` and `comorbidity`.
+
+Its main inputs are the `brms_fit` object from the previous step and the `original_data`.
+
+```{r ex-summary}
+continuous_summary <- summary_subgroup_effects(
+  brms_fit = continuous_model_fit,
+  original_data = continuous_data, # Pass the original data
+  trt_var = "trt",
+  response_type = "continuous"     # Must match fitting
+  # subgroup_vars = "auto" is the default and finds all interactions
+)
+
+continuous_summary
+#> Subgroup Effect Summary (response_type: continuous)
+#> 
+#> Overall Effect:
+#>  subgroup_variable subgroup_level estimate posterior_median lower_ci upper_ci
+#>  Overall           Overall        -2.77    -2.79             -5.15    -0.42
+#> 
+#> Subgroup Effects:
+#>  subgroup_variable subgroup_level estimate posterior_median lower_ci upper_ci
+#>  region            APAC           -2.79    -2.80             -5.74     0.20
+#>  region            EU             -2.69    -2.70             -5.59     0.21
+#>  region            NA             -2.74    -2.74             -5.65     0.18
+#>  comorbidity       No             -2.84    -2.84             -5.46    -0.20
+#>  comorbidity       Yes            -2.61    -2.62             -5.47     0.28
+```
+
+To inspect the results, you can extract the estimates as a data frame.
+
+```{r ex-extract-summary}
+# Extract the summary table
+summary_table <- as.data.frame(continuous_summary)
+# or just continuous_summary$estimates
+
+print(summary_table)
+#>   subgroup_variable subgroup_level   estimate posterior_median   lower_ci
+#> 1           Overall        Overall -2.7719461       -2.7885406 -5.1507204
+#> 2            region           APAC -2.7915523       -2.8042457 -5.7369651
+#> 3            region             EU -2.6896263       -2.7013862 -5.5936306
+#> 4            region             NA -2.7432729       -2.7427845 -5.6517112
+#> 5       comorbidity             No -2.8406560       -2.8362453 -5.4578119
+#> 6       comorbidity            Yes -2.6105341       -2.6235128 -5.4740193
+#>     upper_ci
+#> 1 -0.4239868
+#> 2  0.2045155
+#> 3  0.2114771
+#> 4  0.1834169
+#> 5 -0.2016629
+#> 6  0.2796213
+```
+
+## 5. `plot()`
+
+Finally, the `plot()` function takes the `subgroup_summary` object and creates a forest plot for easy interpretation.
+
+```{r ex-plot, fig.show='hold'}
+# Generate and display the plot
+plot(continuous_summary, title = "Continuous: Subgroup Effects on SBP Change")
+```
+
+This plot displays the marginal treatment effect (mean difference in `sbp_change`) for the overall population and for each subgroup level. The estimates are "shrunk" towards the overall effect, providing more stable results than fitting separate models for each subgroup.
+
+## 6. Advanced Feature: Specifying Priors
+
+A key feature of `bonsaiforest2` is controlling the priors. By default, shrunk terms get a `horseshoe(1)` prior and unshrunk terms get a `normal(0, 5)` prior.
+
+You can override this using the `prognostic_effect_priors` and `predictive_effect_priors` arguments. These take named lists.
+
+For example, let's say we want to use a more conventional `normal(0, 2.5)` prior for our **shrunk predictive** effects and a wide `student_t(3, 0, 10)` for our **unshrunk prognostic** `baseline_sbp`.
+
+```{r ex-priors}
+# This example is for demonstration; we won't run it here.
+# Note: "intercept" can be specified separately in prognostic_effect_priors
+fit_custom_priors <- run_brms_analysis(
+  data = continuous_data,
+  response_formula_str = "sbp_change ~ trt",
+  response_type = "continuous",
+  unshrunk_prognostic_formula_str = "~ baseline_sbp",
+  shrunk_predictive_formula_str = "~ 1 + region:trt + comorbidity:trt",
+
+  # --- Specify Custom Priors ---
+  prognostic_effect_priors = list(
+    unshrunk = "student_t(3, 0, 10)",
+    intercept = "normal(0, 100)" # A very wide intercept prior
+    # 'shrunk' is NULL, so it's not used here
+  ),
+  predictive_effect_priors = list(
+    shrunk = "normal(0, 2.5)", # Use a Normal prior instead of horseshoe
+    unshrunk = "normal(0, 5)"  # Default for any unshrunk predictive terms
+  ),
+  # ---
+  
+  chains = 1, iter = 200, warmup = 100, cores = 1,
+  refresh = 0, backend = "cmdstanr"
+)
+```
+
+For more details on advanced priors like R2D2 or custom hierarchical priors, see the "Technical Details" vignette (`vignette("technical-details", package = "bonsaiforest2")`).
+
+## 7. Code
+
+We report below all the code for the main workflow presented in this vignette.
+
+```{r full-code, eval=FALSE, echo=TRUE}
+library(bonsaiforest2)
+library(brms)
+library(dplyr)
+library(ggplot2)
+
+# --- 2. The Data ---
+set.seed(123)
+n_patients <- 200
+continuous_data <- data.frame(
+  id = 1:n_patients,
+  sbp_change = rnorm(n_patients, mean = -5, sd = 10),
+  trt = sample(0:1, n_patients, replace = TRUE),
+  baseline_sbp = rnorm(n_patients, mean = 140, sd = 15),
+  region = factor(sample(c("NA", "EU", "APAC"), n_patients, replace = TRUE)),
+  comorbidity = factor(sample(c("Yes", "No"), n_patients, replace = TRUE, prob = c(0.4, 0.6)))
+)
+continuous_data$trt <- factor(continuous_data$trt, levels = c(0, 1))
+
+
+# --- 3. run_brms_analysis() ---
+# (Use iter = 2000, chains = 4 for a real analysis)
+continuous_model_fit <- run_brms_analysis(
+  data = continuous_data,
+  response_formula_str = "sbp_change ~ trt",
+  response_type = "continuous",
+  unshrunk_prognostic_formula_str = "~ baseline_sbp",
+  shrunk_predictive_formula_str = "~ 1 + region:trt + comorbidity:trt",
+  chains = 1, iter = 200, warmup = 100, cores = 1,
+  refresh = 0, backend = "cmdstanr"
+)
+
+
+# --- 4. summary_subgroup_effects() ---
+continuous_summary <- summary_subgroup_effects(
+  brms_fit = continuous_model_fit,
+  original_data = continuous_data,
+  trt_var = "trt",
+  response_type = "continuous"
+)
+
+
+# --- 5. plot() ---
+plot(continuous_summary, title = "Continuous: Subgroup Effects on SBP Change")
+```
