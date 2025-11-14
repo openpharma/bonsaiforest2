@@ -43,7 +43,7 @@ We consider an **analysis model** where we want to find the treatment effect (`t
 
 First, let's load the libraries and create the data.
 
-```{r load-packages, eval=TRUE}
+```{r load-packages}
 # Load the main package
 library(bonsaiforest2)
 
@@ -52,7 +52,7 @@ library(brms)
 library(dplyr)
 ```
 
-```{r ex-data, eval=TRUE}
+```{r ex-data}
 # Create the example data
 set.seed(123)
 n_patients <- 200
@@ -176,7 +176,7 @@ continuous_summary
 
 To inspect the results, you can extract the estimates as a data frame.
 
-```{r ex-extract-summary, eval=TRUE}
+```{r ex-extract-summary}
 # Extract the summary table
 summary_table <- as.data.frame(continuous_summary)
 # or just continuous_summary$estimates
