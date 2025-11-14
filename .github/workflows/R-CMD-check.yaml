@@ -46,6 +46,11 @@ jobs:
           extra-packages: any::rcmdcheck
           needs: check
 
+      - name: Install cmdstan
+        run: |
+          Rscript -e "cmdstanr::check_cmdstan_toolchain(fix = TRUE)"
+          Rscript -e "cmdstanr::install_cmdstan()"
+
       - uses: r-lib/actions/check-r-package@v2
         with:
           upload-snapshots: true

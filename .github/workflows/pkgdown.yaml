@@ -37,6 +37,11 @@ jobs:
           extra-packages: any::pkgdown, local::.
           needs: website
 
+      - name: Install cmdstan
+        run: |
+          Rscript -e "cmdstanr::check_cmdstan_toolchain(fix = TRUE)"
+          Rscript -e "cmdstanr::install_cmdstan()"
+
       - name: Build site
         run: pkgdown::build_site_github_pages(new_process = FALSE, install = FALSE)
         shell: Rscript {0}
