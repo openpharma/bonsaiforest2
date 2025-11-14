@@ -1,5 +1,5 @@
 ---
-title: "bonsaiforest2: Quickstart"
+title: "Quickstart"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Quickstart}

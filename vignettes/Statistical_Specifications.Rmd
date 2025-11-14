@@ -1,8 +1,8 @@
 ---
-title: "bonsaiforest2: Statistical Specifications"
+title: "Statistical Specifications"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{bonsaiforest2: Statistical Specifications}
+  %\VignetteIndexEntry{Statistical Specifications}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 bibliography: references.bib
