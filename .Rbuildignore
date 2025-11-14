@@ -9,3 +9,4 @@ TODO
 ^Meta$
 ^README\.Rmd$
 ^\.gitlab-ci\.yml$
+^\.github$
