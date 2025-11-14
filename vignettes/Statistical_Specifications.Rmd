@@ -12,8 +12,7 @@ bibliography: references.bib
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  echo = FALSE,
-  eval = FALSE # Set eval=TRUE when actually building vignette in package
+  echo = FALSE 
 )
 library(bonsaiforest2)
 ```
