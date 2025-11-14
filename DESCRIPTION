@@ -38,7 +38,8 @@ Suggests:
     rmarkdown,
     cmdstanr,
     testthat (>= 3.0.0),
-    BH
+    BH,
+    RcppEigen
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Additional_repositories: 'https://stan-dev.r-universe.dev'
