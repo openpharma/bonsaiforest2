@@ -550,55 +550,55 @@ estimate_subgroup_effects <- function(brms_fit,
     level_results_list <- list()
 
 
-      # Sequential processing for non-survival or single subgroup
-      for (level in subgroup_levels) {
-        subgroup_indices <- which(current_data_subgroups == level)
+    # Sequential processing for non-survival or single subgroup
+    for (level in subgroup_levels) {
+      subgroup_indices <- which(current_data_subgroups == level)
 
-        # Calculate raw effect draws based on response type
-        if (response_type == "survival") {
-          effect_draws <- .calculate_survival_ahr_draws(
-            linpred_control = posterior_preds$linpred_control,
-            linpred_treatment = posterior_preds$linpred_treatment,
-            H0_posterior_list = posterior_preds$H0_posterior,
-            indices = subgroup_indices,
-            strat_var = posterior_preds$strat_var,
-            original_data = posterior_preds$original_data
-          )
+      # Calculate raw effect draws based on response type
+      if (response_type == "survival") {
+        effect_draws <- .calculate_survival_ahr_draws(
+          linpred_control = posterior_preds$linpred_control,
+          linpred_treatment = posterior_preds$linpred_treatment,
+          H0_posterior_list = posterior_preds$H0_posterior,
+          indices = subgroup_indices,
+          strat_var = posterior_preds$strat_var,
+          original_data = posterior_preds$original_data
+        )
+      } else {
+        # OPTIMIZATION: Vectorized calculations for non-survival outcomes
+        marginal_outcome_control <- if (length(subgroup_indices) == 1) {
+          posterior_preds$pred_control[, subgroup_indices]
         } else {
-          # OPTIMIZATION: Vectorized calculations for non-survival outcomes
-          marginal_outcome_control <- if (length(subgroup_indices) == 1) {
-            posterior_preds$pred_control[, subgroup_indices]
-          } else {
-            rowMeans(posterior_preds$pred_control[, subgroup_indices, drop = FALSE])
-          }
-
-          marginal_outcome_treatment <- if (length(subgroup_indices) == 1) {
-            posterior_preds$pred_treatment[, subgroup_indices]
-          } else {
-            rowMeans(posterior_preds$pred_treatment[, subgroup_indices, drop = FALSE])
-          }
-
-          effect_draws <- switch(
-            response_type,
-            continuous = marginal_outcome_treatment - marginal_outcome_control,
-            binary = qlogis(marginal_outcome_treatment) - qlogis(marginal_outcome_control),
-            count = marginal_outcome_treatment / marginal_outcome_control
-          )
+          rowMeans(posterior_preds$pred_control[, subgroup_indices, drop = FALSE])
         }
 
-        # Summarize and store draws
-        subgroup_name <- if (is_overall) "Overall" else paste0(current_subgroup_var, ": ", level)
-        all_draws_list[[subgroup_name]] <- effect_draws
+        marginal_outcome_treatment <- if (length(subgroup_indices) == 1) {
+          posterior_preds$pred_treatment[, subgroup_indices]
+        } else {
+          rowMeans(posterior_preds$pred_treatment[, subgroup_indices, drop = FALSE])
+        }
 
-        point_estimate <- median(effect_draws, na.rm = TRUE)
-        ci <- quantile(effect_draws, probs = c(0.025, 0.975), na.rm = TRUE)
-
-        level_results_list[[level]] <- tibble::tibble(
-          Subgroup = subgroup_name,
-          Median = point_estimate,
-          CI_Lower = ci[1],
-          CI_Upper = ci[2]
+        effect_draws <- switch(
+          response_type,
+          continuous = marginal_outcome_treatment - marginal_outcome_control,
+          binary = qlogis(marginal_outcome_treatment) - qlogis(marginal_outcome_control),
+          count = marginal_outcome_treatment / marginal_outcome_control
         )
+      }
+
+      # Summarize and store draws
+      subgroup_name <- if (is_overall) "Overall" else paste0(current_subgroup_var, ": ", level)
+      all_draws_list[[subgroup_name]] <- effect_draws
+
+      point_estimate <- median(effect_draws, na.rm = TRUE)
+      ci <- quantile(effect_draws, probs = c(0.025, 0.975), na.rm = TRUE)
+
+      level_results_list[[level]] <- tibble::tibble(
+        Subgroup = subgroup_name,
+        Median = point_estimate,
+        CI_Lower = ci[1],
+        CI_Upper = ci[2]
+      )
 
     }
 
@@ -732,19 +732,16 @@ estimate_subgroup_effects <- function(brms_fit,
     H0_post <- H0_post_list[["_default_"]]
     n_times <- nrow(H0_post)
 
+    # OPTIMIZATION: Vectorized matrix operations instead of loops
+    exp_eta <- exp(subgroup_linpred)  # n_draws x n_subjects
+
+    # Calculate marginal survival using matrix operations
     S_marginal <- matrix(NA, nrow = n_draws, ncol = n_times)
-
     for (i in 1:n_draws) {
-      # 1. Get components for this draw
-      h0_i <- H0_post[, i]                  # Vector of length n_times
-      eta_i <- subgroup_linpred[i, ]         # Vector of length n_subjects_in_subgroup
-
-      # 2. Calculate individual survival curves
-      #    This creates an [n_times x n_subjects_in_subgroup] matrix
-      S_individual_by_time <- exp(-outer(h0_i, exp(eta_i)))
-
-      # 3. Average the survival curves (the correct G-comp step)
-      S_marginal[i, ] <- rowMeans(S_individual_by_time, na.rm = TRUE) # <--- THE "AVERAGE SURVIVAL" METHOD
+      h0_i <- H0_post[, i]
+      eta_exp_i <- exp_eta[i, ]
+      # Vectorized calculation: exp(-h0 * mean(exp(eta)))
+      S_marginal[i, ] <- exp(-h0_i * mean(eta_exp_i))
     }
 
     return(S_marginal)
@@ -848,5 +845,4 @@ estimate_subgroup_effects <- function(brms_fit,
 
   return(ahr_draws)
 }
-
 
