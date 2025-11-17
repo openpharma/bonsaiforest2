@@ -1,5 +1,5 @@
 ---
-title: "bonsaiforest2: Quickstart"
+title: "Quickstart"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Quickstart}
@@ -11,9 +11,7 @@ vignette: >
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
-  fig.width = 7,
-  fig.height = 5,
-  eval = FALSE # Set eval=TRUE when actually building vignette in package
+  echo = FALSE 
 )
 ```
 
@@ -29,7 +27,7 @@ The `bonsaiforest2` package consists of 3 core functions which are typically cal
 
 This example makes use of Bayesian modeling, which requires the installation of the `brms` package and a working Stan installation (e.g., via `cmdstanr`).
 
-```{r setup, eval=TRUE, echo=FALSE, results='hide'}
+```{r setup, eval=FALSE, echo=FALSE, results='hide'}
 install.packages("brms")
 install.packages("cmdstanr")
 cmdstanr::install_cmdstan()
@@ -43,7 +41,7 @@ We consider an **analysis model** where we want to find the treatment effect (`t
 
 First, let's load the libraries and create the data.
 
-```{r load-packages, eval=TRUE}
+```{r load-packages}
 # Load the main package
 library(bonsaiforest2)
 
@@ -52,7 +50,7 @@ library(brms)
 library(dplyr)
 ```
 
-```{r ex-data, eval=TRUE}
+```{r ex-data}
 # Create the example data
 set.seed(123)
 n_patients <- 200
@@ -174,29 +172,7 @@ continuous_summary
 #>  comorbidity       Yes            -2.61    -2.62             -5.47     0.28
 ```
 
-To inspect the results, you can extract the estimates as a data frame.
 
-```{r ex-extract-summary, eval=TRUE}
-# Extract the summary table
-summary_table <- as.data.frame(continuous_summary)
-# or just continuous_summary$estimates
-
-print(summary_table)
-#>   subgroup_variable subgroup_level   estimate posterior_median   lower_ci
-#> 1           Overall        Overall -2.7719461       -2.7885406 -5.1507204
-#> 2            region           APAC -2.7915523       -2.8042457 -5.7369651
-#> 3            region             EU -2.6896263       -2.7013862 -5.5936306
-#> 4            region             NA -2.7432729       -2.7427845 -5.6517112
-#> 5       comorbidity             No -2.8406560       -2.8362453 -5.4578119
-#> 6       comorbidity            Yes -2.6105341       -2.6235128 -5.4740193
-#>     upper_ci
-#> 1 -0.4239868
-#> 2  0.2045155
-#> 3  0.2114771
-#> 4  0.1834169
-#> 5 -0.2016629
-#> 6  0.2796213
-```
 
 ## 5. `plot()`
 

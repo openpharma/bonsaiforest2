@@ -26,8 +26,6 @@ Imports:
     splines2,
     tibble,
     posterior,
-    future,
-    future.apply,
     stringr,
     stats,
     survival,
@@ -39,8 +37,10 @@ Suggests:
     knitr,
     rmarkdown,
     cmdstanr,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    BH,
+    RcppEigen
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Additional_repositories: 'https://stan-dev.r-universe.dev'
-
+URL: https://openpharma.github.io/bonsaiforest2/

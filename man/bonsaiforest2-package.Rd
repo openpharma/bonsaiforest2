@@ -8,6 +8,13 @@
 \description{
 More about what it does (maybe more than one line). Continuation lines should be indented.
 }
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://openpharma.github.io/bonsaiforest2/}
+}
+
+}
 \author{
 \strong{Maintainer}: Miriam Pedrera Gomez \email{miriam.pedrera_gomez@roche.com}
 
