@@ -52,12 +52,11 @@
 </nav><div class="container template-article">
 
 
-
-
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Quickstart</h1>
+                        <h4 data-toc-skip class="author">Miriam Pedrera Gomez, Isaac Gravestock, and Marcel Wolbers</h4>
             
       
 
@@ -66,135 +65,113 @@
 
     
     
-<div class="section level2">
-<h2 id="introduction">1. Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
+<div class="section level2" number="0.1">
+<h2 id="introduction">
+<span class="header-section-number">0.1</span> Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>The purpose of this vignette is to provide a 15-minute quickstart
-guide to the core functions of the <code>bonsaiforest2</code>
-package.</p>
-<p>The <code>bonsaiforest2</code> package consists of 3 core functions
-which are typically called in sequence:</p>
+<p>The <code>bonsaiforest2</code> package consists of 3 core functions which are typically called in sequence:</p>
 <ol style="list-style-type: decimal">
 <li>
-<code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> - Prepares the model formula and
-fits the Bayesian model using <code>brms</code>.</li>
+<code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> - Prepares the model formula and fits the Bayesian model using <code>brms</code>.</li>
 <li>
-<code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> - Calculates the marginal
-overall and subgroup treatment effects.</li>
+<code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> - Calculates the marginal overall and subgroup treatment effects.</li>
 <li>
-<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> - Creates a forest plot from the summary
-object.</li>
+<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> - Creates a forest plot from the summary object.</li>
 </ol>
-<p>This example makes use of Bayesian modeling, which requires the
-installation of the <code>brms</code> package and a working Stan
-installation (e.g., via <code>cmdstanr</code>).</p>
+<p>This example makes use of Bayesian modeling, which requires the installation of the
+<a href="brms::brms-package"><code>brms</code></a> package and a working Stan installation (e.g., via
+<a href="cmdstanr::cmdstanr-package"><code>cmdstanr</code></a>).</p>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"brms"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"cmdstanr"</span><span class="op">)</span></span>
+<span><span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/install_cmdstan.html" class="external-link">install_cmdstan</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level2">
-<h2 id="the-data">2. The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
+<div class="section level2" number="0.2">
+<h2 id="the-data">
+<span class="header-section-number">0.2</span> The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
 </h2>
-<p>We will use a simulated example dataset representing a clinical trial
-for blood pressure. The relevant endpoint is the change in Systolic
-Blood Pressure (SBP) from baseline (<code>sbp_change</code>).</p>
-<p>We consider an <strong>analysis model</strong> where we want to find
-the treatment effect (<code>trt</code>) on <code>sbp_change</code>. The
-model will adjust for <code>baseline_sbp</code> as a
-<strong>prognostic</strong> variable (predictor of the outcome) and
-explore <code>region</code> and <code>comorbidity</code> as
-<strong>predictive</strong> variables (potential treatment effect
-modifiers).</p>
+<p>We will use a simulated example dataset representing a clinical trial for blood pressure. The relevant endpoint is the change in Systolic Blood Pressure (SBP) from baseline (<code>sbp_change</code>).</p>
+<p>We consider an <strong>analysis model</strong> where we want to find the treatment effect (<code>trt</code>) on <code>sbp_change</code>. The model will adjust for <code>baseline_sbp</code> as a <strong>prognostic</strong> variable (predictor of the outcome) and explore <code>region</code> and <code>comorbidity</code> as <strong>predictive</strong> variables (potential treatment effect modifiers).</p>
 <p>First, let’s load the libraries and create the data.</p>
-<pre><code><span><span class="co">#&gt; Loading required package: Rcpp</span></span>
-<span><span class="co">#&gt; Loading 'brms' package (version 2.23.0). Useful instructions</span></span>
-<span><span class="co">#&gt; can be found by typing help('brms'). A more detailed introduction</span></span>
-<span><span class="co">#&gt; to the package is available through vignette('brms_overview').</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Attaching package: 'brms'</span></span>
-<span><span class="co">#&gt; The following object is masked from 'package:stats':</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;     ar</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Attaching package: 'dplyr'</span></span>
-<span><span class="co">#&gt; The following objects are masked from 'package:stats':</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;     filter, lag</span></span>
-<span><span class="co">#&gt; The following objects are masked from 'package:base':</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt;     intersect, setdiff, setequal, union</span></span></code></pre>
-<pre><code><span><span class="co">#&gt;   id sbp_change trt baseline_sbp region comorbidity</span></span>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Load the main package</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Load other required packages</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Create the example data</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
+<span><span class="va">n_patients</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
+<span><span class="va">continuous_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n_patients</span>,</span>
+<span>  sbp_change <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, mean <span class="op">=</span> <span class="op">-</span><span class="fl">5</span>, sd <span class="op">=</span> <span class="fl">10</span><span class="op">)</span>,</span>
+<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  baseline_sbp <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, mean <span class="op">=</span> <span class="fl">140</span>, sd <span class="op">=</span> <span class="fl">15</span><span class="op">)</span>,</span>
+<span>  region <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"NA"</span>, <span class="st">"EU"</span>, <span class="st">"APAC"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  comorbidity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Yes"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, prob <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.4</span>, <span class="fl">0.6</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># `bonsaiforest2` expects the treatment variable to be a factor</span></span>
+<span><span class="va">continuous_data</span><span class="op">$</span><span class="va">trt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">continuous_data</span><span class="op">$</span><span class="va">trt</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">continuous_data</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   id sbp_change trt baseline_sbp region comorbidity</span></span>
 <span><span class="co">#&gt; 1  1 -10.604756   0     129.2714     NA          No</span></span>
 <span><span class="co">#&gt; 2  2  -7.301775   0     128.7097     EU         Yes</span></span>
 <span><span class="co">#&gt; 3  3  10.587083   0     125.9219   APAC         Yes</span></span>
 <span><span class="co">#&gt; 4  4  -4.294916   0     124.2123     EU          No</span></span>
 <span><span class="co">#&gt; 5  5  -3.707123   0     133.4426   APAC         Yes</span></span>
-<span><span class="co">#&gt; 6  6  12.150650   0     144.9677     NA          No</span></span></code></pre>
+<span><span class="co">#&gt; 6  6  12.150650   0     144.9677     NA          No</span></span></code></pre></div>
 </div>
-<div class="section level2">
-<h2 id="run_brms_analysis">3. <code>run_brms_analysis()</code><a class="anchor" aria-label="anchor" href="#run_brms_analysis"></a>
+<div class="section level2" number="0.3">
+<h2 id="run_brms_analysis">
+<span class="header-section-number">0.3</span> <code>run_brms_analysis()</code><a class="anchor" aria-label="anchor" href="#run_brms_analysis"></a>
 </h2>
-<p>The <code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> function is the first step. It
-builds the model formula and fits the <code>brms</code> model, applying
-shrinkage priors to exploratory terms.</p>
+<p>The <code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> function is the first step. It builds the model formula and fits the <code>brms</code> model, applying shrinkage priors to exploratory terms.</p>
 <p><strong>Key Arguments:</strong></p>
 <ul>
 <li>
 <code>data</code>: Your input <code>data.frame</code>.</li>
 <li>
-<code>response_formula_str</code>: Defines the outcome and main
-treatment effect (e.g., <code>"outcome ~ trt"</code>).</li>
+<code>response_formula_str</code>: Defines the outcome and main treatment effect (e.g., <code>"outcome ~ trt"</code>).</li>
 <li>
-<code>response_type</code>: <code>"continuous"</code>,
-<code>"binary"</code>, <code>"count"</code>, or
-<code>"survival"</code>.</li>
+<code>response_type</code>: <code>"continuous"</code>, <code>"binary"</code>, <code>"count"</code>, or <code>"survival"</code>.</li>
 <li>
-<code>shrunk_predictive_formula_str</code>: Treatment interactions
-to estimate with shrinkage (e.g.,
-<code>"~ region:trt + sex:trt"</code>).</li>
+<code>shrunk_predictive_formula_str</code>: Treatment interactions to estimate with shrinkage (e.g., <code>"~ region:trt + sex:trt"</code>).</li>
 <li>
-<code>unshrunk_prognostic_formula_str</code>: Main effects (not
-treatment interactions) to estimate without strong shrinkage (e.g.,
-<code>"~ age"</code>).</li>
+<code>unshrunk_prognostic_formula_str</code>: Main effects (not treatment interactions) to estimate without strong shrinkage (e.g., <code>"~ age"</code>).</li>
 <li>
-<code>shrunk_prognostic_formula_str</code>: Main effects to estimate
-with shrinkage.</li>
+<code>shrunk_prognostic_formula_str</code>: Main effects to estimate with shrinkage.</li>
 <li>
-<code>unshrunk_predictive_formula_str</code>: Treatment interactions
-to estimate without strong shrinkage (e.g.,
-<code>"~ prespecified_marker:trt"</code>).</li>
+<code>unshrunk_predictive_formula_str</code>: Treatment interactions to estimate without strong shrinkage (e.g., <code>"~ prespecified_marker:trt"</code>).</li>
 <li>
-<code>prognostic_effect_priors</code>,
-<code>predictive_effect_priors</code>: Lists specifying priors for
-shrunk/unshrunk terms.</li>
+<code>prognostic_effect_priors</code>, <code>predictive_effect_priors</code>: Lists specifying priors for shrunk/unshrunk terms.</li>
 <li>
-<code>stanvars</code>: Optional object from
-<code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvar()</a></code> for custom Stan code (e.g., for
-hierarchical priors).</li>
+<code>stanvars</code>: Optional object from <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvar()</a></code> for custom Stan code (e.g., for hierarchical priors).</li>
 <li>
-<code>...</code>: Other arguments passed directly to
-<code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> (like <code>chains</code>, <code>iter</code>,
-<code>cores</code>).</li>
+<code>...</code>: Other arguments passed directly to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> (like <code>chains</code>, <code>iter</code>, <code>cores</code>).</li>
 </ul>
 <p>For this example, we will:</p>
 <ul>
 <li>Define the response as <code>sbp_change ~ trt</code>.</li>
-<li>Adjust for <code>baseline_sbp</code> as an <strong>unshrunk
-prognostic</strong> variable.</li>
-<li>Explore <code>region</code> and <code>comorbidity</code> as
-<strong>shrunk predictive</strong> variables. We also include
-<code>~ 1</code> in the shrunk predictive formula to apply shrinkage to
-the overall treatment effect (intercept of the interactions).</li>
+<li>Adjust for <code>baseline_sbp</code> as an <strong>unshrunk prognostic</strong> variable.</li>
+<li>Explore <code>region</code> and <code>comorbidity</code> as <strong>shrunk predictive</strong> variables. We also include <code>~ 1</code> in the shrunk predictive formula to apply shrinkage to the overall treatment effect (intercept of the interactions).</li>
 </ul>
-<pre><code><span><span class="co">#&gt; Step 1: Preparing formula and data...</span></span>
-<span><span class="co">#&gt; Treatment 'trt' added to unshrunk prognostic terms by default.</span></span>
-<span><span class="co">#&gt; Auto-adding missing prognostic effect for interaction: region</span></span>
-<span><span class="co">#&gt; Auto-adding missing prognostic effect for interaction: comorbidity</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
-<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - unshrunk prognostic (b): normal(0, 5)</span></span>
-<span><span class="co">#&gt;   - prognostic intercept: normal(0, 5)</span></span>
-<span><span class="co">#&gt;   - shrunk predictive (b): horseshoe(1)</span></span>
-<span><span class="co">#&gt; Fitting brms model...</span></span>
-<span><span class="co">#&gt; Start sampling</span></span>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># iter and chains are set low for a quick example.</span></span>
+<span><span class="co"># For a real analysis, use more iterations (e.g., iter = 2000).</span></span>
+<span><span class="va">continuous_model_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
+<span>  response_formula_str <span class="op">=</span> <span class="st">"sbp_change ~ trt"</span>,</span>
+<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>  unshrunk_prognostic_formula_str <span class="op">=</span> <span class="st">"~ baseline_sbp"</span>,</span>
+<span>  <span class="co"># Shrink intercept (1), region interaction, and comorbidity interaction</span></span>
+<span>  shrunk_predictive_formula_str <span class="op">=</span> <span class="st">"~ 1 + region:trt + comorbidity:trt"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span> <span class="co"># Use cmdstanr if available</span></span>
+<span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
@@ -205,14 +182,8 @@ the overall treatment effect (intercept of the interactions).</li>
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
 <span><span class="co">#&gt; Chain 1 finished in 2.3 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 92 of 100 (92.0%) transitions hit the maximum treedepth limit of 10.</span></span>
-<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
-<span><span class="co">#&gt; Loading required namespace: rstan</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Analysis complete.</span></span>
-<span><span class="co">#&gt; Warning: Parts of the model have not converged (some Rhats are &gt; 1.05). Be</span></span>
-<span><span class="co">#&gt; careful when analysing the results! We recommend running more iterations and/or</span></span>
-<span><span class="co">#&gt; setting stronger priors.</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">continuous_model_fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  Family: gaussian </span></span>
 <span><span class="co">#&gt;   Links: mu = identity </span></span>
 <span><span class="co">#&gt; Formula: sbp_change ~ unprogeffect + shpredeffect </span></span>
@@ -254,22 +225,24 @@ the overall treatment effect (intercept of the interactions).</li>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Draws were sampled using sample(hmc). For each parameter, Bulk_ESS</span></span>
 <span><span class="co">#&gt; and Tail_ESS are effective sample size measures, and Rhat is the potential</span></span>
-<span><span class="co">#&gt; scale reduction factor on split chains (at convergence, Rhat = 1).</span></span></code></pre>
+<span><span class="co">#&gt; scale reduction factor on split chains (at convergence, Rhat = 1).</span></span></code></pre></div>
 </div>
-<div class="section level2">
-<h2 id="summary_subgroup_effects">4. <code>summary_subgroup_effects()</code><a class="anchor" aria-label="anchor" href="#summary_subgroup_effects"></a>
+<div class="section level2" number="0.4">
+<h2 id="summary_subgroup_effects">
+<span class="header-section-number">0.4</span> <code>summary_subgroup_effects()</code><a class="anchor" aria-label="anchor" href="#summary_subgroup_effects"></a>
 </h2>
-<p>The next step is to use the fitted model to generate interpretable
-subgroup effects. This is done with
-<code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code>.</p>
-<p>This function uses <strong>G-computation</strong> to estimate the
-<em>marginal</em> treatment effect for each subgroup (e.g., “what is the
-average effect for all patients in the ‘EU’ region?”), averaging over
-all other covariates like <code>baseline_sbp</code> and
-<code>comorbidity</code>.</p>
-<p>Its main inputs are the <code>brms_fit</code> object from the
-previous step and the <code>original_data</code>.</p>
-<pre><code><span><span class="co">#&gt; --- Calculating overall marginal effect... ---</span></span>
+<p>The next step is to use the fitted model to generate interpretable subgroup effects. This is done with <code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code>.</p>
+<p>This function uses <strong>G-computation</strong> to estimate the <em>marginal</em> treatment effect for each subgroup (e.g., “what is the average effect for all patients in the ‘EU’ region?”), averaging over all other covariates like <code>baseline_sbp</code> and <code>comorbidity</code>.</p>
+<p>Its main inputs are the <code>brms_fit</code> object from the previous step and the <code>original_data</code>.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">continuous_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span></span>
+<span>  brms_fit <span class="op">=</span> <span class="va">continuous_model_fit</span>,</span>
+<span>  original_data <span class="op">=</span> <span class="va">continuous_data</span>, <span class="co"># Pass the original data</span></span>
+<span>  trt_var <span class="op">=</span> <span class="st">"trt"</span>,</span>
+<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>     <span class="co"># Must match fitting</span></span>
+<span>  <span class="co"># subgroup_vars = "auto" is the default and finds all interactions</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; --- Calculating overall marginal effect... ---</span></span>
 <span><span class="co">#&gt; Step 1: Creating counterfactual datasets...</span></span>
 <span><span class="co">#&gt; ...setting interaction dummy variables for the 'all treatment' scenario.</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
@@ -288,6 +261,8 @@ previous step and the <code>original_data</code>.</p>
 <span><span class="co">#&gt; ... processing region</span></span>
 <span><span class="co">#&gt; ... processing comorbidity</span></span>
 <span><span class="co">#&gt; Done.</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">continuous_summary</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $estimates</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 6 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup         Median CI_Lower CI_Upper</span></span>
@@ -309,70 +284,28 @@ previous step and the <code>original_data</code>.</p>
 <span><span class="co">#&gt; [1] "trt"</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; attr(,"class")</span></span>
-<span><span class="co">#&gt; [1] "subgroup_summary"</span></span></code></pre>
+<span><span class="co">#&gt; [1] "subgroup_summary"</span></span></code></pre></div>
 </div>
-<div class="section level2">
-<h2 id="plot">5. <code>plot()</code><a class="anchor" aria-label="anchor" href="#plot"></a>
+<div class="section level2" number="0.5">
+<h2 id="plot">
+<span class="header-section-number">0.5</span> <code>plot()</code><a class="anchor" aria-label="anchor" href="#plot"></a>
 </h2>
-<p>Finally, the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function takes the
-<code>subgroup_summary</code> object and creates a forest plot for easy
-interpretation.</p>
-<pre><code><span><span class="co">#&gt; Preparing data for plotting...</span></span>
+<p>Finally, the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function takes the <code>subgroup_summary</code> object and creates a forest plot for easy interpretation.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Generate and display the plot</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">continuous_summary</span>, title <span class="op">=</span> <span class="st">"Continuous: Subgroup Effects on SBP Change"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
 <span><span class="co">#&gt; Done.</span></span>
-<span><span class="co">#&gt; `height` was translated to `width`.</span></span></code></pre>
-<p><img src="Quickstart_files/figure-html/ex-plot-1.png" class="r-plt" width="700"></p>
-<p>This plot displays the marginal treatment effect (mean difference in
-<code>sbp_change</code>) for the overall population and for each
-subgroup level. The estimates are “shrunk” towards the overall effect,
-providing more stable results than fitting separate models for each
-subgroup.</p>
+<span><span class="co">#&gt; `height` was translated to `width`.</span></span></code></pre></div>
+<p><img src="Quickstart_files/figure-html/ex-plot-1.png"><!-- --></p>
+<p>This plot displays the marginal treatment effect (mean difference in <code>sbp_change</code>) for the overall population and for each subgroup level. The estimates are “shrunk” towards the overall effect, providing more stable results than fitting separate models for each subgroup.</p>
 </div>
-<div class="section level2">
-<h2 id="advanced-feature-specifying-priors">6. Advanced Feature: Specifying Priors<a class="anchor" aria-label="anchor" href="#advanced-feature-specifying-priors"></a>
+<div class="section level2" number="0.6">
+<h2 id="code">
+<span class="header-section-number">0.6</span> Code<a class="anchor" aria-label="anchor" href="#code"></a>
 </h2>
-<p>A key feature of <code>bonsaiforest2</code> is controlling the
-priors. By default, shrunk terms get a <code>horseshoe(1)</code> prior
-and unshrunk terms get a <code>normal(0, 5)</code> prior.</p>
-<p>You can override this using the <code>prognostic_effect_priors</code>
-and <code>predictive_effect_priors</code> arguments. These take named
-lists.</p>
-<p>For example, let’s say we want to use a more conventional
-<code>normal(0, 2.5)</code> prior for our <strong>shrunk
-predictive</strong> effects and a wide <code>student_t(3, 0, 10)</code>
-for our <strong>unshrunk prognostic</strong>
-<code>baseline_sbp</code>.</p>
-<pre><code><span><span class="co">#&gt; Step 1: Preparing formula and data...</span></span>
-<span><span class="co">#&gt; Treatment 'trt' added to unshrunk prognostic terms by default.</span></span>
-<span><span class="co">#&gt; Auto-adding missing prognostic effect for interaction: region</span></span>
-<span><span class="co">#&gt; Auto-adding missing prognostic effect for interaction: comorbidity</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
-<span><span class="co">#&gt; Fitting brms model...</span></span>
-<span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 1.6 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.</span></span>
-<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Analysis complete.</span></span></code></pre>
-<p>For more details on advanced priors like R2D2 or custom hierarchical
-priors, see the “Technical Details” vignette
-(<code><a href="../articles/technical-details.html">vignette("technical-details", package = "bonsaiforest2")</a></code>).</p>
-</div>
-<div class="section level2">
-<h2 id="code">7. Code<a class="anchor" aria-label="anchor" href="#code"></a>
-</h2>
-<p>We report below all the code for the main workflow presented in this
-vignette.</p>
+<p>We report below all the code for the main workflow presented in this vignette.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
