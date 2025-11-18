@@ -39,7 +39,8 @@ Suggests:
     cmdstanr,
     testthat (>= 3.0.0),
     BH,
-    RcppEigen
+    RcppEigen,
+    bookdown
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Additional_repositories: 'https://stan-dev.r-universe.dev'
