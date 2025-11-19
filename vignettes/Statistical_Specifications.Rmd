@@ -379,7 +379,7 @@ The [`brms`](https://paulbuerkner.com/brms/) package implements the Regularized 
 
 he Horseshoe prior is set using the function call:
 
-```{r}
+```{r, eval=FALSE}
 horseshoe(df = 1, scale_global = 1, df_global = 1, scale_slab = 2, df_slab = 4, par_ratio = NULL, autoscale = TRUE, main = FALSE)
 ```
 
@@ -457,7 +457,7 @@ The [`brms`](https://paulbuerkner.com/brms/) package implements this prior using
 
 The R2D2 prior is set using the function call:
 
-```{r}
+```{r, eval=FALSE}
 R2D2(mean_R2 = 0.5, prec_R2 = 2, cons_D2 = 0.5, autoscale = TRUE, main = FALSE)
 ```
 
