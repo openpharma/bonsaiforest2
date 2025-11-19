@@ -26,7 +26,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-## Introduction
+# Introduction
 
 The `bonsaiforest2` package consists of 3 core functions which are typically called in sequence:
 
@@ -35,8 +35,8 @@ The `bonsaiforest2` package consists of 3 core functions which are typically cal
 3.  `plot()` - Creates a forest plot from the summary object.
 
 This example makes use of Bayesian modeling, which requires the installation of the 
-[`brms`](brms::brms-package) package and a working Stan installation (e.g., via 
-[`cmdstanr`](cmdstanr::cmdstanr-package)).
+[`brms`](https://paulbuerkner.com/brms/) package and a working Stan installation (e.g., via 
+[`cmdstanr`](https://mc-stan.org/cmdstanr/)).
 
 ```{r setup, eval=FALSE, message=FALSE, warning=FALSE}
 install.packages("brms")
@@ -44,7 +44,7 @@ install.packages("cmdstanr")
 cmdstanr::install_cmdstan()
 ```
 
-## The Data
+# The Data
 
 We will use a simulated example dataset representing a clinical trial for blood pressure. The relevant endpoint is the change in Systolic Blood Pressure (SBP) from baseline (`sbp_change`).
 
@@ -80,7 +80,7 @@ continuous_data$trt <- factor(continuous_data$trt, levels = c(0, 1))
 print(head(continuous_data))
 ```
 
-## `run_brms_analysis()`
+# `run_brms_analysis()`
 
 The `run_brms_analysis()` function is the first step. It builds the model formula and fits the `brms` model, applying shrinkage priors to exploratory terms.
 
@@ -120,7 +120,7 @@ continuous_model_fit <- run_brms_analysis(
 print(continuous_model_fit)
 ```
 
-## `summary_subgroup_effects()`
+# `summary_subgroup_effects()`
 
 The next step is to use the fitted model to generate interpretable subgroup effects. This is done with `summary_subgroup_effects()`.
 
@@ -140,7 +140,7 @@ continuous_summary <- summary_subgroup_effects(
 print(continuous_summary)
 ```
 
-## `plot()`
+# `plot()`
 
 Finally, the `plot()` function takes the `subgroup_summary` object and creates a forest plot for easy interpretation.
 
@@ -151,7 +151,7 @@ plot(continuous_summary, title = "Continuous: Subgroup Effects on SBP Change")
 
 This plot displays the marginal treatment effect (mean difference in `sbp_change`) for the overall population and for each subgroup level. The estimates are "shrunk" towards the overall effect, providing more stable results than fitting separate models for each subgroup.
 
-## Code
+# Code
 
 We report below all the code for the main workflow presented in this vignette.
 
