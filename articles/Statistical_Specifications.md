@@ -558,7 +558,22 @@ appropriate likelihood and link function for \\g(\boldsymbol{\mu}) =
 
 ### 3.8 Prior Specifications
 
-### 3.9 Weakly Informative Priors (Unshrunk Terms)
+#### 3.8.1 Default Priors
+
+If priors are not specified, the function applies the following defaults
+(as defined in the `fit_brms_model` code):
+
+- **Prognostic Shrunk:** `horseshoe(1)`
+- **Prognostic Unshrunk:** `normal(0, 5)`
+- **Prognostic Intercept:** `normal(0, 10)`
+- **Predictive Shrunk:** `horseshoe(1)`
+- **Predictive Unshrunk:** `normal(0, 5)`
+
+**Note:** The intercept prior is *not* applied for
+`response_type = "survival"`, as Cox models do not have a global
+intercept.
+
+#### 3.8.2 Weakly Informative Priors (Unshrunk Terms)
 
 For all non-penalized coefficients (\\\boldsymbol{\beta\_{1,n}},
 \boldsymbol{\beta\_{2,n}}, \boldsymbol{\beta\_{3}}\\), we use weakly
@@ -569,7 +584,7 @@ influencing the posterior.
   prior on the linear predictor scale. Users can specify their own,
   e.g., `student_t(3, 0, 2.5)`.
 
-### 3.10 Regularized Horseshoe Prior (Shrunk Terms)
+#### 3.8.3 Regularized Horseshoe Prior (Shrunk Terms)
 
 This is the default shrinkage prior in `bonsaiforest2`, recommended for
 its excellent adaptive shrinkage properties ([Wolbers et al.
@@ -578,17 +593,20 @@ its excellent adaptive shrinkage properties ([Wolbers et al.
 
 - **Concept:** A global-local prior. It has an infinitely tall spike at
   zero (to aggressively shrink noise) and heavy tails (to leave true,
-  large signals unshrunk) .
-- **Hierarchical Specification** :
+  large signals unshrunk).
 
-\\\begin{aligned} \beta\_{2,l} &\sim N(0, \tau^2 \tilde{\lambda}\_l^2)
-\\ \tilde{\lambda}\_l^2 &= \frac{c^2 \lambda_l^2}{c^2 + \tau^2
-\lambda_l^2} \\ \lambda_l &\sim C^+(0, 1) \quad (\text{Local shrinkage})
-\\ \tau &\sim C^+(0, \tau_0) \quad (\text{Global shrinkage}) \\ c^2
-&\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2) \end{aligned} \\
+- **Hierarchical Specification**:
+
+  \\\begin{aligned} \beta\_{2,l} &\sim N(0, \tau^2 \tilde{\lambda}\_l^2)
+  \\ \tilde{\lambda}\_l^2 &= \frac{c^2 \lambda_l^2}{c^2 + \tau^2
+  \lambda_l^2} \\ \lambda_l &\sim C^+(0, 1) \quad (\text{Local
+  shrinkage}) \\ \tau &\sim C^+(0, \tau_0) \quad (\text{Global
+  shrinkage}) \\ c^2 &\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
+  \end{aligned}\\
 
 - **Hyperparameter Justification**: The package supports two ways to set
   the crucial global scale \\\tau_0\\:
+
   1.  **Fixed Default (`scale_global`):** `horseshoe(scale_global = 1)`.
       This is the package default, a robust, general-purpose choice
       ([Wolbers et al. 2025](#ref-wolbers2025using)).
@@ -597,10 +615,83 @@ its excellent adaptive shrinkage properties ([Wolbers et al.
       \\p\_{eff}\\, out of the total \\L\\ ([Bornkamp
       2025](#ref-bornkamp2025benchmarking); [Piironen and Vehtari
       2017](#ref-piironen2017sparsity)). This is specified via
-      \\\text{par_ratio} = \frac{p\_{eff}}{L - p\_{eff}}\\. This scales
+      \\\text{par\\ratio} = \frac{p\_{eff}}{L - p\_{eff}}\\. This scales
       the prior based on sample size (\\N\\) and the expected sparsity.
 
-### 3.11 R2D2 Prior (Shrunk Terms)
+**Regularized Horseshoe Implementation in**
+[`brms`](https://paulbuerkner.com/brms/)
+
+The [`brms`](https://paulbuerkner.com/brms/) package implements the
+Regularized Horseshoe prior using the function
+[`horseshoe(...)`](https://paulbuerkner.com/brms/reference/horseshoe.html).
+The regularization term (the “slab”) is added to the standard Horseshoe
+to ensure robustness and improve computational stability in Stan.
+
+- **Horseshoe Function and Key Arguments**
+
+he Horseshoe prior is set using the function call:
+
+``` r
+horseshoe(df = 1, scale_global = 1, df_global = 1, scale_slab = 2, df_slab = 4, par_ratio = NULL, autoscale = TRUE, main = FALSE)
+```
+
+| Horseshoe Argument         | Theoretical Equivalent            | Role and Implication                                                                                                                                      |
+|:---------------------------|:----------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| \\\mathbf{scale\\global}\\ | \\\tau_0\\                        | Scale of the \\\text{Student-}t\\ prior on the global shrinkage parameter \\\tau\\ Lower values \\\implies\\ **more aggressive global shrinkage**.        |
+| \\\mathbf{par\\ratio}\\    | \\\frac{p\_{eff}}{L - p\_{eff}}\\ | **Alternative to** \\\mathbf{scale\\global}\\. Specifies the ratio of expected non-zero to zero coefficients, automatically calculating \\\tau_0\\.       |
+| \\\mathbf{df}\\            | DOF for \\\lambda_l\\             | Degrees of freedom of \\\text{Student-}t\\ prior on local shrinkage parameters (\\\lambda_l\\). Default \\\mathbf{df=1}\\ gives the standard half-Cauchy. |
+| \\\mathbf{scale\\slab}\\   | \\s\\                             | Scale of the regularization slab. Default \\\mathbf{scale\\slab=2}\\ prevents large coefficients from being over-shrunk.                                  |
+| \\\mathbf{autoscale}\\     | Scaling by \\\sigma\\             | Logical. If \\\mathbf{TRUE}\\ (default), the prior is **automatically scaled** using the residual standard deviation (\\\sigma\\).                        |
+
+- **Relationship to Justification:** The \\\mathbf{brms}\\ function
+  offers two primary ways to set the global shrinkage level, which
+  controls the overall sparsity of the model:
+
+1.  **Fixed Global Scale:** Using the \\\mathbf{scale\\global}\\
+    argument, often set to \\\mathbf{1.0}\\ as a general-purpose
+    default. This value is internally multiplied by the residual
+    standard deviation (\\\sigma\\) when `autoscale = TRUE`.
+2.  **Elicited Global Scale (Recommended):** Using the
+    \\\mathbf{par\\ratio}\\ argument, which allows the user to specify
+    their **prior belief about the sparsity** of the model (i.e., the
+    expected number of true non-zero coefficients, \\p\_{eff}\\). This
+    is the recommended approach as it accounts for the number of
+    coefficients \\L\\ and the sample size \\N\\ to determine the
+    optimal \\\tau_0\\.
+
+- **Choosing** \\\mathbf{scale\\global}\\ **and**
+  \\\mathbf{par\\ratio}\\: The choice of \\\tau_0\\ (controlled by
+  \\\mathbf{scale\\global}\\ or \\\mathbf{par\\ratio}\\) is crucial, as
+  it sets the overall magnitude of shrinkage.
+
+  - **Fixed Default (**\\\mathbf{scale\\global=1}\\):
+
+    - **Use when:** You want a simple, robust, general-purpose prior
+      without explicit sparsity knowledge.
+    - **Caveat:** May result in insufficient shrinkage if the true
+      number of non-zero coefficients is small.
+
+  - **Elicited Sparsity (**\\\mathbf{par\\ratio}\\):
+
+    - **Calculation:** \\\text{par\\ratio} = \frac{p\_{eff}}{L -
+      p\_{eff}}\\, where \\p\_{eff}\\ is the expected number of non-zero
+      coefficients and \\L\\ is the total number of coefficients.
+    - **Use when:** You have a strong prior belief about the number of
+      relevant effects. This is generally preferred for adaptive
+      shrinkage as it scales \\\tau_0\\ appropriately.
+
+|  \\\mathbf{par\\ratio}\\ Value  | Expected \\p\_{eff}\\ (Sparsity) | Interpretation of Shrinkage                                                                          |
+|:-------------------------------:|:---------------------------------|:-----------------------------------------------------------------------------------------------------|
+|     **Small (e.g., 0.05)**      | Very Few Non-Zero Coefficients   | **High Shrinkage:** \\\tau_0\\ is small, aggressively shrinking coefficients towards zero.           |
+|    **Moderate (e.g., 0.2)**     | A Moderate Fraction is Non-Zero  | **Moderate Shrinkage:** A less aggressive \\\tau_0\\, allowing more coefficients to remain unshrunk. |
+| \\\mathbf{par\\ratio}\\ Ignored | \\\mathbf{scale\\global}\\ used  | Uses a fixed \\\tau_0\\ that doesn’t explicitly depend on expected sparsity.                         |
+
+> **Recommendation:** While \\\mathbf{scale\\global=1}\\ is the quick
+> default, specifying \\\mathbf{par\\ratio}\\ based on expert knowledge
+> of expected sparsity is the **most theoretically sound and adaptive**
+> method for setting the global shrinkage scale.
+
+#### 3.8.4 R2D2 Prior (Shrunk Terms)
 
 - **Concept:** This prior is uniquely derived by first placing a prior
   on the model’s coefficient of determination, \\R^2\\, which quantifies
@@ -621,22 +712,96 @@ its excellent adaptive shrinkage properties ([Wolbers et al.
 
   - Zhang et al. ([2022](#ref-zhang2022bayesian)) provide clear
     guidance. A fully automatic approach is to set \\b=0.5\\ to achieve
-    Cauchy-like heavy tails.
+    **Cauchy-like heavy tails**.
 
   - The concentration parameter \\a\_\pi\\ controls sparsity. A smaller
-    \\a\_\pi\\ (e.g., 0.2) implies higher shrinkage, concentrating the
-    prior variance on fewer coefficients, while a larger \\a\_\pi\\
-    (e.g., 0.5) spreads the variance more evenly, implying lower
-    shrinkage.
+    \\a\_\pi\\ (e.g., 0.2) implies **higher shrinkage**, concentrating
+    the prior variance on fewer coefficients, while a larger \\a\_\pi\\
+    (e.g., 0.5) spreads the variance more evenly, implying **lower
+    shrinkage**.
 
   - **Default Recommendation:** Set \\b=0.5\\ and offer options for the
     user based on desired shrinkage strength:
 
     - **High Shrinkage:** \\a\_\pi=0.2\\
-
     - **Low Shrinkage:** \\a\_\pi=0.5\\
 
-### 3.12 Normal Hierarchical Prior (for One-Variable-at-a-Time Model)
+**R2D2 Prior Implementation in**
+[`brms`](https://paulbuerkner.com/brms/)
+
+The [`brms`](https://paulbuerkner.com/brms/) package implements this
+prior using the function
+[`R2D2(...)`](https://paulbuerkner.com/brms/reference/R2D2.html),
+providing a high-level parametrization that is more intuitive than
+setting the parameters \\a\\, \\b\\, and \\a\_\pi\\ directly. This
+function translates desired \\\mathbf{R^2}\\ properties and shrinkage
+strength into the underlying prior distribution’s parameters.
+
+- **R2D2 Function and Key Arguments**
+
+The R2D2 prior is set using the function call:
+
+``` r
+R2D2(mean_R2 = 0.5, prec_R2 = 2, cons_D2 = 0.5, autoscale = TRUE, main = FALSE)
+```
+
+| R2D2 Argument          | Theoretical Equivalent  | Role and Implication                                                                                                                                                          |
+|:-----------------------|:------------------------|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| \\\mathbf{mean\\R2}\\  | \\\mathbb{E}\[R^2\]\\   | Sets the **prior expected value** for the model’s fixed effect \\R^2\\.                                                                                                       |
+| \\\mathbf{prec\\R2}\\  | \\a+b\\ (Concentration) | Controls the **precision** of the Beta prior on \\R^2\\. Lower values mean a flatter prior.                                                                                   |
+| \\\mathbf{cons\\D2}\\  | \\a\_{\pi}\\            | The **concentration parameter** for the \\\text{Dirichlet}\\ distribution on the variance components (local shrinkage). **Lower values imply higher shrinkage/sparsity.**     |
+| \\\mathbf{autoscale}\\ | Scaling by \\\sigma\\   | Logical. If \\\mathbf{TRUE}\\ (default), the prior is **automatically scaled** using the residual standard deviation (\\\sigma\\). This ensures the prior is scale-invariant. |
+
+- **Relationship to Justification:** The
+  [`brms`](https://paulbuerkner.com/brms/) function parameters are
+  directly related to the justified hierarchical parameters:
+
+  - The \\\mathbf{cons\\D2}\\ parameter is the direct counterpart to the
+    sparsity parameter \\\mathbf{a\_{\pi}}\\. The default recommendation
+    \\\mathbf{cons\\D2 = 0.5}\\ corresponds precisely to the
+    \\\mathbf{a\_{\pi}=0.5}\\ low shrinkagesetting.
+  - The \\\mathbf{mean\\R2}\\ and \\\mathbf{prec\\R2}\\ arguments define
+    the \\\text{Beta}(a,b)\\ prior on \\R^2\\, where: \\a =
+    \text{mean_R2} \times \text{prec_R2}\\ \\b = (1 - \text{mean_R2})
+    \times \text{prec_R2}\\ The choice of \\\mathbf{prec\\R2=2}\\ (the
+    default) alongside \\\mathbf{mean\\R2=0.5}\\ results in \\a=1\\ and
+    \\b=1\\, which is a **Uniform prior** on \\R^2 \sim \text{Beta}(1,
+    1)\\, representing a maximally weak prior belief on global fit.
+  - The essential \\\mathbf{b=0.5}\\ setting for **Cauchy-like heavy
+    tails** (preventing over-shrinkage) is **implicitly** handled by the
+    R2D2 function’s underlying structure and does not require manual
+    specification.
+
+- **Choosing** \\\mathbf{mean\\R2}\\ and \\\mathbf{prec\\R2}\\ :
+  Choosing these parameters involves quantifying your prior knowledge
+  about the model’s overall predictive power before observing the data.
+  They define a \\\text{Beta}(a,b)\\ distribution on \\R^2\\.
+
+  - Choosing \\\mathbf{mean\\R2}\\ (Prior Expected \\R^2\\): This sets
+    the **center** of your prior belief.
+
+    - **Default (0.5):** Use if you have no strong prior knowledge. It
+      implies a neutral expectation that the fixed effects will explain
+      half of the variance.
+
+    - **Informative Low (e.g., 0.1 to 0.3):** Use if you expect a very
+      weak or noisy relationship.
+
+    - **Informative High (e.g., 0.7 to 0.9):** Use if you expect a
+      highly predictive model based on strong prior evidence.
+
+  - Choosing \\\mathbf{prec\\R2}\\ (Prior Confidence in \\R^2\\): This
+    determines the **concentration** or **certainty** of the Beta prior
+    around the chosen \\\text{mean_R2}\\.
+
+[TABLE]
+
+> **Recommendation:** The **Default** \\\mathbf{mean\\R2 = 0.5}\\ and
+> \\\mathbf{prec\\R2 = 2}\\ provides the most flexible, weakly
+> informative setting for \\R^2\\, which is generally recommended unless
+> strong prior knowledge dictates otherwise.
+
+#### 3.8.5 Normal Hierarchical Prior (for One-Variable-at-a-Time Model)
 
 This is the standard hierarchical model for subgroup analysis, which
 assumes that treatment effects for levels within a subgrouping variable
@@ -663,7 +828,7 @@ heterogeneity}) \end{aligned} \\
   a implies a prior on the plausible difference in treatment effects
   between any two subgroups.
 
-### 3.13 Estimation (MCMC)
+### 3.9 Estimation (MCMC)
 
 The joint posterior distribution of all parameters is complex and has no
 closed-form solution. We use Markov Chain Monte Carlo (MCMC) methods to
@@ -673,7 +838,7 @@ Carlo (HMC), as implemented in **Stan** via the `brms` package. The
 output is a set of posterior samples (e.g., 4000 draws) representing the
 joint posterior distribution.
 
-### 3.14 Standardization for Marginal Effects (G-computation)
+### 3.10 Standardization for Marginal Effects (G-computation)
 
 To obtain interpretable *marginal* effects for each subgroup, the
 package implements a standardization (G-computation) procedure. This

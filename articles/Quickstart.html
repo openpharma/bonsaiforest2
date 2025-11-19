@@ -33,10 +33,9 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/Quickstart.html">Quickstart</a></li>
+<li><a class="dropdown-item" href="../articles/Advanced_Functionalities.html">Advanced Functionalities</a></li>
+    <li><a class="dropdown-item" href="../articles/Quickstart.html">Quickstart</a></li>
     <li><a class="dropdown-item" href="../articles/Statistical_Specifications.html">Statistical Specifications</a></li>
-    <li><a class="dropdown-item" href="../articles/technical-details.html">Technical Details of bonsai forest Models</a></li>
-    <li><a class="dropdown-item" href="../articles/using-bonsaiforest.html">Using bonsai forest for Bayesian Subgroup Analysis</a></li>
   </ul>
 </li>
       </ul>
@@ -65,9 +64,9 @@
 
     
     
-<div class="section level2" number="0.1">
+<div class="section level2" number="1">
 <h2 id="introduction">
-<span class="header-section-number">0.1</span> Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
+<span class="header-section-number">1</span> Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
 <p>The <code>bonsaiforest2</code> package consists of 3 core functions which are typically called in sequence:</p>
 <ol style="list-style-type: decimal">
@@ -79,16 +78,16 @@
 <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> - Creates a forest plot from the summary object.</li>
 </ol>
 <p>This example makes use of Bayesian modeling, which requires the installation of the
-<a href="brms::brms-package"><code>brms</code></a> package and a working Stan installation (e.g., via
-<a href="cmdstanr::cmdstanr-package"><code>cmdstanr</code></a>).</p>
+<a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a> package and a working Stan installation (e.g., via
+<a href="https://mc-stan.org/cmdstanr/" class="external-link"><code>cmdstanr</code></a>).</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"brms"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"cmdstanr"</span><span class="op">)</span></span>
 <span><span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/install_cmdstan.html" class="external-link">install_cmdstan</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level2" number="0.2">
+<div class="section level2" number="2">
 <h2 id="the-data">
-<span class="header-section-number">0.2</span> The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
+<span class="header-section-number">2</span> The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
 </h2>
 <p>We will use a simulated example dataset representing a clinical trial for blood pressure. The relevant endpoint is the change in Systolic Blood Pressure (SBP) from baseline (<code>sbp_change</code>).</p>
 <p>We consider an <strong>analysis model</strong> where we want to find the treatment effect (<code>trt</code>) on <code>sbp_change</code>. The model will adjust for <code>baseline_sbp</code> as a <strong>prognostic</strong> variable (predictor of the outcome) and explore <code>region</code> and <code>comorbidity</code> as <strong>predictive</strong> variables (potential treatment effect modifiers).</p>
@@ -125,9 +124,9 @@
 <span><span class="co">#&gt; 5  5  -3.707123   0     133.4426   APAC         Yes</span></span>
 <span><span class="co">#&gt; 6  6  12.150650   0     144.9677     NA          No</span></span></code></pre></div>
 </div>
-<div class="section level2" number="0.3">
+<div class="section level2" number="3">
 <h2 id="run_brms_analysis">
-<span class="header-section-number">0.3</span> <code>run_brms_analysis()</code><a class="anchor" aria-label="anchor" href="#run_brms_analysis"></a>
+<span class="header-section-number">3</span> <code>run_brms_analysis()</code><a class="anchor" aria-label="anchor" href="#run_brms_analysis"></a>
 </h2>
 <p>The <code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> function is the first step. It builds the model formula and fits the <code>brms</code> model, applying shrinkage priors to exploratory terms.</p>
 <p><strong>Key Arguments:</strong></p>
@@ -227,9 +226,9 @@
 <span><span class="co">#&gt; and Tail_ESS are effective sample size measures, and Rhat is the potential</span></span>
 <span><span class="co">#&gt; scale reduction factor on split chains (at convergence, Rhat = 1).</span></span></code></pre></div>
 </div>
-<div class="section level2" number="0.4">
+<div class="section level2" number="4">
 <h2 id="summary_subgroup_effects">
-<span class="header-section-number">0.4</span> <code>summary_subgroup_effects()</code><a class="anchor" aria-label="anchor" href="#summary_subgroup_effects"></a>
+<span class="header-section-number">4</span> <code>summary_subgroup_effects()</code><a class="anchor" aria-label="anchor" href="#summary_subgroup_effects"></a>
 </h2>
 <p>The next step is to use the fitted model to generate interpretable subgroup effects. This is done with <code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code>.</p>
 <p>This function uses <strong>G-computation</strong> to estimate the <em>marginal</em> treatment effect for each subgroup (e.g., “what is the average effect for all patients in the ‘EU’ region?”), averaging over all other covariates like <code>baseline_sbp</code> and <code>comorbidity</code>.</p>
@@ -286,9 +285,9 @@
 <span><span class="co">#&gt; attr(,"class")</span></span>
 <span><span class="co">#&gt; [1] "subgroup_summary"</span></span></code></pre></div>
 </div>
-<div class="section level2" number="0.5">
+<div class="section level2" number="5">
 <h2 id="plot">
-<span class="header-section-number">0.5</span> <code>plot()</code><a class="anchor" aria-label="anchor" href="#plot"></a>
+<span class="header-section-number">5</span> <code>plot()</code><a class="anchor" aria-label="anchor" href="#plot"></a>
 </h2>
 <p>Finally, the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function takes the <code>subgroup_summary</code> object and creates a forest plot for easy interpretation.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -301,9 +300,9 @@
 <p><img src="Quickstart_files/figure-html/ex-plot-1.png"><!-- --></p>
 <p>This plot displays the marginal treatment effect (mean difference in <code>sbp_change</code>) for the overall population and for each subgroup level. The estimates are “shrunk” towards the overall effect, providing more stable results than fitting separate models for each subgroup.</p>
 </div>
-<div class="section level2" number="0.6">
+<div class="section level2" number="6">
 <h2 id="code">
-<span class="header-section-number">0.6</span> Code<a class="anchor" aria-label="anchor" href="#code"></a>
+<span class="header-section-number">6</span> Code<a class="anchor" aria-label="anchor" href="#code"></a>
 </h2>
 <p>We report below all the code for the main workflow presented in this vignette.</p>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">

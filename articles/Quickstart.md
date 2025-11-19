@@ -1,6 +1,6 @@
 # Quickstart
 
-## 0.1 Introduction
+## 1 Introduction
 
 The `bonsaiforest2` package consists of 3 core functions which are
 typically called in sequence:
@@ -13,8 +13,9 @@ typically called in sequence:
     forest plot from the summary object.
 
 This example makes use of Bayesian modeling, which requires the
-installation of the [`brms`](brms::brms-package) package and a working
-Stan installation (e.g., via [`cmdstanr`](cmdstanr::cmdstanr-package)).
+installation of the [`brms`](https://paulbuerkner.com/brms/) package and
+a working Stan installation (e.g., via
+[`cmdstanr`](https://mc-stan.org/cmdstanr/)).
 
 ``` r
 install.packages("brms")
@@ -22,7 +23,7 @@ install.packages("cmdstanr")
 cmdstanr::install_cmdstan()
 ```
 
-## 0.2 The Data
+## 2 The Data
 
 We will use a simulated example dataset representing a clinical trial
 for blood pressure. The relevant endpoint is the change in Systolic
@@ -71,7 +72,7 @@ print(head(continuous_data))
 #> 6  6  12.150650   0     144.9677     NA          No
 ```
 
-## 0.3 `run_brms_analysis()`
+## 3 `run_brms_analysis()`
 
 The
 [`run_brms_analysis()`](https://openpharma.github.io/bonsaiforest2/reference/run_brms_analysis.md)
@@ -180,7 +181,7 @@ print(continuous_model_fit)
 #> scale reduction factor on split chains (at convergence, Rhat = 1).
 ```
 
-## 0.4 `summary_subgroup_effects()`
+## 4 `summary_subgroup_effects()`
 
 The next step is to use the fitted model to generate interpretable
 subgroup effects. This is done with
@@ -247,7 +248,7 @@ print(continuous_summary)
 #> [1] "subgroup_summary"
 ```
 
-## 0.5 `plot()`
+## 5 `plot()`
 
 Finally, the [`plot()`](https://rdrr.io/r/graphics/plot.default.html)
 function takes the `subgroup_summary` object and creates a forest plot
@@ -269,7 +270,7 @@ This plot displays the marginal treatment effect (mean difference in
 The estimates are “shrunk” towards the overall effect, providing more
 stable results than fitting separate models for each subgroup.
 
-## 0.6 Code
+## 6 Code
 
 We report below all the code for the main workflow presented in this
 vignette.

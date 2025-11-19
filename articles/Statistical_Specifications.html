@@ -33,10 +33,9 @@
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/Quickstart.html">Quickstart</a></li>
+<li><a class="dropdown-item" href="../articles/Advanced_Functionalities.html">Advanced Functionalities</a></li>
+    <li><a class="dropdown-item" href="../articles/Quickstart.html">Quickstart</a></li>
     <li><a class="dropdown-item" href="../articles/Statistical_Specifications.html">Statistical Specifications</a></li>
-    <li><a class="dropdown-item" href="../articles/technical-details.html">Technical Details of bonsai forest Models</a></li>
-    <li><a class="dropdown-item" href="../articles/using-bonsaiforest.html">Using bonsai forest for Bayesian Subgroup Analysis</a></li>
   </ul>
 </li>
       </ul>
@@ -390,11 +389,11 @@
 <li>
 <span class="math inline">\(\boldsymbol{\beta_3}\)</span> is the <span class="math inline">\(V \times 1\)</span> vector of extra prognostic effects coefficients</li>
 </ul>
-<table class="table">
+<table style="width:99%;" class="table">
 <colgroup>
-<col width="33%">
-<col width="33%">
-<col width="33%">
+<col width="22%">
+<col width="38%">
+<col width="38%">
 </colgroup>
 <thead><tr class="header">
 <th align="left"></th>
@@ -543,12 +542,12 @@
 <span class="header-section-number">3.7</span> Endpoint-Specific Models<a class="anchor" aria-label="anchor" href="#sec-endpoint"></a>
 </h3>
 <p>The package supports four primary endpoint types by specifying the appropriate likelihood and link function for <span class="math inline">\(g(\boldsymbol{\mu}) = \boldsymbol{\eta}\)</span>.</p>
-<table class="table">
+<table style="width:99%;" class="table">
 <colgroup>
-<col width="25%">
-<col width="25%">
-<col width="25%">
-<col width="25%">
+<col width="9%">
+<col width="28%">
+<col width="18%">
+<col width="41%">
 </colgroup>
 <thead><tr class="header">
 <th align="left">Endpoint</th>
@@ -597,81 +596,337 @@
 <h3 id="prior-specifications">
 <span class="header-section-number">3.8</span> Prior Specifications<a class="anchor" aria-label="anchor" href="#prior-specifications"></a>
 </h3>
+<div class="section level4" number="3.8.1">
+<h4 id="default-priors">
+<span class="header-section-number">3.8.1</span> Default Priors<a class="anchor" aria-label="anchor" href="#default-priors"></a>
+</h4>
+<p>If priors are not specified, the function applies the following defaults (as defined in the <code>fit_brms_model</code> code):</p>
+<ul>
+<li>
+<strong>Prognostic Shrunk:</strong> <code>horseshoe(1)</code>
+</li>
+<li>
+<strong>Prognostic Unshrunk:</strong> <code>normal(0, 5)</code>
+</li>
+<li>
+<strong>Prognostic Intercept:</strong> <code>normal(0, 10)</code>
+</li>
+<li>
+<strong>Predictive Shrunk:</strong> <code>horseshoe(1)</code>
+</li>
+<li>
+<strong>Predictive Unshrunk:</strong> <code>normal(0, 5)</code>
+</li>
+</ul>
+<p><strong>Note:</strong> The intercept prior is <em>not</em> applied for <code>response_type = "survival"</code>, as Cox models do not have a global intercept.</p>
 </div>
-<div class="section level3" number="3.9">
-<h3 id="weakly-informative-priors-unshrunk-terms">
-<span class="header-section-number">3.9</span> Weakly Informative Priors (Unshrunk Terms)<a class="anchor" aria-label="anchor" href="#weakly-informative-priors-unshrunk-terms"></a>
-</h3>
+<div class="section level4" number="3.8.2">
+<h4 id="weakly-informative-priors-unshrunk-terms">
+<span class="header-section-number">3.8.2</span> Weakly Informative Priors (Unshrunk Terms)<a class="anchor" aria-label="anchor" href="#weakly-informative-priors-unshrunk-terms"></a>
+</h4>
 <p>For all non-penalized coefficients (<span class="math inline">\(\boldsymbol{\beta_{1,n}}, \boldsymbol{\beta_{2,n}}, \boldsymbol{\beta_{3}}\)</span>), we use weakly informative priors to aid computational stability without strongly influencing the posterior.</p>
 <ul>
 <li>
 <strong>Default:</strong> <code>normal(0, 10)</code>. This is a common, weakly regularizing prior on the linear predictor scale. Users can specify their own, e.g., <code>student_t(3, 0, 2.5)</code>.</li>
 </ul>
 </div>
-<div class="section level3" number="3.10">
-<h3 id="regularized-horseshoe-prior-shrunk-terms">
-<span class="header-section-number">3.10</span> Regularized Horseshoe Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#regularized-horseshoe-prior-shrunk-terms"></a>
-</h3>
+<div class="section level4" number="3.8.3">
+<h4 id="regularized-horseshoe-prior-shrunk-terms">
+<span class="header-section-number">3.8.3</span> Regularized Horseshoe Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#regularized-horseshoe-prior-shrunk-terms"></a>
+</h4>
 <p>This is the default shrinkage prior in <code>bonsaiforest2</code>, recommended for its excellent adaptive shrinkage properties <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>; <a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>)</span>.</p>
 <ul>
+<li><p><strong>Concept:</strong> A global-local prior. It has an infinitely tall spike at zero (to aggressively shrink noise) and heavy tails (to leave true, large signals unshrunk).</p></li>
 <li>
-<strong>Concept:</strong> A global-local prior. It has an infinitely tall spike at zero (to aggressively shrink noise) and heavy tails (to leave true, large signals unshrunk) .</li>
-<li>
-<strong>Hierarchical Specification</strong> :</li>
-</ul>
+<p><strong>Hierarchical Specification</strong>:</p>
 <p><span class="math display">\[\begin{aligned}
-      \beta_{2,l} &amp;\sim N(0, \tau^2 \tilde{\lambda}_l^2) \\
-      \tilde{\lambda}_l^2 &amp;= \frac{c^2 \lambda_l^2}{c^2 + \tau^2 \lambda_l^2} \\
-      \lambda_l &amp;\sim C^+(0, 1) \quad (\text{Local shrinkage}) \\
-      \tau &amp;\sim C^+(0, \tau_0) \quad (\text{Global shrinkage}) \\
-      c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
-      \end{aligned}
-      \]</span></p>
-<ul>
+\beta_{2,l} &amp;\sim N(0, \tau^2 \tilde{\lambda}_l^2) \\
+\tilde{\lambda}_l^2 &amp;= \frac{c^2 \lambda_l^2}{c^2 + \tau^2 \lambda_l^2} \\
+\lambda_l &amp;\sim C^+(0, 1) \quad (\text{Local shrinkage}) \\
+\tau &amp;\sim C^+(0, \tau_0) \quad (\text{Global shrinkage}) \\
+c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
+\end{aligned}\]</span></p>
+</li>
 <li>
-<strong>Hyperparameter Justification</strong>: The package supports two ways to set the crucial global scale <span class="math inline">\(\tau_0\)</span>:
+<p><strong>Hyperparameter Justification</strong>: The package supports two ways to set the crucial global scale <span class="math inline">\(\tau_0\)</span>:</p>
 <ol style="list-style-type: decimal">
 <li>
 <strong>Fixed Default (<code>scale_global</code>):</strong> <code>horseshoe(scale_global = 1)</code>. This is the package default, a robust, general-purpose choice <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>.</li>
 <li>
-<strong>Elicited Prior (<code>par_ratio</code>):</strong> Sets <span class="math inline">\(\tau_0\)</span> based on the <em>prior</em> belief about the number of effective (non-zero) subgroups, <span class="math inline">\(p_{eff}\)</span>, out of the total <span class="math inline">\(L\)</span> <span class="citation">(<a href="#ref-bornkamp2025benchmarking">Bornkamp 2025</a>; <a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>)</span>. This is specified via <span class="math inline">\(\text{par_ratio} = \frac{p_{eff}}{L - p_{eff}}\)</span>. This scales the prior based on sample size (<span class="math inline">\(N\)</span>) and the expected sparsity.</li>
+<strong>Elicited Prior (<code>par_ratio</code>):</strong> Sets <span class="math inline">\(\tau_0\)</span> based on the <em>prior</em> belief about the number of effective (non-zero) subgroups, <span class="math inline">\(p_{eff}\)</span>, out of the total <span class="math inline">\(L\)</span> <span class="citation">(<a href="#ref-bornkamp2025benchmarking">Bornkamp 2025</a>; <a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>)</span>. This is specified via <span class="math inline">\(\text{par\_ratio} = \frac{p_{eff}}{L - p_{eff}}\)</span>. This scales the prior based on sample size (<span class="math inline">\(N\)</span>) and the expected sparsity.</li>
 </ol>
 </li>
 </ul>
+<p><strong>Regularized Horseshoe Implementation in</strong> <a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a></p>
+<p>The <a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a> package implements the Regularized Horseshoe prior using the function <a href="https://paulbuerkner.com/brms/reference/horseshoe.html" class="external-link"><code>horseshoe(...)</code></a>. The regularization term (the “slab”) is added to the standard Horseshoe to ensure robustness and improve computational stability in Stan.</p>
+<ul>
+<li><strong>Horseshoe Function and Key Arguments</strong></li>
+</ul>
+<p>he Horseshoe prior is set using the function call:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/horseshoe.html" class="external-link">horseshoe</a></span><span class="op">(</span>df <span class="op">=</span> <span class="fl">1</span>, scale_global <span class="op">=</span> <span class="fl">1</span>, df_global <span class="op">=</span> <span class="fl">1</span>, scale_slab <span class="op">=</span> <span class="fl">2</span>, df_slab <span class="op">=</span> <span class="fl">4</span>, par_ratio <span class="op">=</span> <span class="cn">NULL</span>, autoscale <span class="op">=</span> <span class="cn">TRUE</span>, main <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+<table style="width:100%;" class="table">
+<colgroup>
+<col width="12%">
+<col width="15%">
+<col width="71%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">Horseshoe Argument</th>
+<th align="left">Theoretical Equivalent</th>
+<th align="left">Role and Implication</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left"><span class="math inline">\(\mathbf{scale\_global}\)</span></td>
+<td align="left"><span class="math inline">\(\tau_0\)</span></td>
+<td align="left">Scale of the <span class="math inline">\(\text{Student-}t\)</span> prior on the global shrinkage parameter <span class="math inline">\(\tau\)</span> Lower values <span class="math inline">\(\implies\)</span> <strong>more aggressive global shrinkage</strong>.</td>
+</tr>
+<tr class="even">
+<td align="left"><span class="math inline">\(\mathbf{par\_ratio}\)</span></td>
+<td align="left"><span class="math inline">\(\frac{p_{eff}}{L - p_{eff}}\)</span></td>
+<td align="left">
+<strong>Alternative to</strong> <span class="math inline">\(\mathbf{scale\_global}\)</span>. Specifies the ratio of expected non-zero to zero coefficients, automatically calculating <span class="math inline">\(\tau_0\)</span>.</td>
+</tr>
+<tr class="odd">
+<td align="left"><span class="math inline">\(\mathbf{df}\)</span></td>
+<td align="left">DOF for <span class="math inline">\(\lambda_l\)</span>
+</td>
+<td align="left">Degrees of freedom of <span class="math inline">\(\text{Student-}t\)</span> prior on local shrinkage parameters (<span class="math inline">\(\lambda_l\)</span>). Default <span class="math inline">\(\mathbf{df=1}\)</span> gives the standard half-Cauchy.</td>
+</tr>
+<tr class="even">
+<td align="left"><span class="math inline">\(\mathbf{scale\_slab}\)</span></td>
+<td align="left"><span class="math inline">\(s\)</span></td>
+<td align="left">Scale of the regularization slab. Default <span class="math inline">\(\mathbf{scale\_slab=2}\)</span> prevents large coefficients from being over-shrunk.</td>
+</tr>
+<tr class="odd">
+<td align="left"><span class="math inline">\(\mathbf{autoscale}\)</span></td>
+<td align="left">Scaling by <span class="math inline">\(\sigma\)</span>
+</td>
+<td align="left">Logical. If <span class="math inline">\(\mathbf{TRUE}\)</span> (default), the prior is <strong>automatically scaled</strong> using the residual standard deviation (<span class="math inline">\(\sigma\)</span>).</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>
+<strong>Relationship to Justification:</strong> The <span class="math inline">\(\mathbf{brms}\)</span> function offers two primary ways to set the global shrinkage level, which controls the overall sparsity of the model:</li>
+</ul>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Fixed Global Scale:</strong> Using the <span class="math inline">\(\mathbf{scale\_global}\)</span> argument, often set to <span class="math inline">\(\mathbf{1.0}\)</span> as a general-purpose default. This value is internally multiplied by the residual standard deviation (<span class="math inline">\(\sigma\)</span>) when <code>autoscale = TRUE</code>.</li>
+<li>
+<strong>Elicited Global Scale (Recommended):</strong> Using the <span class="math inline">\(\mathbf{par\_ratio}\)</span> argument, which allows the user to specify their <strong>prior belief about the sparsity</strong> of the model (i.e., the expected number of true non-zero coefficients, <span class="math inline">\(p_{eff}\)</span>). This is the recommended approach as it accounts for the number of coefficients <span class="math inline">\(L\)</span> and the sample size <span class="math inline">\(N\)</span> to determine the optimal <span class="math inline">\(\tau_0\)</span>.</li>
+</ol>
+<ul>
+<li>
+<p><strong>Choosing</strong> <span class="math inline">\(\mathbf{scale\_global}\)</span> <strong>and</strong> <span class="math inline">\(\mathbf{par\_ratio}\)</span>: The choice of <span class="math inline">\(\tau_0\)</span> (controlled by <span class="math inline">\(\mathbf{scale\_global}\)</span> or <span class="math inline">\(\mathbf{par\_ratio}\)</span>) is crucial, as it sets the overall magnitude of shrinkage.</p>
+<ul>
+<li>
+<p><strong>Fixed Default (</strong><span class="math inline">\(\mathbf{scale\_global=1}\)</span>):</p>
+<ul>
+<li>
+<strong>Use when:</strong> You want a simple, robust, general-purpose prior without explicit sparsity knowledge.</li>
+<li>
+<strong>Caveat:</strong> May result in insufficient shrinkage if the true number of non-zero coefficients is small.</li>
+</ul>
+</li>
+<li>
+<p><strong>Elicited Sparsity (</strong><span class="math inline">\(\mathbf{par\_ratio}\)</span>):</p>
+<ul>
+<li>
+<strong>Calculation:</strong> <span class="math inline">\(\text{par\_ratio} = \frac{p_{eff}}{L - p_{eff}}\)</span>, where <span class="math inline">\(p_{eff}\)</span> is the expected number of non-zero coefficients and <span class="math inline">\(L\)</span> is the total number of coefficients.</li>
+<li>
+<strong>Use when:</strong> You have a strong prior belief about the number of relevant effects. This is generally preferred for adaptive shrinkage as it scales <span class="math inline">\(\tau_0\)</span> appropriately.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<table style="width:99%;" class="table">
+<colgroup>
+<col width="19%">
+<col width="20%">
+<col width="60%">
+</colgroup>
+<thead><tr class="header">
+<th align="center">
+<span class="math inline">\(\mathbf{par\_ratio}\)</span> Value</th>
+<th align="left">Expected <span class="math inline">\(p_{eff}\)</span> (Sparsity)</th>
+<th align="left">Interpretation of Shrinkage</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="center"><strong>Small (e.g., 0.05)</strong></td>
+<td align="left">Very Few Non-Zero Coefficients</td>
+<td align="left">
+<strong>High Shrinkage:</strong> <span class="math inline">\(\tau_0\)</span> is small, aggressively shrinking coefficients towards zero.</td>
+</tr>
+<tr class="even">
+<td align="center"><strong>Moderate (e.g., 0.2)</strong></td>
+<td align="left">A Moderate Fraction is Non-Zero</td>
+<td align="left">
+<strong>Moderate Shrinkage:</strong> A less aggressive <span class="math inline">\(\tau_0\)</span>, allowing more coefficients to remain unshrunk.</td>
+</tr>
+<tr class="odd">
+<td align="center">
+<span class="math inline">\(\mathbf{par\_ratio}\)</span> Ignored</td>
+<td align="left">
+<span class="math inline">\(\mathbf{scale\_global}\)</span> used</td>
+<td align="left">Uses a fixed <span class="math inline">\(\tau_0\)</span> that doesn’t explicitly depend on expected sparsity.</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Recommendation:</strong> While <span class="math inline">\(\mathbf{scale\_global=1}\)</span> is the quick default, specifying <span class="math inline">\(\mathbf{par\_ratio}\)</span> based on expert knowledge of expected sparsity is the <strong>most theoretically sound and adaptive</strong> method for setting the global shrinkage scale.</p>
+</blockquote>
 </div>
-<div class="section level3" number="3.11">
-<h3 id="r2d2-prior-shrunk-terms">
-<span class="header-section-number">3.11</span> R2D2 Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#r2d2-prior-shrunk-terms"></a>
-</h3>
+<div class="section level4" number="3.8.4">
+<h4 id="r2d2-prior-shrunk-terms">
+<span class="header-section-number">3.8.4</span> R2D2 Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#r2d2-prior-shrunk-terms"></a>
+</h4>
 <ul>
 <li><p><strong>Concept:</strong> This prior is uniquely derived by first placing a prior on the model’s coefficient of determination, <span class="math inline">\(R^2\)</span>, which quantifies the proportion of variance explained by the predictors. This is arguably more intuitive than specifying priors directly on coefficients.</p></li>
 <li><p><strong>Hierarchical Specification (Marginal Version):</strong> <span class="math display">\[
-  \begin{aligned}
-  \beta_{2,l} &amp;\sim DE(\sigma \sqrt{\phi_l \omega / 2}) \quad (\text{Double-Exponential/Laplace kernel}) \\
-  \boldsymbol{\phi} &amp;= (\phi_1, \dots, \phi_L) \sim \text{Dirichlet}(a_\pi, \dots, a_\pi) \quad (\text{Local shrinkage}) \\
-  \omega &amp;\sim \text{Beta-Prime}(a, b) \quad (\text{Global shrinkage})
-  \end{aligned}
-  \]</span> This is equivalent to assuming that the proportion of variance explained by the interaction terms follows <span class="math inline">\(R^2 = \frac{\omega}{1+\omega} \sim \text{Beta}(a,b)\)</span>.</p></li>
+\begin{aligned}
+\beta_{2,l} &amp;\sim DE(\sigma \sqrt{\phi_l \omega / 2}) \quad (\text{Double-Exponential/Laplace kernel}) \\
+\boldsymbol{\phi} &amp;= (\phi_1, \dots, \phi_L) \sim \text{Dirichlet}(a_\pi, \dots, a_\pi) \quad (\text{Local shrinkage}) \\
+\omega &amp;\sim \text{Beta-Prime}(a, b) \quad (\text{Global shrinkage})
+\end{aligned}
+\]</span> This is equivalent to assuming that the proportion of variance explained by the interaction terms follows <span class="math inline">\(R^2 = \frac{\omega}{1+\omega} \sim \text{Beta}(a,b)\)</span>.</p></li>
 <li>
 <p><strong>Justification of Hyperparameters:</strong></p>
 <ul>
-<li><p><span class="citation">Zhang et al. (<a href="#ref-zhang2022bayesian">2022</a>)</span> provide clear guidance. A fully automatic approach is to set <span class="math inline">\(b=0.5\)</span> to achieve Cauchy-like heavy tails.</p></li>
-<li><p>The concentration parameter <span class="math inline">\(a_\pi\)</span> controls sparsity. A smaller <span class="math inline">\(a_\pi\)</span> (e.g., 0.2) implies higher shrinkage, concentrating the prior variance on fewer coefficients, while a larger <span class="math inline">\(a_\pi\)</span> (e.g., 0.5) spreads the variance more evenly, implying lower shrinkage.</p></li>
+<li><p><span class="citation">Zhang et al. (<a href="#ref-zhang2022bayesian">2022</a>)</span> provide clear guidance. A fully automatic approach is to set <span class="math inline">\(b=0.5\)</span> to achieve <strong>Cauchy-like heavy tails</strong>.</p></li>
+<li><p>The concentration parameter <span class="math inline">\(a_\pi\)</span> controls sparsity. A smaller <span class="math inline">\(a_\pi\)</span> (e.g., 0.2) implies <strong>higher shrinkage</strong>, concentrating the prior variance on fewer coefficients, while a larger <span class="math inline">\(a_\pi\)</span> (e.g., 0.5) spreads the variance more evenly, implying <strong>lower shrinkage</strong>.</p></li>
 <li>
 <p><strong>Default Recommendation:</strong> Set <span class="math inline">\(b=0.5\)</span> and offer options for the user based on desired shrinkage strength:</p>
 <ul>
-<li><p><strong>High Shrinkage:</strong> <span class="math inline">\(a_\pi=0.2\)</span></p></li>
-<li><p><strong>Low Shrinkage:</strong> <span class="math inline">\(a_\pi=0.5\)</span></p></li>
-</ul>
+<li>
+<strong>High Shrinkage:</strong> <span class="math inline">\(a_\pi=0.2\)</span>
+</li>
+<li>
+<strong>Low Shrinkage:</strong> <span class="math inline">\(a_\pi=0.5\)</span>
 </li>
 </ul>
 </li>
 </ul>
+</li>
+</ul>
+<p><strong>R2D2 Prior Implementation in</strong> <a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a></p>
+<p>The <a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a> package implements this prior using the function <a href="https://paulbuerkner.com/brms/reference/R2D2.html" class="external-link"><code>R2D2(...)</code></a>, providing a high-level parametrization that is more intuitive than setting the parameters <span class="math inline">\(a\)</span>, <span class="math inline">\(b\)</span>, and <span class="math inline">\(a_\pi\)</span> directly. This function translates desired <span class="math inline">\(\mathbf{R^2}\)</span> properties and shrinkage strength into the underlying prior distribution’s parameters.</p>
+<ul>
+<li><strong>R2D2 Function and Key Arguments</strong></li>
+</ul>
+<p>The R2D2 prior is set using the function call:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/R2D2.html" class="external-link">R2D2</a></span><span class="op">(</span>mean_R2 <span class="op">=</span> <span class="fl">0.5</span>, prec_R2 <span class="op">=</span> <span class="fl">2</span>, cons_D2 <span class="op">=</span> <span class="fl">0.5</span>, autoscale <span class="op">=</span> <span class="cn">TRUE</span>, main <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+<table style="width:100%;" class="table">
+<colgroup>
+<col width="10%">
+<col width="11%">
+<col width="77%">
+</colgroup>
+<thead><tr class="header">
+<th align="left">R2D2 Argument</th>
+<th align="left">Theoretical Equivalent</th>
+<th align="left">Role and Implication</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="left"><span class="math inline">\(\mathbf{mean\_R2}\)</span></td>
+<td align="left"><span class="math inline">\(\mathbb{E}[R^2]\)</span></td>
+<td align="left">Sets the <strong>prior expected value</strong> for the model’s fixed effect <span class="math inline">\(R^2\)</span>.</td>
+</tr>
+<tr class="even">
+<td align="left"><span class="math inline">\(\mathbf{prec\_R2}\)</span></td>
+<td align="left">
+<span class="math inline">\(a+b\)</span> (Concentration)</td>
+<td align="left">Controls the <strong>precision</strong> of the Beta prior on <span class="math inline">\(R^2\)</span>. Lower values mean a flatter prior.</td>
+</tr>
+<tr class="odd">
+<td align="left"><span class="math inline">\(\mathbf{cons\_D2}\)</span></td>
+<td align="left"><span class="math inline">\(a_{\pi}\)</span></td>
+<td align="left">The <strong>concentration parameter</strong> for the <span class="math inline">\(\text{Dirichlet}\)</span> distribution on the variance components (local shrinkage). <strong>Lower values imply higher shrinkage/sparsity.</strong>
+</td>
+</tr>
+<tr class="even">
+<td align="left"><span class="math inline">\(\mathbf{autoscale}\)</span></td>
+<td align="left">Scaling by <span class="math inline">\(\sigma\)</span>
+</td>
+<td align="left">Logical. If <span class="math inline">\(\mathbf{TRUE}\)</span> (default), the prior is <strong>automatically scaled</strong> using the residual standard deviation (<span class="math inline">\(\sigma\)</span>). This ensures the prior is scale-invariant.</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>
+<p><strong>Relationship to Justification:</strong> The <a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a> function parameters are directly related to the justified hierarchical parameters:</p>
+<ul>
+<li>The <span class="math inline">\(\mathbf{cons\_D2}\)</span> parameter is the direct counterpart to the sparsity parameter <span class="math inline">\(\mathbf{a_{\pi}}\)</span>. The default recommendation <span class="math inline">\(\mathbf{cons\_D2 = 0.5}\)</span> corresponds precisely to the <span class="math inline">\(\mathbf{a_{\pi}=0.5}\)</span> low shrinkagesetting.</li>
+<li>The <span class="math inline">\(\mathbf{mean\_R2}\)</span> and <span class="math inline">\(\mathbf{prec\_R2}\)</span> arguments define the <span class="math inline">\(\text{Beta}(a,b)\)</span> prior on <span class="math inline">\(R^2\)</span>, where: <span class="math display">\[a = \text{mean_R2} \times \text{prec_R2}\]</span> <span class="math display">\[b = (1 - \text{mean_R2}) \times \text{prec_R2}\]</span> The choice of <span class="math inline">\(\mathbf{prec\_R2=2}\)</span> (the default) alongside <span class="math inline">\(\mathbf{mean\_R2=0.5}\)</span> results in <span class="math inline">\(a=1\)</span> and <span class="math inline">\(b=1\)</span>, which is a <strong>Uniform prior</strong> on <span class="math inline">\(R^2 \sim \text{Beta}(1, 1)\)</span>, representing a maximally weak prior belief on global fit.</li>
+<li>The essential <span class="math inline">\(\mathbf{b=0.5}\)</span> setting for <strong>Cauchy-like heavy tails</strong> (preventing over-shrinkage) is <strong>implicitly</strong> handled by the R2D2 function’s underlying structure and does not require manual specification.</li>
+</ul>
+</li>
+<li>
+<p><strong>Choosing</strong> <span class="math inline">\(\mathbf{mean\_R2}\)</span> and <span class="math inline">\(\mathbf{prec\_R2}\)</span> : Choosing these parameters involves quantifying your prior knowledge about the model’s overall predictive power before observing the data. They define a <span class="math inline">\(\text{Beta}(a,b)\)</span> distribution on <span class="math inline">\(R^2\)</span>.</p>
+<ul>
+<li>
+<p>Choosing <span class="math inline">\(\mathbf{mean\_R2}\)</span> (Prior Expected <span class="math inline">\(R^2\)</span>): This sets the <strong>center</strong> of your prior belief.</p>
+<ul>
+<li><p><strong>Default (0.5):</strong> Use if you have no strong prior knowledge. It implies a neutral expectation that the fixed effects will explain half of the variance.</p></li>
+<li><p><strong>Informative Low (e.g., 0.1 to 0.3):</strong> Use if you expect a very weak or noisy relationship.</p></li>
+<li><p><strong>Informative High (e.g., 0.7 to 0.9):</strong> Use if you expect a highly predictive model based on strong prior evidence.</p></li>
+</ul>
+</li>
+<li><p>Choosing <span class="math inline">\(\mathbf{prec\_R2}\)</span> (Prior Confidence in <span class="math inline">\(R^2\)</span>): This determines the <strong>concentration</strong> or <strong>certainty</strong> of the Beta prior around the chosen <span class="math inline">\(\text{mean_R2}\)</span>.</p></li>
+</ul>
+</li>
+</ul>
+<table style="width:99%;" class="table">
+<colgroup>
+<col width="11%">
+<col width="17%">
+<col width="70%">
+</colgroup>
+<thead><tr class="header">
+<th align="center"><span class="math inline">\(\mathbf{prec\_R2}\)</span></th>
+<th align="left">
+<p>Resulting Beta Parameters</p>
+<p>(<span class="math inline">\(\text{mean_R2}=0.5\)</span>)</p>
+</th>
+<th align="left">Interpretation</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td align="center"><strong>2 (Default)</strong></td>
+<td align="left">
+<span class="math inline">\(a=1, b=1\)</span> (<span class="math inline">\(\text{Uniform}\)</span>)</td>
+<td align="left">
+<strong>Weakly Informative:</strong> All <span class="math inline">\(R^2\)</span> values are equally likely.</td>
+</tr>
+<tr class="even">
+<td align="center"><strong>5 to 10</strong></td>
+<td align="left">
+<span class="math inline">\(a=2.5, b=2.5\)</span> to <span class="math inline">\(a=5, b=5\)</span>
+</td>
+<td align="left">
+<strong>Moderately Informative:</strong> The prior is bell-shaped and centered at 0.5, constraining <span class="math inline">\(R^2\)</span> away from extreme values (0 and 1).</td>
+</tr>
+<tr class="odd">
+<td align="center"><strong>&gt; 20</strong></td>
+<td align="left">Highly Peaked</td>
+<td align="left">
+<strong>Highly Informative:</strong> Use only with very strong external evidence for the <span class="math inline">\(R^2\)</span> value.</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Recommendation:</strong> The <strong>Default</strong> <span class="math inline">\(\mathbf{mean\_R2 = 0.5}\)</span> and <span class="math inline">\(\mathbf{prec\_R2 = 2}\)</span> provides the most flexible, weakly informative setting for <span class="math inline">\(R^2\)</span>, which is generally recommended unless strong prior knowledge dictates otherwise.</p>
+</blockquote>
 </div>
-<div class="section level3" number="3.12">
-<h3 id="normal-hierarchical-prior-for-one-variable-at-a-time-model">
-<span class="header-section-number">3.12</span> Normal Hierarchical Prior (for One-Variable-at-a-Time Model)<a class="anchor" aria-label="anchor" href="#normal-hierarchical-prior-for-one-variable-at-a-time-model"></a>
-</h3>
+<div class="section level4" number="3.8.5">
+<h4 id="normal-hierarchical-prior-for-one-variable-at-a-time-model">
+<span class="header-section-number">3.8.5</span> Normal Hierarchical Prior (for One-Variable-at-a-Time Model)<a class="anchor" aria-label="anchor" href="#normal-hierarchical-prior-for-one-variable-at-a-time-model"></a>
+</h4>
 <p>This is the standard hierarchical model for subgroup analysis, which assumes that treatment effects for levels within a subgrouping variable are drawn from a common normal distribution. It’s less complex than the Horseshoe or R2D2 priors but provides effective shrinkage, especially when the number of subgroup levels is small.</p>
 <ul>
 <li>
@@ -685,15 +940,16 @@
 <strong>Justification of Hyperparameters:</strong> The key is setting the scale parameter a for the Half-Normal prior on the between-subgroup standard deviation, <span class="math inline">\(\tau_{2,j}\)</span>, as this controls the degree of shrinkage. As recommended by <span class="citation">Bornkamp (<a href="#ref-bornkamp2025benchmarking">2025</a>)</span>, this can be linked to the planned treatment effect ( <span class="math inline">\(\delta_{plan}\)</span>) from the trial protocol, making the prior choice interpretable and consistent across different endpoints. The choice of a implies a prior on the plausible difference in treatment effects between any two subgroups.</li>
 </ul>
 </div>
-<div class="section level3" number="3.13">
+</div>
+<div class="section level3" number="3.9">
 <h3 id="estimation-mcmc">
-<span class="header-section-number">3.13</span> Estimation (MCMC)<a class="anchor" aria-label="anchor" href="#estimation-mcmc"></a>
+<span class="header-section-number">3.9</span> Estimation (MCMC)<a class="anchor" aria-label="anchor" href="#estimation-mcmc"></a>
 </h3>
 <p>The joint posterior distribution of all parameters is complex and has no closed-form solution. We use Markov Chain Monte Carlo (MCMC) methods to draw samples from this distribution. Specifically, the package uses the <strong>No-U-Turn Sampler (NUTS)</strong>, an efficient variant of Hamiltonian Monte Carlo (HMC), as implemented in <strong>Stan</strong> via the <code>brms</code> package. The output is a set of posterior samples (e.g., 4000 draws) representing the joint posterior distribution.</p>
 </div>
-<div class="section level3" number="3.14">
+<div class="section level3" number="3.10">
 <h3 id="sec-standardization">
-<span class="header-section-number">3.14</span> Standardization for Marginal Effects (G-computation)<a class="anchor" aria-label="anchor" href="#sec-standardization"></a>
+<span class="header-section-number">3.10</span> Standardization for Marginal Effects (G-computation)<a class="anchor" aria-label="anchor" href="#sec-standardization"></a>
 </h3>
 <p>To obtain interpretable <em>marginal</em> effects for each subgroup, the package implements a standardization (G-computation) procedure. This process is repeated for <em>each</em> MCMC draw to generate a full posterior distribution of the marginal effect.</p>
 <p><strong>For a single MCMC draw, the step-by-step process is:</strong></p>
