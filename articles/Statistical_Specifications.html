@@ -65,12 +65,12 @@
 
     
     
-<div class="section level2" number="0.1">
+<div class="section level2" number="1">
 <h2 id="scope-of-this-document">
-<span class="header-section-number">0.1</span> Scope of this document<a class="anchor" aria-label="anchor" href="#scope-of-this-document"></a>
+<span class="header-section-number">1</span> Scope of this document<a class="anchor" aria-label="anchor" href="#scope-of-this-document"></a>
 </h2>
 <p>This document describes the statistical methods implemented in the <code>bonsaiforest2</code> R package for Bayesian subgroup analysis of continuous, binary, count, and time-to-event outcomes in randomized clinical trials (RCTs).</p>
-<p>The package unabled the implementation of both a <strong>global modeling approach</strong> <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>, that estimates all main (prognostic) and interaction (predictive) effects in a single model, and a <strong>One-variable-at a time</strong> <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span>, that estimates the interaction effects using a different model for each subgrouping variable.</p>
+<p>The package unable the implementation of both a <strong>global modeling approach</strong> <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>, that estimates all main (prognostic) and interaction (predictive) effects in a single model, and a <strong>One-variable-at a time</strong> <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span>, that estimates the interaction effects using a different model for each subgrouping variable.</p>
 <p>The core features described in this document are:</p>
 <ol style="list-style-type: decimal">
 <li>
@@ -83,19 +83,19 @@
 </ul>
 </li>
 <li>
-<strong>Advanced Shrinkage Priors:</strong> Implementation of state-of-the-art shrinkage priors, including the <strong>Regularized Horseshoe</strong> <span class="citation">(<a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>; <a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span> and <strong>R2D2</strong> <span class="citation">(<a href="#ref-zhang2022bayesian">Zhang et al. 2022</a>)</span>, to provide robust control of false-positive findings while identifying potential heterogeneity.</li>
+<strong>Advanced Shrinkage Priors:</strong> Supports state-of-the-art shrinkage priors, including the <strong>Regularized Horseshoe</strong> <span class="citation">(<a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>; <a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span> and <strong>R2D2</strong> <span class="citation">(<a href="#ref-zhang2022bayesian">Zhang et al. 2022</a>)</span>, to provide robust control of false-positive findings while identifying potential heterogeneity.</li>
 <li>
 <strong>Marginal Effect Estimation:</strong> Use of <strong>standardization (G-computation)</strong> to derive interpretable <em>marginal</em> subgroup treatment effects, which average over the covariate distributions within each subgroup <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>.</li>
 </ol>
-<p>This document is structured as follows: <a href="#sec-intro">Section 2</a> provides a conceptual introduction to subgroup analysis challenges and the Bayesian shrinkage solution. <a href="#sec-methodology">Section 3</a> details the statistical methodology, including notation, the global and the one-variable at a time models, endpoint-specific likelihoods, prior specifications, and the Example standardization procedure. <a href="#sec-functions">Section 4</a> maps these statistical methods to the core functions in the <code>bonsaiforest2</code> package.</p>
+<p>This document is structured as follows: <a href="#sec-intro">Section 2</a> provides a conceptual introduction to subgroup analysis challenges and the Bayesian shrinkage solution. <a href="#sec-methodology">Section 3</a> details the statistical methodology, including notation, the global and the one-variable at a time models, endpoint-specific likelihoods, prior specifications, and the standardization procedure. <a href="#sec-functions">Section 4</a> maps these statistical methods to the core functions in the <code>bonsaiforest2</code> package.</p>
 </div>
-<div class="section level2" number="0.2">
+<div class="section level2" number="2">
 <h2 id="sec-intro">
-<span class="header-section-number">0.2</span> Introduction to Subgroup Analysis and Estimation<a class="anchor" aria-label="anchor" href="#sec-intro"></a>
+<span class="header-section-number">2</span> Introduction to Subgroup Analysis and Estimation<a class="anchor" aria-label="anchor" href="#sec-intro"></a>
 </h2>
-<div class="section level3" number="0.2.1">
+<div class="section level3" number="2.1">
 <h3 id="the-challenge-of-subgroup-analysis">
-<span class="header-section-number">0.2.1</span> The Challenge of Subgroup Analysis<a class="anchor" aria-label="anchor" href="#the-challenge-of-subgroup-analysis"></a>
+<span class="header-section-number">2.1</span> The Challenge of Subgroup Analysis<a class="anchor" aria-label="anchor" href="#the-challenge-of-subgroup-analysis"></a>
 </h3>
 <p>Exploratory subgroup analyses are a standard part of RCT reporting, typically visualized in forest plots to assess the consistency of treatment effects. However, their interpretation is notoriously difficult due to several statistical challenges:</p>
 <ul>
@@ -108,9 +108,9 @@
 </ul>
 <p>This has led to the common recommendation that the <em>overall</em> treatment effect is often a more reliable estimate for a subgroup than the estimate derived from the subgroup’s data alone.</p>
 </div>
-<div class="section level3" number="0.2.2">
+<div class="section level3" number="2.2">
 <h3 id="prognostic-vs--predictive-effects">
-<span class="header-section-number">0.2.2</span> Prognostic vs. Predictive Effects<a class="anchor" aria-label="anchor" href="#prognostic-vs--predictive-effects"></a>
+<span class="header-section-number">2.2</span> Prognostic vs. Predictive Effects<a class="anchor" aria-label="anchor" href="#prognostic-vs--predictive-effects"></a>
 </h3>
 <p>To build a meaningful model, it is crucial to distinguish how a baseline variable relates to the outcome:</p>
 <ul>
@@ -121,9 +121,9 @@
 </ul>
 <p><code>bonsaiforest2</code> is built to model both types of effects explicitly and apply different modeling strategies (e.g., shrinkage) to each.</p>
 </div>
-<div class="section level3" number="0.2.3">
+<div class="section level3" number="2.3">
 <h3 id="the-role-of-bayesian-shrinkage">
-<span class="header-section-number">0.2.3</span> The Role of Bayesian Shrinkage<a class="anchor" aria-label="anchor" href="#the-role-of-bayesian-shrinkage"></a>
+<span class="header-section-number">2.3</span> The Role of Bayesian Shrinkage<a class="anchor" aria-label="anchor" href="#the-role-of-bayesian-shrinkage"></a>
 </h3>
 <p>Bayesian shrinkage methods directly address the challenges of subgroup analysis by providing a principled compromise between the two extremes of “no pooling” (subgroup-specific estimates) and “full pooling” (overall population estimate).</p>
 <p>This compromise, often called <strong>partial pooling</strong>, is achieved using hierarchical models. Subgroup effects are assumed to be <em>exchangeable</em> (drawn from a common distribution). This assumption allows subgroups to “borrow strength” from each other:</p>
@@ -133,9 +133,9 @@
 </ul>
 <p>This results in estimates with a better <strong>bias-variance trade-off</strong>: we accept a small amount of bias (by pulling real effects slightly toward the mean) in exchange for a large reduction in variance, leading to a lower overall error and better control of spurious findings.</p>
 </div>
-<div class="section level3" number="0.2.4">
+<div class="section level3" number="2.4">
 <h3 id="conditional-vs--marginal-estimands">
-<span class="header-section-number">0.2.4</span> Conditional vs. Marginal Estimands<a class="anchor" aria-label="anchor" href="#conditional-vs--marginal-estimands"></a>
+<span class="header-section-number">2.4</span> Conditional vs. Marginal Estimands<a class="anchor" aria-label="anchor" href="#conditional-vs--marginal-estimands"></a>
 </h3>
 <p>When covariates are included in a non-linear model (like a logistic or Cox model), the resulting coefficients represent <strong>conditional</strong> effects. For example, the treatment effect is the effect for a patient with a <em>specific set</em> of covariate values (e.g., the reference values).</p>
 <p>This is problematic for forest plots, where we want to know the <strong>marginal</strong> effect: “What is the average treatment effect for <em>all patients</em> in the ‘Female’ subgroup, averaging over their different ages, regions, etc.?”.</p>
@@ -143,13 +143,13 @@
 <p><code>bonsaiforest2</code> solves this by using <strong>Standardization (G-computation)</strong> <span class="citation">(<a href="#ref-wolbers2024shrinkage"><strong>wolbers2024shrinkage?</strong></a>)</span>. This procedure correctly averages over the specific covariate distribution of each subgroup to estimate a valid marginal treatment effect, ensuring all subgroups are compared on the same interpretable scale. (See <a href="#sec-standardization">Section 3.8</a> for a detailed explanation of how this standardization is performed in the package.)</p>
 </div>
 </div>
-<div class="section level2" number="0.3">
+<div class="section level2" number="3">
 <h2 id="sec-methodology">
-<span class="header-section-number">0.3</span> Statistical Methodology<a class="anchor" aria-label="anchor" href="#sec-methodology"></a>
+<span class="header-section-number">3</span> Statistical Methodology<a class="anchor" aria-label="anchor" href="#sec-methodology"></a>
 </h2>
-<div class="section level3" number="0.3.1">
+<div class="section level3" number="3.1">
 <h3 id="setting-and-notation">
-<span class="header-section-number">0.3.1</span> Setting and Notation<a class="anchor" aria-label="anchor" href="#setting-and-notation"></a>
+<span class="header-section-number">3.1</span> Setting and Notation<a class="anchor" aria-label="anchor" href="#setting-and-notation"></a>
 </h3>
 <p>We establish the following notation for the global model:</p>
 <ul>
@@ -170,14 +170,14 @@
 <li>
 <span class="math inline">\(\boldsymbol{\mu}\)</span>: The <span class="math inline">\(N \times 1\)</span> vector of expected outcomes.</li>
 <li>
-<span class="math inline">\(g(\cdot)\)</span>: A link function (e.g., logit, log).</li>
+<span class="math inline">\(g(\cdot)\)</span>: A link function. In <a href="#sec-endpoint">Section x</a> we define the used link function for each type of endpoint.</li>
 <li>
 <span class="math inline">\(\boldsymbol{\eta}\)</span>: The <span class="math inline">\(N \times 1\)</span> vector of the linear predictor.</li>
 </ul>
 </div>
-<div class="section level3" number="0.3.2">
+<div class="section level3" number="3.2">
 <h3 id="design-matrix-considerations">
-<span class="header-section-number">0.3.2</span> Design Matrix Considerations<a class="anchor" aria-label="anchor" href="#design-matrix-considerations"></a>
+<span class="header-section-number">3.2</span> Design Matrix Considerations<a class="anchor" aria-label="anchor" href="#design-matrix-considerations"></a>
 </h3>
 <p>A critical implementation detail is the construction of the design matrix for the subgroup-by-treatment interactions.</p>
 <p>We will then follow the same idea as in the <code>bonsaiforest</code> library. We will treat prognostic effects and predictive effects differently, as they serve different purposes in the model:</p>
@@ -186,23 +186,23 @@
 <li><p><strong>For predictive effects:</strong> The goal is to treat all subgroup levels symmetrically under the assumption of exchangeability. Using one-hot encoding is essential here. This ensures that the shrinkage prior pulls all predictive effects toward a common center without privileging a reference level.</p></li>
 </ul>
 </div>
-<div class="section level3" number="0.3.3">
+<div class="section level3" number="3.3">
 <h3 id="the-principle-of-model-hierarchy">
-<span class="header-section-number">0.3.3</span> The Principle of Model Hierarchy<a class="anchor" aria-label="anchor" href="#the-principle-of-model-hierarchy"></a>
+<span class="header-section-number">3.3</span> The Principle of Model Hierarchy<a class="anchor" aria-label="anchor" href="#the-principle-of-model-hierarchy"></a>
 </h3>
 <p>A fundamental concept in regression modeling is the <strong>principle of model hierarchy</strong> (or marginality). This principle states that if a model includes an interaction term (e.g., <code>A:B</code>), it should also include the corresponding main effects (e.g., <code>A</code> and <code>B</code>).</p>
 <p>In the context of <code>bonsaiforest2</code>, this means that any subgrouping variable included as <strong>predictive</strong> (i.e., in an interaction with treatment, like <code>trt:subgroup</code>) <em>must</em> also be included as <strong>prognostic</strong> (i.e., as a main effect, <code>subgroup</code>).</p>
 <p>Including the main effect ensures that the interaction term purely captures the <em>modification</em> of the treatment effect, rather than a mix of the main prognostic effect and the interaction, leading to a more stable and interpretable model.</p>
 <p>The <code>bonsaiforest2</code> package enforces this principle automatically. The <code>prepare_formula_model</code> function checks if a main effect is specified as prognostic for every variable included in a predictive term. If it is not, the function automatically adds the main effect to the list of unshrunk prognostic terms to ensure the model hierarchy is respected.</p>
 </div>
-<div class="section level3" number="0.3.4">
+<div class="section level3" number="3.4">
 <h3 id="the-global-model">
-<span class="header-section-number">0.3.4</span> The Global Model<a class="anchor" aria-label="anchor" href="#the-global-model"></a>
+<span class="header-section-number">3.4</span> The Global Model<a class="anchor" aria-label="anchor" href="#the-global-model"></a>
 </h3>
 <p>The package enables the implementation of a global model <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span> where all effects are estimated in a single, comprehensive regression formula.</p>
-<div class="section level4" number="0.3.4.1">
+<div class="section level4" number="3.4.1">
 <h4 id="full-model-equation">
-<span class="header-section-number">0.3.4.1</span> Full Model Equation<a class="anchor" aria-label="anchor" href="#full-model-equation"></a>
+<span class="header-section-number">3.4.1</span> Full Model Equation<a class="anchor" aria-label="anchor" href="#full-model-equation"></a>
 </h4>
 <p><strong><em>Matrix form:</em></strong></p>
 <p>The model for the linear predictor, <span class="math inline">\(\boldsymbol{\eta}\)</span>, for all <span class="math inline">\(N\)</span> patients is given by:</p>
@@ -215,12 +215,10 @@
 </ul>
 <p><strong>Components definition:</strong></p>
 <ul>
-<li><p><span class="math inline">\(\boldsymbol{\mu}\)</span> is the <span class="math inline">\(N \times 1\)</span> vector of expected outcomes for all patients.</p></li>
-<li><p><span class="math inline">\(g(\cdot)\)</span> is the link function. In <a href="#sec-endpoint">Section 3.5</a> we specify the used linked function for each endpoint type.</p></li>
 <li>
 <p><span class="math inline">\(\mathbf{X}= [\mathbf{X_p} \;\;  \mathbf{X}_n]\)</span> is the <span class="math inline">\(N \times M\)</span> design matrix for the <strong>prognostic effects</strong>. It typically includes:</p>
 <ul>
-<li><p>An intercept column. By default, for the Time-to-event endpoint the intercept is not used as it is absorbed by <span class="math inline">\(h_0(t)\)</span>. For all the other endpoint types we always inckude the intercept as a non-penalized coefficient and we give a separate prior.</p></li>
+<li><p>An intercept column. In <a href="#sec-intercept">Section x</a> we discuss the inclusion and the prior we give to the intercept in detail</p></li>
 <li><p>A column for the main treatment effect.</p></li>
 <li>
 <p>Columns for the prognostic effects of each subgroup level (using dummy coding, so one reference level per factor is dropped). Each prognostic effect will be contained in <span class="math inline">\(\mathbf{X}_n\)</span> or <span class="math inline">\(\mathbf{X}_p\)</span> depending if we want to shrink or not the effect.</p>
@@ -246,7 +244,7 @@
 <span><span class="op">)</span></span></code></pre></div>
 <table class="table">
 <caption>
-<span id="tab:unnamed-chunk-2">Table 1: </span>An example design matrix for a global subgroup model.</caption>
+<span id="tab:unnamed-chunk-2">Table 3.1: </span>An example design matrix for a global subgroup model.</caption>
 <thead><tr class="header">
 <th align="left">Patient</th>
 <th align="center">Intercept</th>
@@ -300,11 +298,11 @@
 <code class="sourceCode R"><span><span class="co"># Manually creating the interaction matrix for clarity</span></span>
 <span><span class="va">interaction_matrix</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  Patient      <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
-<span>  `trt:sexM`   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
-<span>  `trt:sexF`   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>,</span>
-<span>  `trt:regionEU` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
-<span>  `trt:regionUS` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
-<span>  `trt:regionAsia` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
+<span>  `trt:sexM`   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
+<span>  `trt:sexF`   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span>
+<span>  `trt:regionEU` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span><span class="op">)</span>,</span>
+<span>  `trt:regionUS` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
+<span>  `trt:regionAsia` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Using knitr::kable for a nice output</span></span>
@@ -333,10 +331,10 @@
 <tbody>
 <tr class="odd">
 <td align="center">1</td>
+<td align="center">1</td>
 <td align="center">0</td>
 <td align="center">0</td>
-<td align="center">0</td>
-<td align="center">0</td>
+<td align="center">1</td>
 <td align="center">0</td>
 </tr>
 <tr class="even">
@@ -349,11 +347,11 @@
 </tr>
 <tr class="odd">
 <td align="center">3</td>
+<td align="center">1</td>
 <td align="center">0</td>
 <td align="center">0</td>
 <td align="center">0</td>
-<td align="center">0</td>
-<td align="center">0</td>
+<td align="center">1</td>
 </tr>
 <tr class="even">
 <td align="center">4</td>
@@ -366,8 +364,8 @@
 <tr class="odd">
 <td align="center">5</td>
 <td align="center">0</td>
-<td align="center">0</td>
-<td align="center">0</td>
+<td align="center">1</td>
+<td align="center">1</td>
 <td align="center">0</td>
 <td align="center">0</td>
 </tr>
@@ -421,11 +419,11 @@
 <p><span class="math display">\[
 \eta_i = \underbrace{\beta_0 + \beta_{\text{treat}}s_i + \underbrace{\sum_{l=1}^{P} \beta^l_{1,p}x^{il}_n}_\text{penalized}+ \underbrace{\sum_{l=P+1}^{M}  \beta^l_{1,n}x^{il}_n}_\text{Not penalized}+\underbrace{\sum_{v=1}^{V} \beta_{3}^vu^{iv}}_{\text{Extra }}}_{\text{Prognostic Effects}} + \underbrace{\underbrace{\sum_{l=1}^{L-R} \beta_{2,p}^l z_p^{il}}_{\text{penalized }} + \underbrace{\sum_{l=L-R+1}^{L} \beta_{2,n}^l z_n^{il}}_{\text{Not penalized}} }_{\text{Predictive effects}}
 \]</span></p>
-<p><strong>Note</strong>: See that even if <span class="math inline">\(z^{il}=x^{il}\cdot s^{i}\)</span>, as the prognostic effect or the predicitve effect of the same subgrouping variable may be penalized or not, we separate it in <span class="math inline">\(X\)</span> and <span class="math inline">\(z\)</span> in the formula.</p>
+<p><strong>Note</strong>: See that even if <span class="math inline">\(z^{il}=x^{il}\cdot s^{i}\)</span>, as the prognostic effect or the predictive effect of the same subgrouping variable may be penalized or not, we separate it in <span class="math inline">\(x\)</span> and <span class="math inline">\(z\)</span> in the formula.</p>
 </div>
-<div class="section level4" number="0.3.4.2">
+<div class="section level4" number="3.4.2">
 <h4 id="example">
-<span class="header-section-number">0.3.4.2</span> Example<a class="anchor" aria-label="anchor" href="#example"></a>
+<span class="header-section-number">3.4.2</span> Example<a class="anchor" aria-label="anchor" href="#example"></a>
 </h4>
 <p>A randomized, double-blind trial comparing a new drug, <strong>DrugX</strong>, against a <strong>placebo</strong> in patients with hypertension.</p>
 <ul>
@@ -459,15 +457,15 @@
 \]</span></p>
 </div>
 </div>
-<div class="section level3" number="0.3.5">
+<div class="section level3" number="3.5">
 <h3 id="one-variable-at-a-time-model">
-<span class="header-section-number">0.3.5</span> One-Variable-at-a-Time Model<a class="anchor" aria-label="anchor" href="#one-variable-at-a-time-model"></a>
+<span class="header-section-number">3.5</span> One-Variable-at-a-Time Model<a class="anchor" aria-label="anchor" href="#one-variable-at-a-time-model"></a>
 </h3>
 <p>The <strong>one-variable-at-a-time model</strong> <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span> is a Bayesian hierarchical model (BHM) that improves upon standard subgroup analysis by borrowing information across subgroup levels to produce more stable and reliable estimates. Instead of analyzing each subgroup level in isolation, it analyzes all levels <em>within a single subgrouping variable</em> (e.g., all age groups) together in one model.</p>
 <p>For example, for the variable <em>Sex</em> (with levels Male and Female), you would fit one hierarchical model. In this single model, the treatment effects for Male (<span class="math inline">\(\beta_{2,\text{sex,male}}\)</span>) and Female (<span class="math inline">\(\beta_{2,\text{sex,female}}\)</span>) are treated as exchangeable and are linked by a common prior distribution. Then, a completely separate hierarchical model would be fit for the variable <em>Region</em>.</p>
-<div class="section level4" number="0.3.5.1">
+<div class="section level4" number="3.5.1">
 <h4 id="full-model-equation-1">
-<span class="header-section-number">0.3.5.1</span> Full Model Equation<a class="anchor" aria-label="anchor" href="#full-model-equation-1"></a>
+<span class="header-section-number">3.5.1</span> Full Model Equation<a class="anchor" aria-label="anchor" href="#full-model-equation-1"></a>
 </h4>
 <p>For a given subgrouping variable <span class="math inline">\(j\)</span>, we can specify a flexible linear predictor that allows for some covariate effects to be constant across the levels of <span class="math inline">\(j\)</span>, while others are allowed to vary.</p>
 <p>Let’s partition the patient-level covariates into two sets:</p>
@@ -486,9 +484,9 @@
 </ul>
 <p>Note that for coefficients <span class="math inline">\(\boldsymbol{\beta}_{3,j}\)</span> and <span class="math inline">\(\boldsymbol{\beta}_{4,j,k}\)</span> we can use shrinkage or standard priors depending in our prior beliefs.</p>
 </div>
-<div class="section level4" number="0.3.5.2">
+<div class="section level4" number="3.5.2">
 <h4 id="example-1">
-<span class="header-section-number">0.3.5.2</span> Example<a class="anchor" aria-label="anchor" href="#example-1"></a>
+<span class="header-section-number">3.5.2</span> Example<a class="anchor" aria-label="anchor" href="#example-1"></a>
 </h4>
 <p>Similarly to the example showed for the Global model. The example below is for the <strong>Age Group</strong> variable, where <span class="math inline">\(k \in \{ \text{&lt;65}, \text{≥65} \}\)</span>.</p>
 <p>The outcome for a patient <em>i</em> in age subgroup <em>k</em> is: <span class="math inline">\(Y_{ik} \sim N(\mu_{ik}, \sigma_k^2)\)</span>.</p>
@@ -502,58 +500,47 @@
 </ul>
 </div>
 </div>
-<div class="section level3" number="0.3.6">
-<h3 id="sec-derivation">
-<span class="header-section-number">0.3.6</span> Deriving Treatment Effects (Parameter Interpretation)<a class="anchor" aria-label="anchor" href="#sec-derivation"></a>
+<div class="section level3" number="3.6">
+<h3 id="sec-intercept">
+<span class="header-section-number">3.6</span> The Logic of the Intercept<a class="anchor" aria-label="anchor" href="#sec-intercept"></a>
 </h3>
-<p>The global and one-variable-at-a-time models are structured differently, which means the “treatment effect” for a subgroup is derived in slightly different ways. This section explains the logic of how the model coefficients are combined to produce a treatment effect on the linear predictor scale.</p>
-<div class="section level4" number="0.3.6.1">
-<h4 id="logic-for-the-global-model-coefficient-addition">
-<span class="header-section-number">0.3.6.1</span> 1. Logic for the Global Model (Coefficient Addition)<a class="anchor" aria-label="anchor" href="#logic-for-the-global-model-coefficient-addition"></a>
-</h4>
-<p>In the global model, the treatment effect for a specific subgroup is <strong>not</strong> a single parameter but a <strong>combination of parameters</strong>: the main (overall) treatment effect and the subgroup-specific interaction effect.</p>
-<p>Given the linear predictor for patient <span class="math inline">\(i\)</span>: <span class="math display">\[
-\eta_i = \dots + \underbrace{\beta_{\text{treat}}s_i}_{\text{from } \mathbf{X_n}\boldsymbol{\beta_{1,n}}} + \dots + \underbrace{\sum_{l=1}^{L} \beta_{2,l} z_{il}}_{\text{from } \mathbf{Z_p}\boldsymbol{\beta_{2,p}} \text{ or } \mathbf{Z_n}\boldsymbol{\beta_{2,n}}} + \dots
-\]</span></p>
-<p>The conditional treatment effect (<span class="math inline">\(\theta_l\)</span>) for a specific subgroup level <span class="math inline">\(l\)</span> (e.g., <code>sex_Female_x_trt</code>) is the sum:</p>
-<p><span class="math display">\[
-\theta_l = \beta_{\text{treat}} + \beta_{2,l}
-\]</span></p>
+<p>While the intercept (<span class="math inline">\(\beta_0\)</span>) is not subject to shrinkage (it is a fixed effect within the <code>unprogeffect</code> component), specifying its prior requires care to ensure the model remains weakly informative without introducing bias or numerical instability.</p>
+<p><strong>Default Specification:</strong> By default, <code>bonsaiforest</code> assigns a weakly informative Normal prior centered at 0 with a standard deviation of 5: <span class="math display">\[
+\beta_0 \sim \mathcal{N}(0, 5^2)
+\]</span> This choice is aligned with the methodology in Wolbers et al. (2025), where a standard deviation of 5 on the log-hazard or logit scale covers a wide range of plausible effect sizes (e.g., ratios from 0.08 to 12) while still penalizing extreme, unrealistic values.</p>
+<p><strong>Linking Prior Scale to Trial Design:</strong> For a more principled choice, users can adjust the scale parameter (<span class="math inline">\(\sigma_{prior}\)</span>) based on assumptions made during the <strong>trial design and sample size calculation phase</strong>.</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>For Continuous Endpoints:</strong> The trial protocol typically assumes a population standard deviation, <span class="math inline">\(\sigma_{design}\)</span>, for power calculations.
 <ul>
 <li>
-<span class="math inline">\(\beta_{\text{treat}}\)</span> is the main treatment effect, representing the average effect in the reference population (or the average effect if no interactions were present).</li>
+<strong>Recommendation:</strong> Set the prior standard deviation to a multiple of this design parameter, such as <span class="math inline">\(\sigma_{prior} = 10 \times \sigma_{design}\)</span>. This ensures the prior is wide enough to cover the plausible range of outcomes envisioned during planning.</li>
+</ul>
+</li>
 <li>
-<span class="math inline">\(\beta_{2,l}\)</span> is the <em>difference</em> in treatment effect for subgroup <span class="math inline">\(l\)</span> compared to the main effect.</li>
-<li>The Bayesian shrinkage prior (e.g., Horseshoe) is applied to the <span class="math inline">\(\beta_{2,l}\)</span> terms, pulling these <em>differences</em> toward zero, which effectively shrinks the final subgroup effect <span class="math inline">\(\theta_l\)</span> toward the main effect <span class="math inline">\(\beta_{\text{treat}}\)</span>.</li>
-</ul>
-</div>
-<div class="section level4" number="0.3.6.2">
-<h4 id="logic-for-the-one-variable-at-a-time-model">
-<span class="header-section-number">0.3.6.2</span> 2. Logic for the One-Variable-at-a-Time Model<a class="anchor" aria-label="anchor" href="#logic-for-the-one-variable-at-a-time-model"></a>
-</h4>
-<p>This approach is more direct. The model is already stratified by the levels <span class="math inline">\(k\)</span> of a single variable <span class="math inline">\(j\)</span>.</p>
-<p>Given the linear predictor for patient <span class="math inline">\(i\)</span> in level <span class="math inline">\(k\)</span>: <span class="math display">\[g(\mu_{i,j,k}) = \beta_{1,j,k} + \beta_{2,j,k}z_i + \boldsymbol{\beta}_{3,j}\mathbf{u}_i + \boldsymbol{\beta}_{4,j,k}\mathbf{v}_i\]</span></p>
-<p>The conditional treatment effect <span class="math inline">\(\theta_{j,k}\)</span> for subgroup level <span class="math inline">\(k\)</span> is simply the parameter:</p>
-<p><span class="math display">\[
-\theta_{j,k} = \beta_{2,j,k}
-\]</span></p>
-<p>In this model, the “coefficient addition” happens implicitly through the hierarchical prior. The model estimates <span class="math inline">\(\beta_{2,j,k}\)</span> directly, but the prior (e.g., <span class="math inline">\(\beta_{2,j,k} \sim \mathcal{N}(\mu_{2,j}, \tau^2_{2,j})\)</span>) borrows strength from the other levels (e.g., <span class="math inline">\(\beta_{2,j,\text{male}}\)</span> and <span class="math inline">\(\beta_{2,j,\text{female}}\)</span>) to inform the final posterior estimate.</p>
-</div>
-<div class="section level4" number="0.3.6.3">
-<h4 id="the-logic-of-the-intercept">
-<span class="header-section-number">0.3.6.3</span> 3. The Logic of the Intercept<a class="anchor" aria-label="anchor" href="#the-logic-of-the-intercept"></a>
-</h4>
-<p>The intercept’s role differs by endpoint type, which your <code>prepare_formula_model</code> function correctly handles:</p>
+<strong>For Count Endpoints (Log Scale):</strong> The intercept represents the log of the baseline event rate (assuming the offset is handled correctly).
 <ul>
-<li><p><strong>For Binary, Count, and Continuous Models:</strong> The intercept (<span class="math inline">\(\beta_0\)</span>) represents the expected outcome (on the link scale) for a patient in the <em>reference group</em> (all prognostic factors at 0) on the <em>control arm</em> (<span class="math inline">\(s_i=0\)</span>). It is included in the <code>unprogeffect</code> component by default and given a non-penalized, weakly informative prior. It is a fundamental parameter for estimating the baseline outcome and is not shrunk.</p></li>
-<li><p><strong>For Time-to-Event (Cox) Models:</strong> The intercept is <strong>not identifiable</strong> and is omitted. It is absorbed into the non-parametric baseline hazard function, <span class="math inline">\(h_0(t)\)</span>. The <code>brms::bhaz()</code> function, which we use to model the baseline hazard, explicitly sets <code>intercept = FALSE</code>. The model estimates <em>relative</em> hazards, and <span class="math inline">\(h_0(t)\)</span> captures the underlying hazard for the reference population at any given time <span class="math inline">\(t\)</span>.</p></li>
+<li>
+<strong>Recommendation:</strong> The default <span class="math inline">\(\mathcal{N}(0, 5^2)\)</span> is generally appropriate, as it covers a vast multiplicative range of event rates. However, if the trial is designed for very rare events (e.g., <span class="math inline">\(&lt; 0.01\)</span> events/year) or very frequent events, centering the prior on the log of the anticipated event rate from the protocol (<span class="math inline">\(\mu_0 = \log(\lambda_{design})\)</span>) rather than 0 can improve convergence.</li>
 </ul>
-<p><strong>Connecting to Standardization:</strong> It is critical to remember that the effects derived here (e.g., <span class="math inline">\(\theta_l = \beta_{\text{treat}} + \beta_{2,l}\)</span>) are <strong>conditional</strong> effects. They represent the treatment effect for a patient with a specific covariate profile (e.g., the reference level for all other factors). To obtain the single, interpretable <strong>marginal</strong> effect for a forest plot (i.e., the average effect for <em>all</em> patients in the “Female” subgroup, averaged over their different ages, BMIs, etc.), we must use the <strong>Standardization (G-computation)</strong> procedure, as detailed in <a href="#sec-standardization">Section 3.9</a>.</p>
+</li>
+<li>
+<strong>For Binary Endpoints (Logit Scale):</strong>
+<ul>
+<li>
+<strong>Recommendation:</strong> Use a prior scaled to the <strong>Unit Information Standard Deviation (UISD)</strong>, or adhere to the default <span class="math inline">\(\sigma=5\)</span>. A variance of 25 covers the entire range of realistic probabilities without concentrating mass on deterministic outcomes (0 or 1).</li>
+</ul>
+</li>
+</ol>
+<p><strong>Special Case: Time-to-Event Endpoints.</strong> For Cox proportional hazards models, the intercept is <strong>not identifiable</strong> and is <strong>omitted</strong> from the linear predictor.</p>
+<ul>
+<li><p><strong>Mechanism:</strong> The intercept is effectively absorbed into the non-parametric baseline hazard function, <span class="math inline">\(h_0(t)\)</span>.</p></li>
+<li><p><strong>Implementation:</strong> The <code>brms</code> backend handles this automatically by estimating the baseline hazard (via <code>bhaz()</code>) rather than a fixed intercept parameter. Therefore, no prior specification for <span class="math inline">\(\beta_0\)</span> is required for survival models.</p></li>
+</ul>
 </div>
-</div>
-<div class="section level3" number="0.3.7">
+<div class="section level3" number="3.7">
 <h3 id="sec-endpoint">
-<span class="header-section-number">0.3.7</span> Endpoint-Specific Models<a class="anchor" aria-label="anchor" href="#sec-endpoint"></a>
+<span class="header-section-number">3.7</span> Endpoint-Specific Models<a class="anchor" aria-label="anchor" href="#sec-endpoint"></a>
 </h3>
 <p>The package supports four primary endpoint types by specifying the appropriate likelihood and link function for <span class="math inline">\(g(\boldsymbol{\mu}) = \boldsymbol{\eta}\)</span>.</p>
 <table class="table">
@@ -606,24 +593,25 @@
 </tbody>
 </table>
 </div>
-<div class="section level3" number="0.3.8">
+<div class="section level3" number="3.8">
 <h3 id="prior-specifications">
-<span class="header-section-number">0.3.8</span> Prior Specifications<a class="anchor" aria-label="anchor" href="#prior-specifications"></a>
+<span class="header-section-number">3.8</span> Prior Specifications<a class="anchor" aria-label="anchor" href="#prior-specifications"></a>
 </h3>
-<div class="section level4" number="0.3.8.1">
-<h4 id="weakly-informative-priors-unshrunk-terms">
-<span class="header-section-number">0.3.8.1</span> Weakly Informative Priors (Unshrunk Terms)<a class="anchor" aria-label="anchor" href="#weakly-informative-priors-unshrunk-terms"></a>
-</h4>
+</div>
+<div class="section level3" number="3.9">
+<h3 id="weakly-informative-priors-unshrunk-terms">
+<span class="header-section-number">3.9</span> Weakly Informative Priors (Unshrunk Terms)<a class="anchor" aria-label="anchor" href="#weakly-informative-priors-unshrunk-terms"></a>
+</h3>
 <p>For all non-penalized coefficients (<span class="math inline">\(\boldsymbol{\beta_{1,n}}, \boldsymbol{\beta_{2,n}}, \boldsymbol{\beta_{3}}\)</span>), we use weakly informative priors to aid computational stability without strongly influencing the posterior.</p>
 <ul>
 <li>
 <strong>Default:</strong> <code>normal(0, 10)</code>. This is a common, weakly regularizing prior on the linear predictor scale. Users can specify their own, e.g., <code>student_t(3, 0, 2.5)</code>.</li>
 </ul>
 </div>
-<div class="section level4" number="0.3.8.2">
-<h4 id="regularized-horseshoe-prior-shrunk-terms">
-<span class="header-section-number">0.3.8.2</span> Regularized Horseshoe Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#regularized-horseshoe-prior-shrunk-terms"></a>
-</h4>
+<div class="section level3" number="3.10">
+<h3 id="regularized-horseshoe-prior-shrunk-terms">
+<span class="header-section-number">3.10</span> Regularized Horseshoe Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#regularized-horseshoe-prior-shrunk-terms"></a>
+</h3>
 <p>This is the default shrinkage prior in <code>bonsaiforest2</code>, recommended for its excellent adaptive shrinkage properties <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>; <a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>)</span>.</p>
 <ul>
 <li>
@@ -651,10 +639,10 @@
 </li>
 </ul>
 </div>
-<div class="section level4" number="0.3.8.3">
-<h4 id="r2d2-prior-shrunk-terms">
-<span class="header-section-number">0.3.8.3</span> R2D2 Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#r2d2-prior-shrunk-terms"></a>
-</h4>
+<div class="section level3" number="3.11">
+<h3 id="r2d2-prior-shrunk-terms">
+<span class="header-section-number">3.11</span> R2D2 Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#r2d2-prior-shrunk-terms"></a>
+</h3>
 <ul>
 <li><p><strong>Concept:</strong> This prior is uniquely derived by first placing a prior on the model’s coefficient of determination, <span class="math inline">\(R^2\)</span>, which quantifies the proportion of variance explained by the predictors. This is arguably more intuitive than specifying priors directly on coefficients.</p></li>
 <li><p><strong>Hierarchical Specification (Marginal Version):</strong> <span class="math display">\[
@@ -680,10 +668,10 @@
 </li>
 </ul>
 </div>
-<div class="section level4" number="0.3.8.4">
-<h4 id="normal-hierarchical-prior-for-one-variable-at-a-time-model">
-<span class="header-section-number">0.3.8.4</span> Normal Hierarchical Prior (for One-Variable-at-a-Time Model)<a class="anchor" aria-label="anchor" href="#normal-hierarchical-prior-for-one-variable-at-a-time-model"></a>
-</h4>
+<div class="section level3" number="3.12">
+<h3 id="normal-hierarchical-prior-for-one-variable-at-a-time-model">
+<span class="header-section-number">3.12</span> Normal Hierarchical Prior (for One-Variable-at-a-Time Model)<a class="anchor" aria-label="anchor" href="#normal-hierarchical-prior-for-one-variable-at-a-time-model"></a>
+</h3>
 <p>This is the standard hierarchical model for subgroup analysis, which assumes that treatment effects for levels within a subgrouping variable are drawn from a common normal distribution. It’s less complex than the Horseshoe or R2D2 priors but provides effective shrinkage, especially when the number of subgroup levels is small.</p>
 <ul>
 <li>
@@ -697,16 +685,15 @@
 <strong>Justification of Hyperparameters:</strong> The key is setting the scale parameter a for the Half-Normal prior on the between-subgroup standard deviation, <span class="math inline">\(\tau_{2,j}\)</span>, as this controls the degree of shrinkage. As recommended by <span class="citation">Bornkamp (<a href="#ref-bornkamp2025benchmarking">2025</a>)</span>, this can be linked to the planned treatment effect ( <span class="math inline">\(\delta_{plan}\)</span>) from the trial protocol, making the prior choice interpretable and consistent across different endpoints. The choice of a implies a prior on the plausible difference in treatment effects between any two subgroups.</li>
 </ul>
 </div>
-</div>
-<div class="section level3" number="0.3.9">
+<div class="section level3" number="3.13">
 <h3 id="estimation-mcmc">
-<span class="header-section-number">0.3.9</span> Estimation (MCMC)<a class="anchor" aria-label="anchor" href="#estimation-mcmc"></a>
+<span class="header-section-number">3.13</span> Estimation (MCMC)<a class="anchor" aria-label="anchor" href="#estimation-mcmc"></a>
 </h3>
 <p>The joint posterior distribution of all parameters is complex and has no closed-form solution. We use Markov Chain Monte Carlo (MCMC) methods to draw samples from this distribution. Specifically, the package uses the <strong>No-U-Turn Sampler (NUTS)</strong>, an efficient variant of Hamiltonian Monte Carlo (HMC), as implemented in <strong>Stan</strong> via the <code>brms</code> package. The output is a set of posterior samples (e.g., 4000 draws) representing the joint posterior distribution.</p>
 </div>
-<div class="section level3" number="0.3.10">
+<div class="section level3" number="3.14">
 <h3 id="sec-standardization">
-<span class="header-section-number">0.3.10</span> Standardization for Marginal Effects (G-computation)<a class="anchor" aria-label="anchor" href="#sec-standardization"></a>
+<span class="header-section-number">3.14</span> Standardization for Marginal Effects (G-computation)<a class="anchor" aria-label="anchor" href="#sec-standardization"></a>
 </h3>
 <p>To obtain interpretable <em>marginal</em> effects for each subgroup, the package implements a standardization (G-computation) procedure. This process is repeated for <em>each</em> MCMC draw to generate a full posterior distribution of the marginal effect.</p>
 <p><strong>For a single MCMC draw, the step-by-step process is:</strong></p>
@@ -744,9 +731,9 @@
 </ol>
 </div>
 </div>
-<div class="section level2" number="0.4">
+<div class="section level2" number="4">
 <h2 id="sec-functions">
-<span class="header-section-number">0.4</span> Mapping of Statistical Methods to <code>bonsaiforest2</code> Functions<a class="anchor" aria-label="anchor" href="#sec-functions"></a>
+<span class="header-section-number">4</span> Mapping of Statistical Methods to <code>bonsaiforest2</code> Functions<a class="anchor" aria-label="anchor" href="#sec-functions"></a>
 </h2>
 <p>This section connects the statistical methodology (Section 3) to the core package functions.</p>
 <ul>
@@ -793,7 +780,7 @@
 </li>
 </ul>
 </div>
-<div class="section level2 unnumbered">
+<div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h2>
 <div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0">

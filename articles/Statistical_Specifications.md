@@ -1,13 +1,13 @@
 # Statistical Specifications
 
-## 0.1 Scope of this document
+## 1 Scope of this document
 
 This document describes the statistical methods implemented in the
 `bonsaiforest2` R package for Bayesian subgroup analysis of continuous,
 binary, count, and time-to-event outcomes in randomized clinical trials
 (RCTs).
 
-The package unabled the implementation of both a **global modeling
+The package unable the implementation of both a **global modeling
 approach** ([Wolbers et al. 2025](#ref-wolbers2025using)), that
 estimates all main (prognostic) and interaction (predictive) effects in
 a single model, and a **One-variable-at a time** ([Wang et al.
@@ -21,9 +21,9 @@ The core features described in this document are:
     - **Prognostic** (main) vs. **Predictive** (interaction) effects.
     - **Shrunk** vs. **Unshrunk** coefficients, allowing exploratory
       terms to be penalized while pre-specified terms are not.
-2.  **Advanced Shrinkage Priors:** Implementation of state-of-the-art
-    shrinkage priors, including the **Regularized Horseshoe** ([Piironen
-    and Vehtari 2017](#ref-piironen2017sparsity); [Wolbers et al.
+2.  **Advanced Shrinkage Priors:** Supports state-of-the-art shrinkage
+    priors, including the **Regularized Horseshoe** ([Piironen and
+    Vehtari 2017](#ref-piironen2017sparsity); [Wolbers et al.
     2025](#ref-wolbers2025using)) and **R2D2** ([Zhang et al.
     2022](#ref-zhang2022bayesian)), to provide robust control of
     false-positive findings while identifying potential heterogeneity.
@@ -37,13 +37,13 @@ a conceptual introduction to subgroup analysis challenges and the
 Bayesian shrinkage solution. [Section 3](#sec-methodology) details the
 statistical methodology, including notation, the global and the
 one-variable at a time models, endpoint-specific likelihoods, prior
-specifications, and the Example standardization procedure. [Section
+specifications, and the standardization procedure. [Section
 4](#sec-functions) maps these statistical methods to the core functions
 in the `bonsaiforest2` package.
 
-## 0.2 Introduction to Subgroup Analysis and Estimation
+## 2 Introduction to Subgroup Analysis and Estimation
 
-### 0.2.1 The Challenge of Subgroup Analysis
+### 2.1 The Challenge of Subgroup Analysis
 
 Exploratory subgroup analyses are a standard part of RCT reporting,
 typically visualized in forest plots to assess the consistency of
@@ -64,7 +64,7 @@ This has led to the common recommendation that the *overall* treatment
 effect is often a more reliable estimate for a subgroup than the
 estimate derived from the subgroup’s data alone.
 
-### 0.2.2 Prognostic vs. Predictive Effects
+### 2.2 Prognostic vs. Predictive Effects
 
 To build a meaningful model, it is crucial to distinguish how a baseline
 variable relates to the outcome:
@@ -81,7 +81,7 @@ variable relates to the outcome:
 `bonsaiforest2` is built to model both types of effects explicitly and
 apply different modeling strategies (e.g., shrinkage) to each.
 
-### 0.2.3 The Role of Bayesian Shrinkage
+### 2.3 The Role of Bayesian Shrinkage
 
 Bayesian shrinkage methods directly address the challenges of subgroup
 analysis by providing a principled compromise between the two extremes
@@ -103,7 +103,7 @@ accept a small amount of bias (by pulling real effects slightly toward
 the mean) in exchange for a large reduction in variance, leading to a
 lower overall error and better control of spurious findings.
 
-### 0.2.4 Conditional vs. Marginal Estimands
+### 2.4 Conditional vs. Marginal Estimands
 
 When covariates are included in a non-linear model (like a logistic or
 Cox model), the resulting coefficients represent **conditional**
@@ -128,9 +128,9 @@ subgroups are compared on the same interpretable scale. (See [Section
 3.8](#sec-standardization) for a detailed explanation of how this
 standardization is performed in the package.)
 
-## 0.3 Statistical Methodology
+## 3 Statistical Methodology
 
-### 0.3.1 Setting and Notation
+### 3.1 Setting and Notation
 
 We establish the following notation for the global model:
 
@@ -150,11 +150,12 @@ We establish the following notation for the global model:
   for patient \\i\\. This additional covariates don’t need to be binary
   or categorical.
 - \\\boldsymbol{\mu}\\: The \\N \times 1\\ vector of expected outcomes.
-- \\g(\cdot)\\: A link function (e.g., logit, log).
+- \\g(\cdot)\\: A link function. In [Section x](#sec-endpoint) we define
+  the used link function for each type of endpoint.
 - \\\boldsymbol{\eta}\\: The \\N \times 1\\ vector of the linear
   predictor.
 
-### 0.3.2 Design Matrix Considerations
+### 3.2 Design Matrix Considerations
 
 A critical implementation detail is the construction of the design
 matrix for the subgroup-by-treatment interactions.
@@ -175,7 +176,7 @@ they serve different purposes in the model:
   pulls all predictive effects toward a common center without
   privileging a reference level.
 
-### 0.3.3 The Principle of Model Hierarchy
+### 3.3 The Principle of Model Hierarchy
 
 A fundamental concept in regression modeling is the **principle of model
 hierarchy** (or marginality). This principle states that if a model
@@ -198,13 +199,13 @@ prognostic for every variable included in a predictive term. If it is
 not, the function automatically adds the main effect to the list of
 unshrunk prognostic terms to ensure the model hierarchy is respected.
 
-### 0.3.4 The Global Model
+### 3.4 The Global Model
 
 The package enables the implementation of a global model ([Wolbers et
 al. 2025](#ref-wolbers2025using)) where all effects are estimated in a
 single, comprehensive regression formula.
 
-#### 0.3.4.1 Full Model Equation
+#### 3.4.1 Full Model Equation
 
 ***Matrix form:***
 
@@ -237,20 +238,12 @@ The Bayesian hierarchical structure is applied as follows:
 
 **Components definition:**
 
-- \\\boldsymbol{\mu}\\ is the \\N \times 1\\ vector of expected outcomes
-  for all patients.
-
-- \\g(\cdot)\\ is the link function. In [Section 3.5](#sec-endpoint) we
-  specify the used linked function for each endpoint type.
-
 - \\\mathbf{X}= \[\mathbf{X_p} \\\\ \mathbf{X}\_n\]\\ is the \\N \times
   M\\ design matrix for the **prognostic effects**. It typically
   includes:
 
-  - An intercept column. By default, for the Time-to-event endpoint the
-    intercept is not used as it is absorbed by \\h_0(t)\\. For all the
-    other endpoint types we always inckude the intercept as a
-    non-penalized coefficient and we give a separate prior.
+  - An intercept column. In [Section x](#sec-intercept) we discuss the
+    inclusion and the prior we give to the intercept in detail
 
   - A column for the main treatment effect.
 
@@ -287,7 +280,7 @@ The Bayesian hierarchical structure is applied as follows:
   | 3       |     1     |  0  |  1   |    1     | 0          |
   | 4       |     1     |  1  |  0   |    1     | 0          |
 
-  Table 1: An example design matrix for a global subgroup model.
+  Table 3.1: An example design matrix for a global subgroup model.
 
   *Note:* M=1+1+L-J= 1 degree for the intercept+ 1 for the treatment
   effect + L (Number of subgroups) - J(Number of variables) because we
@@ -311,11 +304,11 @@ The Bayesian hierarchical structure is applied as follows:
 # Manually creating the interaction matrix for clarity
 interaction_matrix <- data.frame(
   Patient      = 1:6,
-  `trt:sexM`   = c(0, 0, 0, 1, 0, 0),
-  `trt:sexF`   = c(0, 1, 0, 0, 0, 1),
-  `trt:regionEU` = c(0, 1, 0, 0, 0, 0),
-  `trt:regionUS` = c(0, 0, 0, 1, 0, 0),
-  `trt:regionAsia` = c(0, 0, 0, 0, 0, 1)
+  `trt:sexM`   = c(1, 0, 1, 1, 0, 0),
+  `trt:sexF`   = c(0, 1, 0, 0, 1, 1),
+  `trt:regionEU` = c(0, 1, 0, 0, 1, 0),
+  `trt:regionUS` = c(1, 0, 0, 1, 0, 0),
+  `trt:regionAsia` = c(0, 0, 1, 0, 0, 1)
 )
 
 # Using knitr::kable for a nice output
@@ -328,11 +321,11 @@ knitr::kable(
 
 | Patient | trt x sexM | trt x sexF | trt x regionEU | trt x regionUS | trt x regionAsia |
 |:-------:|:----------:|:----------:|:--------------:|:--------------:|:----------------:|
-|    1    |     0      |     0      |       0        |       0        |        0         |
+|    1    |     1      |     0      |       0        |       1        |        0         |
 |    2    |     0      |     1      |       1        |       0        |        0         |
-|    3    |     0      |     0      |       0        |       0        |        0         |
+|    3    |     1      |     0      |       0        |       0        |        1         |
 |    4    |     1      |     0      |       0        |       1        |        0         |
-|    5    |     0      |     0      |       0        |       0        |        0         |
+|    5    |     0      |     1      |       1        |       0        |        0         |
 |    6    |     0      |     1      |       0        |       0        |        1         |
 
 - \\\boldsymbol{\beta\_{2,p}}\\ is the \\R \times 1\\ vector of
@@ -367,11 +360,11 @@ z_p^{il}}\_{\text{penalized }} + \underbrace{\sum\_{l=L-R+1}^{L}
 effects}} \\
 
 **Note**: See that even if \\z^{il}=x^{il}\cdot s^{i}\\, as the
-prognostic effect or the predicitve effect of the same subgrouping
-variable may be penalized or not, we separate it in \\X\\ and \\z\\ in
+prognostic effect or the predictive effect of the same subgrouping
+variable may be penalized or not, we separate it in \\x\\ and \\z\\ in
 the formula.
 
-#### 0.3.4.2 Example
+#### 3.4.2 Example
 
 A randomized, double-blind trial comparing a new drug, **DrugX**,
 against a **placebo** in patients with hypertension.
@@ -415,7 +408,7 @@ The linear predictor \\\mu\_{i}\\ is modeled as:
 \text{BMI}\_i+\delta_3 \cdot \text{Smoker}\_i}\_{\text{Extra Prognostic
 effects}} \\
 
-### 0.3.5 One-Variable-at-a-Time Model
+### 3.5 One-Variable-at-a-Time Model
 
 The **one-variable-at-a-time model** ([Wang et al.
 2024](#ref-wang2024bayesian)) is a Bayesian hierarchical model (BHM)
@@ -432,7 +425,7 @@ effects for Male (\\\beta\_{2,\text{sex,male}}\\) and Female
 linked by a common prior distribution. Then, a completely separate
 hierarchical model would be fit for the variable *Region*.
 
-#### 0.3.5.1 Full Model Equation
+#### 3.5.1 Full Model Equation
 
 For a given subgrouping variable \\j\\, we can specify a flexible linear
 predictor that allows for some covariate effects to be constant across
@@ -468,7 +461,7 @@ Note that for coefficients \\\boldsymbol{\beta}\_{3,j}\\ and
 \\\boldsymbol{\beta}\_{4,j,k}\\ we can use shrinkage or standard priors
 depending in our prior beliefs.
 
-#### 0.3.5.2 Example
+#### 3.5.2 Example
 
 Similarly to the example showed for the Global model. The example below
 is for the **Age Group** variable, where \\k \in \\ \text{\<65},
@@ -494,97 +487,63 @@ Prognostic Effect}} \\
   (\\\delta\_{3,k}\\), while BMI and Smoking effects are assumed
   constant
 
-### 0.3.6 Deriving Treatment Effects (Parameter Interpretation)
+### 3.6 The Logic of the Intercept
 
-The global and one-variable-at-a-time models are structured differently,
-which means the “treatment effect” for a subgroup is derived in slightly
-different ways. This section explains the logic of how the model
-coefficients are combined to produce a treatment effect on the linear
-predictor scale.
+While the intercept (\\\beta_0\\) is not subject to shrinkage (it is a
+fixed effect within the `unprogeffect` component), specifying its prior
+requires care to ensure the model remains weakly informative without
+introducing bias or numerical instability.
 
-#### 0.3.6.1 1. Logic for the Global Model (Coefficient Addition)
+**Default Specification:** By default, `bonsaiforest` assigns a weakly
+informative Normal prior centered at 0 with a standard deviation of 5:
+\\ \beta_0 \sim \mathcal{N}(0, 5^2) \\ This choice is aligned with the
+methodology in Wolbers et al. (2025), where a standard deviation of 5 on
+the log-hazard or logit scale covers a wide range of plausible effect
+sizes (e.g., ratios from 0.08 to 12) while still penalizing extreme,
+unrealistic values.
 
-In the global model, the treatment effect for a specific subgroup is
-**not** a single parameter but a **combination of parameters**: the main
-(overall) treatment effect and the subgroup-specific interaction effect.
+**Linking Prior Scale to Trial Design:** For a more principled choice,
+users can adjust the scale parameter (\\\sigma\_{prior}\\) based on
+assumptions made during the **trial design and sample size calculation
+phase**.
 
-Given the linear predictor for patient \\i\\: \\ \eta_i = \dots +
-\underbrace{\beta\_{\text{treat}}s_i}\_{\text{from }
-\mathbf{X_n}\boldsymbol{\beta\_{1,n}}} + \dots +
-\underbrace{\sum\_{l=1}^{L} \beta\_{2,l} z\_{il}}\_{\text{from }
-\mathbf{Z_p}\boldsymbol{\beta\_{2,p}} \text{ or }
-\mathbf{Z_n}\boldsymbol{\beta\_{2,n}}} + \dots \\
+1.  **For Continuous Endpoints:** The trial protocol typically assumes a
+    population standard deviation, \\\sigma\_{design}\\, for power
+    calculations.
+    - **Recommendation:** Set the prior standard deviation to a multiple
+      of this design parameter, such as \\\sigma\_{prior} = 10 \times
+      \sigma\_{design}\\. This ensures the prior is wide enough to cover
+      the plausible range of outcomes envisioned during planning.
+2.  **For Count Endpoints (Log Scale):** The intercept represents the
+    log of the baseline event rate (assuming the offset is handled
+    correctly).
+    - **Recommendation:** The default \\\mathcal{N}(0, 5^2)\\ is
+      generally appropriate, as it covers a vast multiplicative range of
+      event rates. However, if the trial is designed for very rare
+      events (e.g., \\\< 0.01\\ events/year) or very frequent events,
+      centering the prior on the log of the anticipated event rate from
+      the protocol (\\\mu_0 = \log(\lambda\_{design})\\) rather than 0
+      can improve convergence.
+3.  **For Binary Endpoints (Logit Scale):**
+    - **Recommendation:** Use a prior scaled to the **Unit Information
+      Standard Deviation (UISD)**, or adhere to the default
+      \\\sigma=5\\. A variance of 25 covers the entire range of
+      realistic probabilities without concentrating mass on
+      deterministic outcomes (0 or 1).
 
-The conditional treatment effect (\\\theta_l\\) for a specific subgroup
-level \\l\\ (e.g., `sex_Female_x_trt`) is the sum:
+**Special Case: Time-to-Event Endpoints.** For Cox proportional hazards
+models, the intercept is **not identifiable** and is **omitted** from
+the linear predictor.
 
-\\ \theta_l = \beta\_{\text{treat}} + \beta\_{2,l} \\
+- **Mechanism:** The intercept is effectively absorbed into the
+  non-parametric baseline hazard function, \\h_0(t)\\.
 
-- \\\beta\_{\text{treat}}\\ is the main treatment effect, representing
-  the average effect in the reference population (or the average effect
-  if no interactions were present).
-- \\\beta\_{2,l}\\ is the *difference* in treatment effect for subgroup
-  \\l\\ compared to the main effect.
-- The Bayesian shrinkage prior (e.g., Horseshoe) is applied to the
-  \\\beta\_{2,l}\\ terms, pulling these *differences* toward zero, which
-  effectively shrinks the final subgroup effect \\\theta_l\\ toward the
-  main effect \\\beta\_{\text{treat}}\\.
+- **Implementation:** The `brms` backend handles this automatically by
+  estimating the baseline hazard (via `bhaz()`) rather than a fixed
+  intercept parameter. Therefore, no prior specification for \\\beta_0\\
+  is required for survival models.
 
-#### 0.3.6.2 2. Logic for the One-Variable-at-a-Time Model
-
-This approach is more direct. The model is already stratified by the
-levels \\k\\ of a single variable \\j\\.
-
-Given the linear predictor for patient \\i\\ in level \\k\\:
-\\g(\mu\_{i,j,k}) = \beta\_{1,j,k} + \beta\_{2,j,k}z_i +
-\boldsymbol{\beta}\_{3,j}\mathbf{u}\_i +
-\boldsymbol{\beta}\_{4,j,k}\mathbf{v}\_i\\
-
-The conditional treatment effect \\\theta\_{j,k}\\ for subgroup level
-\\k\\ is simply the parameter:
-
-\\ \theta\_{j,k} = \beta\_{2,j,k} \\
-
-In this model, the “coefficient addition” happens implicitly through the
-hierarchical prior. The model estimates \\\beta\_{2,j,k}\\ directly, but
-the prior (e.g., \\\beta\_{2,j,k} \sim \mathcal{N}(\mu\_{2,j},
-\tau^2\_{2,j})\\) borrows strength from the other levels (e.g.,
-\\\beta\_{2,j,\text{male}}\\ and \\\beta\_{2,j,\text{female}}\\) to
-inform the final posterior estimate.
-
-#### 0.3.6.3 3. The Logic of the Intercept
-
-The intercept’s role differs by endpoint type, which your
-`prepare_formula_model` function correctly handles:
-
-- **For Binary, Count, and Continuous Models:** The intercept
-  (\\\beta_0\\) represents the expected outcome (on the link scale) for
-  a patient in the *reference group* (all prognostic factors at 0) on
-  the *control arm* (\\s_i=0\\). It is included in the `unprogeffect`
-  component by default and given a non-penalized, weakly informative
-  prior. It is a fundamental parameter for estimating the baseline
-  outcome and is not shrunk.
-
-- **For Time-to-Event (Cox) Models:** The intercept is **not
-  identifiable** and is omitted. It is absorbed into the non-parametric
-  baseline hazard function, \\h_0(t)\\. The `brms::bhaz()` function,
-  which we use to model the baseline hazard, explicitly sets
-  `intercept = FALSE`. The model estimates *relative* hazards, and
-  \\h_0(t)\\ captures the underlying hazard for the reference population
-  at any given time \\t\\.
-
-**Connecting to Standardization:** It is critical to remember that the
-effects derived here (e.g., \\\theta_l = \beta\_{\text{treat}} +
-\beta\_{2,l}\\) are **conditional** effects. They represent the
-treatment effect for a patient with a specific covariate profile (e.g.,
-the reference level for all other factors). To obtain the single,
-interpretable **marginal** effect for a forest plot (i.e., the average
-effect for *all* patients in the “Female” subgroup, averaged over their
-different ages, BMIs, etc.), we must use the **Standardization
-(G-computation)** procedure, as detailed in [Section
-3.9](#sec-standardization).
-
-### 0.3.7 Endpoint-Specific Models
+### 3.7 Endpoint-Specific Models
 
 The package supports four primary endpoint types by specifying the
 appropriate likelihood and link function for \\g(\boldsymbol{\mu}) =
@@ -597,9 +556,9 @@ appropriate likelihood and link function for \\g(\boldsymbol{\mu}) =
 | **Count**         | Negative Binomial: \\y_i \sim \text{NegBin}(\mu_i, \phi)\\ | Log: \\\log(\mu_i) = \eta_i\\         | \\\phi\\ (overdispersion) can be stratified. Supports [`offset()`](https://rdrr.io/r/stats/offset.html). |
 | **Time-to-event** | Cox Proportional Hazards: \\h_i(t) = h_0(t)\exp(\eta_i)\\  | Log (on the hazard)                   | Intercept is absorbed by the baseline hazard \\h_0(t)\\. \\h_0(t)\\ can be stratified.                   |
 
-### 0.3.8 Prior Specifications
+### 3.8 Prior Specifications
 
-#### 0.3.8.1 Weakly Informative Priors (Unshrunk Terms)
+### 3.9 Weakly Informative Priors (Unshrunk Terms)
 
 For all non-penalized coefficients (\\\boldsymbol{\beta\_{1,n}},
 \boldsymbol{\beta\_{2,n}}, \boldsymbol{\beta\_{3}}\\), we use weakly
@@ -610,7 +569,7 @@ influencing the posterior.
   prior on the linear predictor scale. Users can specify their own,
   e.g., `student_t(3, 0, 2.5)`.
 
-#### 0.3.8.2 Regularized Horseshoe Prior (Shrunk Terms)
+### 3.10 Regularized Horseshoe Prior (Shrunk Terms)
 
 This is the default shrinkage prior in `bonsaiforest2`, recommended for
 its excellent adaptive shrinkage properties ([Wolbers et al.
@@ -641,7 +600,7 @@ its excellent adaptive shrinkage properties ([Wolbers et al.
       \\\text{par_ratio} = \frac{p\_{eff}}{L - p\_{eff}}\\. This scales
       the prior based on sample size (\\N\\) and the expected sparsity.
 
-#### 0.3.8.3 R2D2 Prior (Shrunk Terms)
+### 3.11 R2D2 Prior (Shrunk Terms)
 
 - **Concept:** This prior is uniquely derived by first placing a prior
   on the model’s coefficient of determination, \\R^2\\, which quantifies
@@ -677,7 +636,7 @@ its excellent adaptive shrinkage properties ([Wolbers et al.
 
     - **Low Shrinkage:** \\a\_\pi=0.5\\
 
-#### 0.3.8.4 Normal Hierarchical Prior (for One-Variable-at-a-Time Model)
+### 3.12 Normal Hierarchical Prior (for One-Variable-at-a-Time Model)
 
 This is the standard hierarchical model for subgroup analysis, which
 assumes that treatment effects for levels within a subgrouping variable
@@ -704,7 +663,7 @@ heterogeneity}) \end{aligned} \\
   a implies a prior on the plausible difference in treatment effects
   between any two subgroups.
 
-### 0.3.9 Estimation (MCMC)
+### 3.13 Estimation (MCMC)
 
 The joint posterior distribution of all parameters is complex and has no
 closed-form solution. We use Markov Chain Monte Carlo (MCMC) methods to
@@ -714,7 +673,7 @@ Carlo (HMC), as implemented in **Stan** via the `brms` package. The
 output is a set of posterior samples (e.g., 4000 draws) representing the
 joint posterior distribution.
 
-### 0.3.10 Standardization for Marginal Effects (G-computation)
+### 3.14 Standardization for Marginal Effects (G-computation)
 
 To obtain interpretable *marginal* effects for each subgroup, the
 package implements a standardization (G-computation) procedure. This
@@ -773,7 +732,7 @@ distribution of the marginal effect.
     marginal effect of each subgroup. The final point estimate (median)
     and 95% credible interval are taken from this distribution.
 
-## 0.4 Mapping of Statistical Methods to `bonsaiforest2` Functions
+## 4 Mapping of Statistical Methods to `bonsaiforest2` Functions
 
 This section connects the statistical methodology (Section 3) to the
 core package functions.
