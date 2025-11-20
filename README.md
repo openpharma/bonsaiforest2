@@ -1,5 +1,5 @@
 
-# bonsaiforest2 🌳
+# bonsaiforest2 <a href="https://github.com/openpharma/bonsaiforest2"><img src="man/figures/logo.png" alt="bonsaiforest2 website" align="right" height="138"/></a>
 
 The goal of `bonsaiforest2` is to **simplify fitting and interpreting
 Bayesian models for subgroup analysis** in clinical trials. It leverages

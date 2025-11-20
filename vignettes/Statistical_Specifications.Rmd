@@ -8,8 +8,9 @@ output:
     number_sections: true
     citation_package: natbib
     base_format: rmarkdown::html_vignette
+    mathjax: default
 bibliography: "references.bib"
-link-citations: true   
+link-citations: true    
 linkcolor: blue
 pkgdown:
   as_is: true
@@ -335,14 +336,13 @@ The package supports four primary endpoint types by specifying the appropriate l
 
 If priors are not specified, the function applies the following defaults (as defined in the `fit_brms_model` code):
 
-  * **Prognostic Shrunk:** `horseshoe(1)`
-  * **Prognostic Unshrunk:** `normal(0, 5)`
-  * **Prognostic Intercept:** `normal(0, 10)`
-  * **Predictive Shrunk:** `horseshoe(1)`
-  * **Predictive Unshrunk:** `normal(0, 5)`
+-   **Prognostic Shrunk:** `horseshoe(1)`
+-   **Prognostic Unshrunk:** `normal(0, 5)`
+-   **Prognostic Intercept:** `normal(0, 10)`
+-   **Predictive Shrunk:** `horseshoe(1)`
+-   **Predictive Unshrunk:** `normal(0, 5)`
 
 **Note:** The intercept prior is *not* applied for `response_type = "survival"`, as Cox models do not have a global intercept.
-
 
 ### Weakly Informative Priors (Unshrunk Terms)
 

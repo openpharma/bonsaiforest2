@@ -1,47 +1,58 @@
 Package: bonsaiforest2
 Type: Package
-Title: bonsaiforest2
+Title: Flexible Bayesian Shrinkage Based Forest Plots
 Version: 0.1.0
 Authors@R: c(
     person(
       "Miriam", "Pedrera Gomez",
       email = "miriam.pedrera_gomez@roche.com",
       role = c("aut", "cre")
-    ), 
+    ),
     person(
-      "Isaac", "Gravestock", 
-      email = "isaac.gravestock@roche.com", 
+      "Isaac", "Gravestock",
+      email = "isaac.gravestock@roche.com",
       role = "aut"
-    )   
+    ),
+    person(
+      "Marcel", "Wolbers",
+      email = "marcel.wolbers@roche.com",
+      role = "aut"
+    )
   )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
+Description: An extension of the 'bonsaiforest' package that provides 
+    increased flexibility in prior selection and modeling options. It 
+    supports four types of endpoints and simplifies the fitting and 
+    interpretation of Bayesian models for subgroup analysis. Leveraging 
+    'brms', it distinguishes between prognostic and predictive factors 
+    using differential shrinkage priors and generates publication-ready 
+    forest plots.
 License: MIT + file LICENSE
+URL: https://openpharma.github.io/bonsaiforest2/
+BugReports: https://github.com/openpharma/bonsaiforest2/issues
 Encoding: UTF-8
 LazyData: true
 Imports: 
     brms,
+    checkmate,
     dplyr,
     ggplot2,
-    splines2,
-    tibble,
+    magrittr,
     posterior,
-    stringr,
-    stats,
-    survival,
     rlang,
-    checkmate,
-    magrittr
+    splines2,
+    stats,
+    stringr,
+    survival,
+    tibble
 RoxygenNote: 7.3.3
 Suggests: 
-    knitr,
-    rmarkdown,
-    cmdstanr,
-    testthat (>= 3.0.0),
     BH,
+    bookdown,
+    cmdstanr,
+    knitr,
     RcppEigen,
-    bookdown
+    rmarkdown,
+    testthat (>= 3.0.0)
 Config/testthat/edition: 3
 VignetteBuilder: knitr
-Additional_repositories: 'https://stan-dev.r-universe.dev'
-URL: https://openpharma.github.io/bonsaiforest2/
+Additional_repositories: https://stan-dev.r-universe.dev
