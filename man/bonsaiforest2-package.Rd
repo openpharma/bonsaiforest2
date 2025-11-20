@@ -6,6 +6,8 @@
 \alias{bonsaiforest2-package}
 \title{bonsaiforest2: bonsaiforest2}
 \description{
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
+
 More about what it does (maybe more than one line). Continuation lines should be indented.
 }
 \seealso{
