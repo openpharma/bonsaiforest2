@@ -1,4 +1,4 @@
-# bonsaiforest2 🌳
+# bonsaiforest2
 
 The goal of `bonsaiforest2` is to **simplify fitting and interpreting
 Bayesian models for subgroup analysis** in clinical trials. It leverages

@@ -6,14 +6,20 @@
 
 - **Isaac Gravestock**. Author.
 
+- **Marcel Wolbers**. Author.
+
 ## Citation
 
-Pedrera Gomez M, Gravestock I (2025). *bonsaiforest2: bonsaiforest2*. R
-package version 0.1.0, <https://openpharma.github.io/bonsaiforest2/>.
+Source:
+[`DESCRIPTION`](https://github.com/openpharma/bonsaiforest2/blob/main/DESCRIPTION)
+
+Pedrera Gomez M, Gravestock I, Wolbers M (2025). *bonsaiforest2:
+Flexible Bayesian Shrinkage Based Forest Plots*. R package version
+0.1.0, <https://openpharma.github.io/bonsaiforest2/>.
 
     @Manual{,
-      title = {bonsaiforest2: bonsaiforest2},
-      author = {Miriam {Pedrera Gomez} and Isaac Gravestock},
+      title = {bonsaiforest2: Flexible Bayesian Shrinkage Based Forest Plots},
+      author = {Miriam {Pedrera Gomez} and Isaac Gravestock and Marcel Wolbers},
       year = {2025},
       note = {R package version 0.1.0},
       url = {https://openpharma.github.io/bonsaiforest2/},

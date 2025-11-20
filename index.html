@@ -5,14 +5,15 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>bonsaiforest2 • bonsaiforest2</title>
+<title>Flexible Bayesian Shrinkage Based Forest Plots • bonsaiforest2</title>
 <script src="deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="bonsaiforest2">
-<meta name="description" content="More about what it does (maybe more than one line). Continuation lines should be indented.">
-<meta property="og:description" content="More about what it does (maybe more than one line). Continuation lines should be indented.">
+<script src="deps/headroom-0.11.0/headroom.min.js"></script><script src="deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="deps/search-1.0.0/fuse.min.js"></script><script src="deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="pkgdown.js"></script><meta property="og:title" content="Flexible Bayesian Shrinkage Based Forest Plots">
+<meta name="description" content="An extension of the bonsaiforest package that provides increased flexibility in prior selection and modeling options. It supports four types of endpoints and simplifies the fitting and interpretation of Bayesian models for subgroup analysis. Leveraging brms, it distinguishes between prognostic and predictive factors using differential shrinkage priors and generates publication-ready forest plots.">
+<meta property="og:description" content="An extension of the bonsaiforest package that provides increased flexibility in prior selection and modeling options. It supports four types of endpoints and simplifies the fitting and interpretation of Bayesian models for subgroup analysis. Leveraging brms, it distinguishes between prognostic and predictive factors using differential shrinkage priors and generates publication-ready forest plots.">
+<meta property="og:image" content="https://openpharma.github.io/bonsaiforest2/logo.png">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
@@ -45,6 +46,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="search.json">
 </form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/openpharma/bonsaiforest2/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -53,8 +55,11 @@
 </nav><div class="container template-home">
 <div class="row">
   <main id="main" class="col-md-9"><div class="section level1">
-<div class="page-header"><h1 id="bonsaiforest2-">bonsaiforest2 🌳<a class="anchor" aria-label="anchor" href="#bonsaiforest2-"></a>
-</h1></div>
+<div class="page-header">
+<img src="logo.png" class="logo" alt=""><h1 id="bonsaiforest2-">bonsaiforest2 
+<a class="anchor" aria-label="anchor" href="#bonsaiforest2-"></a>
+</h1>
+</div>
 <p>The goal of <code>bonsaiforest2</code> is to <strong>simplify fitting and interpreting Bayesian models for subgroup analysis</strong> in clinical trials. It leverages the power of the <code>brms</code> package to:</p>
 <ul>
 <li>Distinguish between <strong>prognostic</strong> (baseline predictors) and <strong>predictive</strong> (treatment effect modifiers) factors.</li>
@@ -120,7 +125,15 @@
 <span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="co">#&gt; 3 region: B  0.457   0.0312    1.45</span></span></code></pre></div>
 </div>
 </div>
-  </main><aside class="col-md-3"><div class="license">
+  </main><aside class="col-md-3"><div class="links">
+<h2 data-toc-skip>Links</h2>
+<ul class="list-unstyled">
+<li><a href="https://github.com/openpharma/bonsaiforest2/" class="external-link">Browse source code</a></li>
+<li><a href="https://github.com/openpharma/bonsaiforest2/issues" class="external-link">Report a bug</a></li>
+</ul>
+</div>
+
+<div class="license">
 <h2 data-toc-skip>License</h2>
 <ul class="list-unstyled">
 <li><a href="LICENSE.html">Full license</a></li>
@@ -141,6 +154,7 @@
 <ul class="list-unstyled">
 <li>Miriam Pedrera Gomez <br><small class="roles"> Author, maintainer </small>   </li>
 <li>Isaac Gravestock <br><small class="roles"> Author </small>   </li>
+<li>Marcel Wolbers <br><small class="roles"> Author </small>   </li>
 </ul>
 </div>
 
@@ -151,7 +165,7 @@
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Miriam Pedrera Gomez, Isaac Gravestock.</p>
+  <p>Developed by Miriam Pedrera Gomez, Isaac Gravestock, Marcel Wolbers.</p>
 </div>
 
 <div class="pkgdown-footer-right">
