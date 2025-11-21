@@ -1,7 +1,6 @@
 # tests/testthat/test-summary_subgroup_effects.R
 
 # --- Test Setup ---
-# Reusing setup from estimate_subgroup_effects tests for consistency
 
 # 1. Create Original Sample Data
 original_test_data_summary <- data.frame(
@@ -14,7 +13,6 @@ original_test_data_summary <- data.frame(
 original_test_data_summary$trt <- factor(original_test_data_summary$trt, levels = c(0, 1))
 
 # 2. Fit a *minimal* brms model ONCE
-# Includes interactions for 'auto' testing
 minimal_brms_fit_summary <- suppressMessages(
   run_brms_analysis(
     data = original_test_data_summary,
@@ -34,42 +32,47 @@ sample_summary_obj <- suppressMessages(
     original_data = original_test_data_summary,
     trt_var = "trt",
     response_type = "continuous",
-    subgroup_vars = c("region", "sex") # Use specific vars for predictable output
+    subgroup_vars = c("region", "sex")
   )
 )
 
 # --- Tests for summary_subgroup_effects ---
 
-test_that("summary_subgroup_effects works with subgroup_vars = NULL (Overall only)", {
-  res_overall <- suppressMessages(
+test_that("summary_subgroup_effects throws error if subgroup_vars = NULL", {
+  # We expect an error because NULL is no longer allowed.
+  # We use a broader regex "Assertion" to match both:
+  # "Assertion on 'subgroup_vars' failed" AND "Assertion failed."
+  expect_error(
     summary_subgroup_effects(
       brms_fit = minimal_brms_fit_summary,
       original_data = original_test_data_summary,
       trt_var = "trt",
       response_type = "continuous",
       subgroup_vars = NULL
-    )
+    ),
+    regexp = "Assertion.*failed"
   )
-
-  expect_s3_class(res_overall, "subgroup_summary")
-  expect_named(res_overall, c("estimates", "response_type", "ci_level", "trt_var"))
-  expect_s3_class(res_overall$estimates, "tbl_df")
-  expect_equal(nrow(res_overall$estimates), 1)
-  expect_equal(res_overall$estimates$Subgroup, "Overall")
-  expect_equal(res_overall$response_type, "continuous")
-  expect_equal(res_overall$ci_level, 0.95)
-  expect_equal(res_overall$trt_var, "trt")
 })
 
 test_that("summary_subgroup_effects works with specific subgroup_vars", {
   # sample_summary_obj was created with c("region", "sex")
   expect_s3_class(sample_summary_obj, "subgroup_summary")
   expect_s3_class(sample_summary_obj$estimates, "tbl_df")
-  # Expect Overall + 3 region levels + 2 sex levels
-  expect_equal(nrow(sample_summary_obj$estimates), 1 + 3 + 2)
-  expect_true("Overall" %in% sample_summary_obj$estimates$Subgroup)
+
+  # Expect 3 region levels + 2 sex levels (Overall is REMOVED)
+  expect_equal(nrow(sample_summary_obj$estimates), 3 + 2)
+
+  # Verify Overall is NOT there
+  expect_false("Overall" %in% sample_summary_obj$estimates$Subgroup)
+
+  # Verify subgroups are there
   expect_true(all(c("region: A", "region: B", "region: C") %in% sample_summary_obj$estimates$Subgroup))
   expect_true(all(c("sex: F", "sex: M") %in% sample_summary_obj$estimates$Subgroup))
+
+  # Check metadata
+  expect_equal(sample_summary_obj$response_type, "continuous")
+  expect_equal(sample_summary_obj$ci_level, 0.95)
+  expect_equal(sample_summary_obj$trt_var, "trt")
 })
 
 test_that("summary_subgroup_effects works with subgroup_vars = 'auto'", {
@@ -83,9 +86,12 @@ test_that("summary_subgroup_effects works with subgroup_vars = 'auto'", {
     )
   )
   expect_s3_class(res_auto, "subgroup_summary")
-  # Expect Overall + detected 'region' (3 levels) + detected 'sex' (2 levels)
-  expect_equal(nrow(res_auto$estimates), 1 + 3 + 2)
-  expect_true("Overall" %in% res_auto$estimates$Subgroup)
+
+  # Expect detected 'region' (3 levels) + detected 'sex' (2 levels)
+  # NO Overall row
+  expect_equal(nrow(res_auto$estimates), 3 + 2)
+  expect_false("Overall" %in% res_auto$estimates$Subgroup)
+
   expect_true(all(c("region: A", "region: B", "region: C") %in% res_auto$estimates$Subgroup))
   expect_true(all(c("sex: F", "sex: M") %in% res_auto$estimates$Subgroup))
 })
@@ -107,7 +113,7 @@ test_that("summary_subgroup_effects assertions catch invalid inputs", {
     summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, original_data = original_test_data_summary, trt_var = "treatment", response_type = "continuous"),
     regexp = "Must be a subset of"
   )
-  # Invalid subgroup_vars type
+  # Invalid subgroup_vars type (number instead of char or 'auto')
   expect_error(
     summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, original_data = original_test_data_summary, trt_var = "trt", subgroup_vars = 123, response_type = "continuous"),
     regexp = "Assertion failed"
@@ -133,15 +139,19 @@ test_that("plot.subgroup_summary runs and returns ggplot object", {
 })
 
 test_that("plot.subgroup_summary assertions catch invalid inputs", {
-  # Invalid input class
+  # To test the assertion INSIDE plot.subgroup_summary, we must pass an object
+  # that has the class but fails internal checks, OR call the function directly.
+  # Standard generic plot() on a list calls base::plot, so we use explicit call here:
+
   expect_error(
-    plot(list(estimates = data.frame())), # Not a subgroup_summary object
-    regexp = "does not have components 'x' and 'y'" # <-- Update this pattern
+    plot.subgroup_summary(list(estimates = data.frame())),
+    regexp = "Must inherit from class 'subgroup_summary'"
   )
 
   # Empty estimates table
   bad_summary_obj <- sample_summary_obj
   bad_summary_obj$estimates <- bad_summary_obj$estimates[0, ] # Make it empty
+
   expect_error(
     plot(bad_summary_obj),
     regexp = "Must have at least 1 rows"
