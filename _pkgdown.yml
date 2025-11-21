@@ -1,4 +1,4 @@
 url: https://openpharma.github.io/bonsaiforest2/
 template:
   bootstrap: 5
-
+  math-rendering: katex
