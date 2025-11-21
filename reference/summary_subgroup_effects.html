@@ -177,15 +177,6 @@ to get only the overall effect.</p></dd>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> https://mc-stan.org/misc/warnings.html#tail-ess</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Analysis complete.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> --- Calculating overall marginal effect... ---</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Step 1: Creating counterfactual datasets...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> ...setting interaction dummy variables for the 'all treatment' scenario.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Step 2: Generating posterior predictions...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> ... (reconstructing baseline hazard and getting linear predictors)...</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Dropping 'draws_df' class as required metadata was removed.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Step 3: Calculating marginal effects...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Done.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> --- Calculating specific subgroup effects... ---</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Step 1: Creating counterfactual datasets...</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ...setting interaction dummy variables for the 'all treatment' scenario.</span>
@@ -197,15 +188,14 @@ to get only the overall effect.</p></dd>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> ... processing region</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Done.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $estimates</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 6 × 4</span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #949494;"># A tibble: 5 × 4</span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   Subgroup     Median CI_Lower CI_Upper</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>         <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> Overall       1.02     0.978    1.04 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> subgroup: S1  1.01     0.976    1.04 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> subgroup: S2  0.927    0.893    0.944</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> subgroup: S3  1.07     1.03     1.10 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> region: A     1.02     0.978    1.04 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">6</span> region: B     1.01     0.976    1.03 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">1</span> subgroup: S1  1.01     0.976    1.04 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">2</span> subgroup: S2  0.927    0.893    0.944</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">3</span> subgroup: S3  1.07     1.03     1.10 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">4</span> region: A     1.02     0.978    1.04 </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> <span style="color: #BCBCBC;">5</span> region: B     1.01     0.976    1.03 </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> $response_type</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "survival"</span>

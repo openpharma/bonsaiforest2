@@ -137,15 +137,6 @@ if (require("brms") && require("survival")) {
 #> https://mc-stan.org/misc/warnings.html#tail-ess
 #> 
 #> Analysis complete.
-#> --- Calculating overall marginal effect... ---
-#> Step 1: Creating counterfactual datasets...
-#> ...setting interaction dummy variables for the 'all treatment' scenario.
-#> Step 2: Generating posterior predictions...
-#> ... (reconstructing baseline hazard and getting linear predictors)...
-#> Warning: Dropping 'draws_df' class as required metadata was removed.
-#> Step 3: Calculating marginal effects...
-#> Done.
-#> 
 #> --- Calculating specific subgroup effects... ---
 #> Step 1: Creating counterfactual datasets...
 #> ...setting interaction dummy variables for the 'all treatment' scenario.
@@ -157,15 +148,14 @@ if (require("brms") && require("survival")) {
 #> ... processing region
 #> Done.
 #> $estimates
-#> # A tibble: 6 × 4
+#> # A tibble: 5 × 4
 #>   Subgroup     Median CI_Lower CI_Upper
 #>   <chr>         <dbl>    <dbl>    <dbl>
-#> 1 Overall       1.02     0.978    1.04 
-#> 2 subgroup: S1  1.01     0.976    1.04 
-#> 3 subgroup: S2  0.927    0.893    0.944
-#> 4 subgroup: S3  1.07     1.03     1.10 
-#> 5 region: A     1.02     0.978    1.04 
-#> 6 region: B     1.01     0.976    1.03 
+#> 1 subgroup: S1  1.01     0.976    1.04 
+#> 2 subgroup: S2  0.927    0.893    0.944
+#> 3 subgroup: S3  1.07     1.03     1.10 
+#> 4 region: A     1.02     0.978    1.04 
+#> 5 region: B     1.01     0.976    1.03 
 #> 
 #> $response_type
 #> [1] "survival"

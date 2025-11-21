@@ -203,14 +203,6 @@ continuous_summary <- summary_subgroup_effects(
   response_type = "continuous"     # Must match fitting
   # subgroup_vars = "auto" is the default and finds all interactions
 )
-#> --- Calculating overall marginal effect... ---
-#> Step 1: Creating counterfactual datasets...
-#> ...setting interaction dummy variables for the 'all treatment' scenario.
-#> Step 2: Generating posterior predictions...
-#> ... (predicting expected outcomes)...
-#> Step 3: Calculating marginal effects...
-#> Done.
-#> 
 #> --- Calculating specific subgroup effects... ---
 #> `subgroup_vars` set to 'auto'. Detecting from model interaction terms...
 #> ...detected subgroup variable(s): region, comorbidity
@@ -225,15 +217,14 @@ continuous_summary <- summary_subgroup_effects(
 
 print(continuous_summary)
 #> $estimates
-#> # A tibble: 6 × 4
+#> # A tibble: 5 × 4
 #>   Subgroup         Median CI_Lower CI_Upper
 #>   <chr>             <dbl>    <dbl>    <dbl>
-#> 1 Overall            1.89   -0.212     4.15
-#> 2 region: APAC       1.38   -1.55      4.37
-#> 3 region: EU         2.11   -1.23      5.85
-#> 4 region: NA         2.17   -1.27      5.12
-#> 5 comorbidity: No    2.18   -0.142     4.87
-#> 6 comorbidity: Yes   1.31   -2.01      3.90
+#> 1 region: APAC       1.38   -1.55      4.37
+#> 2 region: EU         2.11   -1.23      5.85
+#> 3 region: NA         2.17   -1.27      5.12
+#> 4 comorbidity: No    2.18   -0.142     4.87
+#> 5 comorbidity: Yes   1.31   -2.01      3.90
 #> 
 #> $response_type
 #> [1] "continuous"
@@ -260,7 +251,6 @@ plot(continuous_summary, title = "Continuous: Subgroup Effects on SBP Change")
 #> Preparing data for plotting...
 #> Generating plot...
 #> Done.
-#> `height` was translated to `width`.
 ```
 
 ![](Quickstart_files/figure-html/ex-plot-1.png)
