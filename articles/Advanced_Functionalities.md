@@ -76,7 +76,9 @@ count_model_fit <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.7 seconds.
+#> Chain 1 finished in 2.6 seconds.
+#> Warning: 1 of 100 (1.0%) transitions hit the maximum treedepth limit of 10.
+#> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
 #> 
 #> Analysis complete.
@@ -200,25 +202,25 @@ print(prepared_model$formula)
 #> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unprogeffect + shprogeffect + shpredeffect 
 #> unprogeffect ~ age + trt + subgroup + 0
 #> shprogeffect ~ region + 0
-#> shpredeffect ~ subgroup_S1_x_trt + subgroup_S2_x_trt + subgroup_S3_x_trt + 0
+#> shpredeffect ~ trt_subgroupS1 + trt_subgroupS2 + trt_subgroupS3 + 0
 
 # B. The processed data
 # You should see new columns like 'subgroup_S1_x_trt', 'subgroup_S2_x_trt', etc.
 head(prepared_model$data)
-#>   time status trt      age region subgroup subgroup_S1_x_trt subgroup_S2_x_trt
-#> 1   29      0   1 57.87739      B       S2                 0                 1
-#> 2   79      1   1 57.69042      B       S1                 1                 0
-#> 3   41      1   1 53.32203      B       S3                 0                 0
-#> 4   88      0   0 39.91623      B       S3                 0                 0
-#> 5   94      1   1 48.80547      A       S3                 0                 0
-#> 6    6      1   1 47.19605      A       S2                 0                 1
-#>   subgroup_S3_x_trt
-#> 1                 0
-#> 2                 0
-#> 3                 1
-#> 4                 0
-#> 5                 1
-#> 6                 0
+#>   time status trt      age region subgroup trt_subgroupS1 trt_subgroupS2
+#> 1   29      0   1 57.87739      B       S2              0              1
+#> 2   79      1   1 57.69042      B       S1              1              0
+#> 3   41      1   1 53.32203      B       S3              0              0
+#> 4   88      0   0 39.91623      B       S3              0              0
+#> 5   94      1   1 48.80547      A       S3              0              0
+#> 6    6      1   1 47.19605      A       S2              0              1
+#>   trt_subgroupS3
+#> 1              0
+#> 2              0
+#> 3              1
+#> 4              0
+#> 5              1
+#> 6              0
 ```
 
 #### 2.2.2 Model Preparation
@@ -255,8 +257,8 @@ fit_ex3 <- fit_brms_model(
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
 #> Chain 1: 
-#> Chain 1: Gradient evaluation took 0.000127 seconds
-#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.27 seconds.
+#> Chain 1: Gradient evaluation took 0.000139 seconds
+#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.39 seconds.
 #> Chain 1: Adjust your expectations accordingly!
 #> Chain 1: 
 #> Chain 1: 
@@ -273,15 +275,15 @@ fit_ex3 <- fit_brms_model(
 #> Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 1: 
-#> Chain 1:  Elapsed Time: 5.119 seconds (Warm-up)
-#> Chain 1:                1.854 seconds (Sampling)
-#> Chain 1:                6.973 seconds (Total)
+#> Chain 1:  Elapsed Time: 5.262 seconds (Warm-up)
+#> Chain 1:                2.434 seconds (Sampling)
+#> Chain 1:                7.696 seconds (Total)
 #> Chain 1: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).
 #> Chain 2: 
-#> Chain 2: Gradient evaluation took 6.5e-05 seconds
-#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.65 seconds.
+#> Chain 2: Gradient evaluation took 5.8e-05 seconds
+#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.58 seconds.
 #> Chain 2: Adjust your expectations accordingly!
 #> Chain 2: 
 #> Chain 2: 
@@ -298,15 +300,15 @@ fit_ex3 <- fit_brms_model(
 #> Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 2: 
-#> Chain 2:  Elapsed Time: 5.459 seconds (Warm-up)
-#> Chain 2:                1.655 seconds (Sampling)
-#> Chain 2:                7.114 seconds (Total)
+#> Chain 2:  Elapsed Time: 5.396 seconds (Warm-up)
+#> Chain 2:                2.152 seconds (Sampling)
+#> Chain 2:                7.548 seconds (Total)
 #> Chain 2: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).
 #> Chain 3: 
-#> Chain 3: Gradient evaluation took 6e-05 seconds
-#> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.6 seconds.
+#> Chain 3: Gradient evaluation took 5.8e-05 seconds
+#> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.58 seconds.
 #> Chain 3: Adjust your expectations accordingly!
 #> Chain 3: 
 #> Chain 3: 
@@ -323,9 +325,9 @@ fit_ex3 <- fit_brms_model(
 #> Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 3: 
-#> Chain 3:  Elapsed Time: 4.959 seconds (Warm-up)
-#> Chain 3:                1.732 seconds (Sampling)
-#> Chain 3:                6.691 seconds (Total)
+#> Chain 3:  Elapsed Time: 5.357 seconds (Warm-up)
+#> Chain 3:                2.673 seconds (Sampling)
+#> Chain 3:                8.03 seconds (Total)
 #> Chain 3: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).
@@ -348,11 +350,11 @@ fit_ex3 <- fit_brms_model(
 #> Chain 4: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 4: 
-#> Chain 4:  Elapsed Time: 5.2 seconds (Warm-up)
-#> Chain 4:                2.044 seconds (Sampling)
-#> Chain 4:                7.244 seconds (Total)
+#> Chain 4:  Elapsed Time: 5.156 seconds (Warm-up)
+#> Chain 4:                2.382 seconds (Sampling)
+#> Chain 4:                7.538 seconds (Total)
 #> Chain 4:
-#> Warning: There were 4 divergent transitions after warmup. See
+#> Warning: There were 6 divergent transitions after warmup. See
 #> https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
 #> to find out why this is a problem and how to eliminate them.
 #> Warning: Examine the pairs() plot to diagnose sampling problems
@@ -395,8 +397,8 @@ fit_ex4 <- fit_brms_model(
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
 #> Chain 1: 
-#> Chain 1: Gradient evaluation took 0.000104 seconds
-#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.04 seconds.
+#> Chain 1: Gradient evaluation took 0.000111 seconds
+#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.11 seconds.
 #> Chain 1: Adjust your expectations accordingly!
 #> Chain 1: 
 #> Chain 1: 
@@ -413,15 +415,15 @@ fit_ex4 <- fit_brms_model(
 #> Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 1: 
-#> Chain 1:  Elapsed Time: 5.074 seconds (Warm-up)
-#> Chain 1:                2.443 seconds (Sampling)
-#> Chain 1:                7.517 seconds (Total)
+#> Chain 1:  Elapsed Time: 5.204 seconds (Warm-up)
+#> Chain 1:                2.663 seconds (Sampling)
+#> Chain 1:                7.867 seconds (Total)
 #> Chain 1: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).
 #> Chain 2: 
-#> Chain 2: Gradient evaluation took 5.7e-05 seconds
-#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.57 seconds.
+#> Chain 2: Gradient evaluation took 5.4e-05 seconds
+#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.54 seconds.
 #> Chain 2: Adjust your expectations accordingly!
 #> Chain 2: 
 #> Chain 2: 
@@ -438,15 +440,15 @@ fit_ex4 <- fit_brms_model(
 #> Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 2: 
-#> Chain 2:  Elapsed Time: 5.32 seconds (Warm-up)
-#> Chain 2:                2.182 seconds (Sampling)
-#> Chain 2:                7.502 seconds (Total)
+#> Chain 2:  Elapsed Time: 5.145 seconds (Warm-up)
+#> Chain 2:                1.884 seconds (Sampling)
+#> Chain 2:                7.029 seconds (Total)
 #> Chain 2: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).
 #> Chain 3: 
-#> Chain 3: Gradient evaluation took 5.8e-05 seconds
-#> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.58 seconds.
+#> Chain 3: Gradient evaluation took 5.5e-05 seconds
+#> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.55 seconds.
 #> Chain 3: Adjust your expectations accordingly!
 #> Chain 3: 
 #> Chain 3: 
@@ -463,15 +465,15 @@ fit_ex4 <- fit_brms_model(
 #> Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 3: 
-#> Chain 3:  Elapsed Time: 4.686 seconds (Warm-up)
-#> Chain 3:                1.578 seconds (Sampling)
-#> Chain 3:                6.264 seconds (Total)
+#> Chain 3:  Elapsed Time: 4.612 seconds (Warm-up)
+#> Chain 3:                1.423 seconds (Sampling)
+#> Chain 3:                6.035 seconds (Total)
 #> Chain 3: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).
 #> Chain 4: 
-#> Chain 4: Gradient evaluation took 5.3e-05 seconds
-#> Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.53 seconds.
+#> Chain 4: Gradient evaluation took 5.4e-05 seconds
+#> Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.54 seconds.
 #> Chain 4: Adjust your expectations accordingly!
 #> Chain 4: 
 #> Chain 4: 
@@ -488,11 +490,11 @@ fit_ex4 <- fit_brms_model(
 #> Chain 4: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 4: 
-#> Chain 4:  Elapsed Time: 5.066 seconds (Warm-up)
-#> Chain 4:                1.633 seconds (Sampling)
-#> Chain 4:                6.699 seconds (Total)
+#> Chain 4:  Elapsed Time: 5.111 seconds (Warm-up)
+#> Chain 4:                1.647 seconds (Sampling)
+#> Chain 4:                6.758 seconds (Total)
 #> Chain 4:
-#> Warning: There were 6 divergent transitions after warmup. See
+#> Warning: There were 12 divergent transitions after warmup. See
 #> https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
 #> to find out why this is a problem and how to eliminate them.
 #> Warning: Examine the pairs() plot to diagnose sampling problems
@@ -550,8 +552,8 @@ fit_ex5 <- fit_brms_model(
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
 #> Chain 1: 
-#> Chain 1: Gradient evaluation took 9.2e-05 seconds
-#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.92 seconds.
+#> Chain 1: Gradient evaluation took 0.000102 seconds
+#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.02 seconds.
 #> Chain 1: Adjust your expectations accordingly!
 #> Chain 1: 
 #> Chain 1: 
@@ -568,15 +570,15 @@ fit_ex5 <- fit_brms_model(
 #> Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 1: 
-#> Chain 1:  Elapsed Time: 8.37 seconds (Warm-up)
-#> Chain 1:                8.686 seconds (Sampling)
-#> Chain 1:                17.056 seconds (Total)
+#> Chain 1:  Elapsed Time: 7.726 seconds (Warm-up)
+#> Chain 1:                4.94 seconds (Sampling)
+#> Chain 1:                12.666 seconds (Total)
 #> Chain 1: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).
 #> Chain 2: 
-#> Chain 2: Gradient evaluation took 5e-05 seconds
-#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.5 seconds.
+#> Chain 2: Gradient evaluation took 5.1e-05 seconds
+#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.51 seconds.
 #> Chain 2: Adjust your expectations accordingly!
 #> Chain 2: 
 #> Chain 2: 
@@ -593,15 +595,15 @@ fit_ex5 <- fit_brms_model(
 #> Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 2: 
-#> Chain 2:  Elapsed Time: 7.642 seconds (Warm-up)
-#> Chain 2:                0.12 seconds (Sampling)
-#> Chain 2:                7.762 seconds (Total)
+#> Chain 2:  Elapsed Time: 6.69 seconds (Warm-up)
+#> Chain 2:                3.241 seconds (Sampling)
+#> Chain 2:                9.931 seconds (Total)
 #> Chain 2: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).
 #> Chain 3: 
-#> Chain 3: Gradient evaluation took 5e-05 seconds
-#> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.5 seconds.
+#> Chain 3: Gradient evaluation took 5.1e-05 seconds
+#> Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.51 seconds.
 #> Chain 3: Adjust your expectations accordingly!
 #> Chain 3: 
 #> Chain 3: 
@@ -618,15 +620,15 @@ fit_ex5 <- fit_brms_model(
 #> Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 3: 
-#> Chain 3:  Elapsed Time: 7.693 seconds (Warm-up)
-#> Chain 3:                3.831 seconds (Sampling)
-#> Chain 3:                11.524 seconds (Total)
+#> Chain 3:  Elapsed Time: 7.047 seconds (Warm-up)
+#> Chain 3:                9.106 seconds (Sampling)
+#> Chain 3:                16.153 seconds (Total)
 #> Chain 3: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).
 #> Chain 4: 
-#> Chain 4: Gradient evaluation took 5.1e-05 seconds
-#> Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.51 seconds.
+#> Chain 4: Gradient evaluation took 8e-05 seconds
+#> Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.8 seconds.
 #> Chain 4: Adjust your expectations accordingly!
 #> Chain 4: 
 #> Chain 4: 
@@ -643,15 +645,15 @@ fit_ex5 <- fit_brms_model(
 #> Chain 4: Iteration: 1800 / 2000 [ 90%]  (Sampling)
 #> Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)
 #> Chain 4: 
-#> Chain 4:  Elapsed Time: 7.591 seconds (Warm-up)
-#> Chain 4:                4.545 seconds (Sampling)
-#> Chain 4:                12.136 seconds (Total)
+#> Chain 4:  Elapsed Time: 7.206 seconds (Warm-up)
+#> Chain 4:                5.086 seconds (Sampling)
+#> Chain 4:                12.292 seconds (Total)
 #> Chain 4:
-#> Warning: There were 1310 divergent transitions after warmup. See
+#> Warning: There were 542 divergent transitions after warmup. See
 #> https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
 #> to find out why this is a problem and how to eliminate them.
 #> Warning: Examine the pairs() plot to diagnose sampling problems
-#> Warning: The largest R-hat is 1.56, indicating chains have not mixed.
+#> Warning: The largest R-hat is 1.06, indicating chains have not mixed.
 #> Running the chains for more iterations may help. See
 #> https://mc-stan.org/misc/warnings.html#r-hat
 #> Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
@@ -731,8 +733,8 @@ fit_continuous_stratified <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.7 seconds.
-#> Warning: 82 of 100 (82.0%) transitions hit the maximum treedepth limit of 10.
+#> Chain 1 finished in 2.8 seconds.
+#> Warning: 75 of 100 (75.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 
 #> Analysis complete.
@@ -746,10 +748,9 @@ strat_continuous_summary <- summary_subgroup_effects(
   response_type = "continuous" # Auto-detects age_group interaction
 )
 #> --- Calculating specific subgroup effects... ---
-#> `subgroup_vars` set to 'auto'. Detecting from model interaction terms...
-#> ...detected subgroup variable(s): age_group
 #> Step 1: Creating counterfactual datasets...
-#> ...setting interaction dummy variables for the 'all treatment' scenario.
+#> `subgroup_vars` set to 'auto'. Detecting from model data...
+#> ...detected subgroup variable(s): age_group
 #> Step 2: Generating posterior predictions...
 #> ... (predicting expected outcomes)...
 #> Step 3: Calculating marginal effects...
@@ -760,8 +761,8 @@ print(strat_continuous_summary$estimates)
 #> # A tibble: 2 × 4
 #>   Subgroup           Median CI_Lower CI_Upper
 #>   <chr>               <dbl>    <dbl>    <dbl>
-#> 1 age_group: Over60  -10.8     -14.5    -7.17
-#> 2 age_group: Under60  -7.95    -12.0    -5.00
+#> 1 age_group: Over60  -11.2     -14.5    -7.69
+#> 2 age_group: Under60  -8.31    -11.9    -4.49
 plot(strat_continuous_summary, title = "Stratified Continuous: Subgroup Effects")
 #> Preparing data for plotting...
 #> Generating plot...
@@ -831,7 +832,7 @@ fit_surv_stratified <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 7.7 seconds.
+#> Chain 1 finished in 7.6 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 
@@ -846,13 +847,11 @@ strat_surv_summary <- summary_subgroup_effects(
   response_type = "survival" # Auto-detects biomarker interaction
 )
 #> --- Calculating specific subgroup effects... ---
-#> `subgroup_vars` set to 'auto'. Detecting from model interaction terms...
-#> ...detected subgroup variable(s): biomarker
 #> Step 1: Creating counterfactual datasets...
-#> ...setting interaction dummy variables for the 'all treatment' scenario.
+#> `subgroup_vars` set to 'auto'. Detecting from model data...
+#> ...detected subgroup variable(s): biomarker
 #> Step 2: Generating posterior predictions...
 #> ... (reconstructing baseline hazard and getting linear predictors)...
-#> ... model is stratified by 'country'. Reconstructing hazard for each stratum.
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Step 3: Calculating marginal effects...
@@ -863,8 +862,8 @@ print(strat_surv_summary$estimates)
 #> # A tibble: 2 × 4
 #>   Subgroup        Median CI_Lower CI_Upper
 #>   <chr>            <dbl>    <dbl>    <dbl>
-#> 1 biomarker: High  0.568    0.419    0.760
-#> 2 biomarker: Low   0.364    0.261    0.522
+#> 1 biomarker: High  0.530    0.377    0.753
+#> 2 biomarker: Low   0.398    0.267    0.521
 plot(strat_surv_summary, title = "Stratified Survival: Subgroup Effects (AHR)")
 #> Preparing data for plotting...
 #> Generating plot...

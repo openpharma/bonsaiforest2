@@ -55,7 +55,7 @@ continuous_data <- data.frame(
   sbp_change = rnorm(n_patients, mean = -5, sd = 10),
   trt = sample(0:1, n_patients, replace = TRUE),
   baseline_sbp = rnorm(n_patients, mean = 140, sd = 15),
-  region = factor(sample(c("NA", "EU", "APAC"), n_patients, replace = TRUE)),
+  region = factor(sample(c("USA", "EU", "APAC"), n_patients, replace = TRUE)),
   comorbidity = factor(sample(c("Yes", "No"), n_patients, replace = TRUE, prob = c(0.4, 0.6)))
 )
 
@@ -64,12 +64,12 @@ continuous_data$trt <- factor(continuous_data$trt, levels = c(0, 1))
 
 print(head(continuous_data))
 #>   id sbp_change trt baseline_sbp region comorbidity
-#> 1  1 -10.604756   0     129.2714     NA          No
+#> 1  1 -10.604756   0     129.2714    USA          No
 #> 2  2  -7.301775   0     128.7097     EU         Yes
 #> 3  3  10.587083   0     125.9219   APAC         Yes
 #> 4  4  -4.294916   0     124.2123     EU          No
 #> 5  5  -3.707123   0     133.4426   APAC         Yes
-#> 6  6  12.150650   0     144.9677     NA          No
+#> 6  6  12.150650   0     144.9677    USA          No
 ```
 
 ## 3 `run_brms_analysis()`
@@ -141,40 +141,40 @@ print(continuous_model_fit)
 #>   Links: mu = identity 
 #> Formula: sbp_change ~ unprogeffect + shpredeffect 
 #>          unprogeffect ~ baseline_sbp + trt + region + comorbidity
-#>          shpredeffect ~ region_APAC_x_trt + region_EU_x_trt + region_NA_x_trt + comorbidity_No_x_trt + comorbidity_Yes_x_trt + 0
+#>          shpredeffect ~ trt_regionAPAC + trt_regionEU + trt_regionUSA + trt_comorbidityNo + trt_comorbidityYes + 0
 #>    Data: data (Number of observations: 200) 
 #>   Draws: 1 chains, each with iter = 200; warmup = 100; thin = 1;
 #>          total post-warmup draws = 100
 #> 
 #> Regression Coefficients:
-#>                                    Estimate Est.Error l-95% CI u-95% CI Rhat
-#> unprogeffect_Intercept                -0.00      3.37    -6.31     6.31 1.18
-#> unprogeffect_baseline_sbp             -0.04      0.02    -0.08     0.00 1.18
-#> unprogeffect_trt                       1.44      1.52    -1.68     4.30 1.02
-#> unprogeffect_regionEU                 -0.46      1.88    -4.09     3.78 1.05
-#> unprogeffect_regionNA                 -1.09      1.67    -4.49     2.06 1.02
-#> unprogeffect_comorbidityYes            1.12      1.76    -1.97     4.50 1.06
-#> shpredeffect_region_APAC_x_trt        -0.37      1.30    -3.11     2.51 1.06
-#> shpredeffect_region_EU_x_trt           0.57      1.51    -2.08     3.72 1.07
-#> shpredeffect_region_NA_x_trt           0.34      1.49    -2.35     3.49 1.03
-#> shpredeffect_comorbidity_No_x_trt      0.64      1.49    -2.07     4.47 1.07
-#> shpredeffect_comorbidity_Yes_x_trt    -0.31      1.30    -3.08     2.05 0.99
-#>                                    Bulk_ESS Tail_ESS
-#> unprogeffect_Intercept                    5       41
-#> unprogeffect_baseline_sbp                 5       38
-#> unprogeffect_trt                         84       34
-#> unprogeffect_regionEU                    30       31
-#> unprogeffect_regionNA                    50      117
-#> unprogeffect_comorbidityYes              79      104
-#> shpredeffect_region_APAC_x_trt          130       60
-#> shpredeffect_region_EU_x_trt            167       77
-#> shpredeffect_region_NA_x_trt             88      115
-#> shpredeffect_comorbidity_No_x_trt        49       71
-#> shpredeffect_comorbidity_Yes_x_trt      164      117
+#>                                 Estimate Est.Error l-95% CI u-95% CI Rhat
+#> unprogeffect_Intercept              1.41      4.83    -7.09    12.29 1.50
+#> unprogeffect_baseline_sbp          -0.04      0.04    -0.11     0.03 1.29
+#> unprogeffect_trt0                  -1.20      2.55    -6.11     4.20 1.00
+#> unprogeffect_regionEU              -1.08      1.99    -5.42     2.79 1.00
+#> unprogeffect_regionUSA             -1.74      1.97    -5.50     2.19 1.01
+#> unprogeffect_comorbidityYes         1.26      1.79    -1.83     4.64 1.06
+#> shpredeffect_trt_regionAPAC        -0.57      1.68    -3.93     3.26 1.02
+#> shpredeffect_trt_regionEU           0.38      1.93    -3.03     4.64 1.03
+#> shpredeffect_trt_regionUSA          0.55      1.45    -1.73     3.63 0.99
+#> shpredeffect_trt_comorbidityNo      0.85      1.74    -1.47     5.28 1.01
+#> shpredeffect_trt_comorbidityYes    -0.23      1.71    -3.57     3.07 0.99
+#>                                 Bulk_ESS Tail_ESS
+#> unprogeffect_Intercept                 2       32
+#> unprogeffect_baseline_sbp              4       22
+#> unprogeffect_trt0                     48       55
+#> unprogeffect_regionEU                 49       71
+#> unprogeffect_regionUSA                76       78
+#> unprogeffect_comorbidityYes          104       52
+#> shpredeffect_trt_regionAPAC           68       52
+#> shpredeffect_trt_regionEU             74       60
+#> shpredeffect_trt_regionUSA            68       81
+#> shpredeffect_trt_comorbidityNo        63       78
+#> shpredeffect_trt_comorbidityYes       98       45
 #> 
 #> Further Distributional Parameters:
 #>       Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS
-#> sigma     9.43      0.46     8.71    10.43 1.02      114       52
+#> sigma     9.46      0.49     8.56    10.38 1.06      102       59
 #> 
 #> Draws were sampled using sample(hmc). For each parameter, Bulk_ESS
 #> and Tail_ESS are effective sample size measures, and Rhat is the potential
@@ -204,10 +204,9 @@ continuous_summary <- summary_subgroup_effects(
   # subgroup_vars = "auto" is the default and finds all interactions
 )
 #> --- Calculating specific subgroup effects... ---
-#> `subgroup_vars` set to 'auto'. Detecting from model interaction terms...
-#> ...detected subgroup variable(s): region, comorbidity
 #> Step 1: Creating counterfactual datasets...
-#> ...setting interaction dummy variables for the 'all treatment' scenario.
+#> `subgroup_vars` set to 'auto'. Detecting from model data...
+#> ...detected subgroup variable(s): region, comorbidity
 #> Step 2: Generating posterior predictions...
 #> ... (predicting expected outcomes)...
 #> Step 3: Calculating marginal effects...
@@ -220,11 +219,11 @@ print(continuous_summary)
 #> # A tibble: 5 × 4
 #>   Subgroup         Median CI_Lower CI_Upper
 #>   <chr>             <dbl>    <dbl>    <dbl>
-#> 1 region: APAC       1.38   -1.55      4.37
-#> 2 region: EU         2.11   -1.23      5.85
-#> 3 region: NA         2.17   -1.27      5.12
-#> 4 comorbidity: No    2.18   -0.142     4.87
-#> 5 comorbidity: Yes   1.31   -2.01      3.90
+#> 1 region: APAC       1.16   -2.46      4.76
+#> 2 region: EU         1.81   -1.38      5.75
+#> 3 region: USA        2.38   -1.05      6.09
+#> 4 comorbidity: No    2.00   -0.525     4.52
+#> 5 comorbidity: Yes   1.14   -2.39      4.61
 #> 
 #> $response_type
 #> [1] "continuous"

@@ -99,6 +99,22 @@ if (require("brms") && require("survival")) {
   print(fit)
  # }
 }
+#> Loading required package: brms
+#> Loading required package: Rcpp
+#> Loading 'brms' package (version 2.23.0). Useful instructions
+#> can be found by typing help('brms'). A more detailed introduction
+#> to the package is available through vignette('brms_overview').
+#> 
+#> Attaching package: ‘brms’
+#> The following object is masked from ‘package:stats’:
+#> 
+#>     ar
+#> Loading required package: survival
+#> 
+#> Attaching package: ‘survival’
+#> The following object is masked from ‘package:brms’:
+#> 
+#>     kidney
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 #> Applying stratification: estimating separate baseline hazards by 'region'.
 #> Treatment 'trt' added to unshrunk prognostic terms by default.
@@ -110,7 +126,7 @@ if (require("brms") && require("survival")) {
 #> https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
 #> to find out why this is a problem and how to eliminate them.
 #> Warning: Examine the pairs() plot to diagnose sampling problems
-#> Warning: The largest R-hat is 2.06, indicating chains have not mixed.
+#> Warning: The largest R-hat is 2.17, indicating chains have not mixed.
 #> Running the chains for more iterations may help. See
 #> https://mc-stan.org/misc/warnings.html#r-hat
 #> Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
@@ -126,34 +142,34 @@ if (require("brms") && require("survival")) {
 #> Formula: time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unprogeffect + shprogeffect + shpredeffect 
 #>          unprogeffect ~ age + trt + subgroup + 0
 #>          shprogeffect ~ region + 0
-#>          shpredeffect ~ subgroup_S1_x_trt + subgroup_S2_x_trt + subgroup_S3_x_trt + 0
+#>          shpredeffect ~ trt_subgroupS1 + trt_subgroupS2 + trt_subgroupS3 + 0
 #>    Data: data (Number of observations: 100) 
 #>   Draws: 1 chains, each with iter = 50; warmup = 10; thin = 1;
 #>          total post-warmup draws = 40
 #> 
 #> Regression Coefficients:
-#>                                Estimate Est.Error l-95% CI u-95% CI Rhat
-#> unprogeffect_age                   0.01      0.00     0.01     0.02 1.89
-#> unprogeffect_trt                  -0.07      0.01    -0.09    -0.06 1.50
-#> unprogeffect_subgroupS1            0.75      0.00     0.75     0.76 1.94
-#> unprogeffect_subgroupS2           -1.03      0.01    -1.04    -1.01 1.94
-#> unprogeffect_subgroupS3           -0.53      0.00    -0.53    -0.53 1.50
-#> shprogeffect_regionA              -0.01      0.00    -0.01     0.00 1.50
-#> shprogeffect_regionB              -1.55      0.01    -1.57    -1.53 1.50
-#> shpredeffect_subgroup_S1_x_trt     0.06      0.00     0.06     0.06 1.94
-#> shpredeffect_subgroup_S2_x_trt    -0.03      0.00    -0.04    -0.03 1.32
-#> shpredeffect_subgroup_S3_x_trt     0.13      0.01     0.11     0.13 1.94
-#>                                Bulk_ESS Tail_ESS
-#> unprogeffect_age                      9       NA
-#> unprogeffect_trt                      2       NA
-#> unprogeffect_subgroupS1               9       NA
-#> unprogeffect_subgroupS2               2       NA
-#> unprogeffect_subgroupS3               2       NA
-#> shprogeffect_regionA                  2       NA
-#> shprogeffect_regionB                 14        7
-#> shpredeffect_subgroup_S1_x_trt        9       NA
-#> shpredeffect_subgroup_S2_x_trt       14        7
-#> shpredeffect_subgroup_S3_x_trt        2       NA
+#>                             Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS
+#> unprogeffect_age                0.01      0.00     0.01     0.02 1.02       13
+#> unprogeffect_trt0              -0.10      0.01    -0.11    -0.07 1.78        2
+#> unprogeffect_trt1               0.75      0.01     0.74     0.76 1.33        3
+#> unprogeffect_subgroupS2        -1.02      0.01    -1.03    -1.01 1.10       11
+#> unprogeffect_subgroupS3        -0.51      0.02    -0.53    -0.47 1.90        2
+#> shprogeffect_regionA            0.01      0.01    -0.00     0.05 1.22        4
+#> shprogeffect_regionB           -1.52      0.04    -1.57    -1.45 1.35        4
+#> shpredeffect_trt_subgroupS1     0.06      0.00     0.06     0.07 1.29        7
+#> shpredeffect_trt_subgroupS2    -0.04      0.00    -0.04    -0.04 1.29        4
+#> shpredeffect_trt_subgroupS3     0.13      0.01     0.11     0.14 2.11        2
+#>                             Tail_ESS
+#> unprogeffect_age                  NA
+#> unprogeffect_trt0                 NA
+#> unprogeffect_trt1                 19
+#> unprogeffect_subgroupS2            4
+#> unprogeffect_subgroupS3            4
+#> shprogeffect_regionA              15
+#> shprogeffect_regionB              NA
+#> shpredeffect_trt_subgroupS1        5
+#> shpredeffect_trt_subgroupS2       NA
+#> shpredeffect_trt_subgroupS3        4
 #> 
 #> Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS
 #> and Tail_ESS are effective sample size measures, and Rhat is the potential

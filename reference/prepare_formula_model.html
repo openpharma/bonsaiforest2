@@ -118,7 +118,7 @@ variable, e.g., "~ strata_var".</p></dd>
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>This classification allows for applying differential shrinkage (regularization)
 to different parts of the model. The function also prepares the corresponding
-data, including the automatic creation of dummy variables for predictive effects (interactions).</p>
+data using R's contrast coding system for proper factor handling and interactions.</p>
     </div>
     <div class="section level2">
     <h2 id="key-features">Key Features<a class="anchor" aria-label="anchor" href="#key-features"></a></h2>
@@ -130,10 +130,10 @@ data, including the automatic creation of dummy variables for predictive effects
     in a non-linear model. This allows for assigning different priors to each
     component.</p></li>
 <li><p><strong>Automated Interaction Handling:</strong> Predictive terms (e.g.,
-    `~ trt:subgroup`) are automatically expanded. For each level of the
-    `subgroup` variable, a new dummy column is created in the dataset,
-    representing the interaction, simplifying the modeling of treatment effect
-    heterogeneity.</p></li>
+    `~ trt:subgroup`) are automatically handled using R's contrast coding.
+    All variables involved in interactions are converted to factors with
+    treatment contrasts (reference coding), enabling proper model fitting and
+    prediction on new data without manual dummy variable creation.</p></li>
 <li><p><strong>Hierarchical Integrity:</strong> When a predictive term like
     `trt:subgroup` is specified, the function automatically ensures that the
     corresponding prognostic (main) effect `subgroup` is included in the model,
@@ -165,9 +165,11 @@ robust method for calculating spline knots to ensure stability:</p><ol><li><p><s
 
 
 <p>It is critical to note that this function returns a modified `data.frame`.
-The treatment variable is converted to an integer (0/1), and new columns for
-interaction terms are created. The returned `data` object should be used in the
-subsequent call to `brms::brm()`, not the original data.</p>
+The treatment variable and any variables involved in interactions are converted
+to factors with treatment contrasts (reference coding). This contrast-based
+approach enables proper model fitting and easy prediction on new data, as the
+same contrasts are automatically applied. The returned `data` object should be
+used in the subsequent call to `brms::brm()`, not the original data.</p>
     </div>
     <div class="section level2">
     <h2 id="stratification">Stratification<a class="anchor" aria-label="anchor" href="#stratification"></a></h2>
@@ -222,21 +224,21 @@ separately for different groups. Its behavior depends on the `response_type`:</p
 <span class="r-out co"><span class="r-pr">#&gt;</span> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unprogeffect + shprogeffect + shpredeffect </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect ~ age + trt + subgroup + 0</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> shprogeffect ~ region + 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ subgroup_S1_x_trt + subgroup_S2_x_trt + subgroup_S3_x_trt + 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   time status trt      age region subgroup subgroup_S1_x_trt subgroup_S2_x_trt</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   29      0   1 57.87739      B       S2                 0                 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2   79      1   1 57.69042      B       S1                 1                 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3   41      1   1 53.32203      B       S3                 0                 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4   88      0   0 39.91623      B       S3                 0                 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5   94      1   1 48.80547      A       S3                 0                 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6    6      1   1 47.19605      A       S2                 0                 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   subgroup_S3_x_trt</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1                 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2                 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3                 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4                 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5                 1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6                 0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ trt_subgroupS1 + trt_subgroupS2 + trt_subgroupS3 + 0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   time status trt      age region subgroup trt_subgroupS1 trt_subgroupS2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   29      0   1 57.87739      B       S2              0              1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2   79      1   1 57.69042      B       S1              1              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3   41      1   1 53.32203      B       S3              0              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4   88      0   0 39.91623      B       S3              0              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5   94      1   1 48.80547      A       S3              0              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6    6      1   1 47.19605      A       S2              0              1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   trt_subgroupS3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3              1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4              0</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5              1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6              0</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

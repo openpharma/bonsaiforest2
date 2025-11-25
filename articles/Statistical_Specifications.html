@@ -180,10 +180,17 @@
 <span class="header-section-number">3.2</span> Design Matrix Considerations<a class="anchor" aria-label="anchor" href="#design-matrix-considerations"></a>
 </h3>
 <p>A critical implementation detail is the construction of the design matrix for the subgroup-by-treatment interactions.</p>
-<p>We will then follow the same idea as in the <code>bonsaiforest</code> library. We will treat prognostic effects and predictive effects differently, as they serve different purposes in the model:</p>
+<p>The package treats prognostic effects and predictive effects differently, as they serve different purposes in the model:</p>
 <ul>
-<li><p><strong>For prognostic effects :</strong> The goal is interpretability and avoiding collinearity with the intercept. Here, standard dummy coding is the appropriate choice. For each of the J subgrouping variables, one level is dropped as a reference, resulting in L−J total columns for the subgroup main effects.</p></li>
-<li><p><strong>For predictive effects:</strong> The goal is to treat all subgroup levels symmetrically under the assumption of exchangeability. Using one-hot encoding is essential here. This ensures that the shrinkage prior pulls all predictive effects toward a common center without privileging a reference level.</p></li>
+<li><p><strong>For prognostic effects:</strong> The goal is interpretability and avoiding collinearity with the intercept. Here, standard treatment (dummy) coding is used. For each of the J subgrouping variables, one level is treated as reference, resulting in L−J total columns for the subgroup main effects.</p></li>
+<li>
+<p><strong>For predictive effects:</strong> The package creates explicit dummy variables for each treatment-by-subgroup combination. For a subgrouping variable with levels {A, B, C}, the package creates interaction dummies <code>trt_subgroupA</code>, <code>trt_subgroupB</code>, <code>trt_subgroupC</code>, where each dummy equals 1 when the patient is both in the treatment group AND in that specific subgroup level. This approach ensures:</p>
+<ul>
+<li>All subgroup levels are treated symmetrically under the exchangeability assumption</li>
+<li>Each subgroup has an interpretable parameter directly representing its treatment effect modification</li>
+<li>Predictions work correctly through G-computation (see Section 3.8)</li>
+</ul>
+</li>
 </ul>
 </div>
 <div class="section level3" number="3.3">
@@ -292,41 +299,45 @@
 </li>
 <li><p><span class="math inline">\(\boldsymbol{\beta_{1,p}}\)</span> is the <span class="math inline">\(P \times 1\)</span> vector of coefficients for the prognostic effects that we want to shrink. We will give an shrinkage prior to this coefficients.</p></li>
 <li><p><span class="math inline">\(\boldsymbol{\beta_{1,n}}\)</span> is the <span class="math inline">\((M-P) \times 1\)</span> vector of coefficients for the prognostic effects that we don’t want to shrink.</p></li>
-<li><p><span class="math inline">\(\mathbf{Z}= [\mathbf{Z_p} \;\;  \mathbf{Z}_n]\)</span> is the <span class="math inline">\(N \times L\)</span> design matrix for the <strong>predictive effects</strong>. Its columns represent the interaction between the treatment and each of the <span class="math inline">\(L\)</span> subgroup levels across all subgrouping variables. This matrix is constructed without dropping a reference level to treat all subgroups symmetrically.</p></li>
+<li><p><span class="math inline">\(\mathbf{Z}= [\mathbf{Z_p} \;\;  \mathbf{Z}_n]\)</span> is the <span class="math inline">\(N \times L\)</span> design matrix for the <strong>predictive effects</strong>. Its columns represent explicit dummy variables for the interaction between treatment and each of the <span class="math inline">\(L\)</span> subgroup levels. Each column <code>trt_subgroupLEVEL</code> equals 1 when patient <span class="math inline">\(i\)</span> is both on treatment (<span class="math inline">\(s_i = 1\)</span>) AND belongs to that specific subgroup level, and 0 otherwise. This ensures all subgroups are treated symmetrically.</p></li>
 </ul>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Manually creating the interaction matrix for clarity</span></span>
+<span><span class="co"># Each column represents trt_subgroupLEVEL (1 if treated AND in that level, 0 otherwise)</span></span>
 <span><span class="va">interaction_matrix</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  Patient      <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
-<span>  `trt:sexM`   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
-<span>  `trt:sexF`   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span>
-<span>  `trt:regionEU` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span><span class="op">)</span>,</span>
-<span>  `trt:regionUS` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
-<span>  `trt:regionAsia` <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
+<span>  Patient           <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
+<span>  `trt_sexM`        <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
+<span>  `trt_sexF`        <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span>
+<span>  `trt_regionEU`    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span><span class="op">)</span>,</span>
+<span>  `trt_regionUS`    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span>,</span>
+<span>  `trt_regionAsia`  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Using knitr::kable for a nice output</span></span>
 <span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span></span>
 <span>  <span class="va">interaction_matrix</span>,</span>
 <span>  align <span class="op">=</span> <span class="st">'c'</span>,</span>
-<span>  col.names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Patient"</span>, <span class="st">"trt x sexM"</span>, <span class="st">"trt x sexF"</span>, <span class="st">"trt x regionEU"</span>, <span class="st">"trt x regionUS"</span>, <span class="st">"trt x regionAsia"</span><span class="op">)</span></span>
+<span>  col.names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Patient"</span>, <span class="st">"trt_sexM"</span>, <span class="st">"trt_sexF"</span>, <span class="st">"trt_regionEU"</span>, <span class="st">"trt_regionUS"</span>, <span class="st">"trt_regionAsia"</span><span class="op">)</span>,</span>
+<span>  caption <span class="op">=</span> <span class="st">"Interaction design matrix using explicit dummy variables"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
-<table class="table">
+<table style="width:100%;" class="table">
+<caption>
+<span id="tab:unnamed-chunk-3">Table 3.2: </span>Interaction design matrix using explicit dummy variables</caption>
 <colgroup>
-<col width="10%">
-<col width="14%">
-<col width="14%">
+<col width="12%">
+<col width="13%">
+<col width="13%">
 <col width="19%">
 <col width="19%">
 <col width="21%">
 </colgroup>
 <thead><tr class="header">
 <th align="center">Patient</th>
-<th align="center">trt x sexM</th>
-<th align="center">trt x sexF</th>
-<th align="center">trt x regionEU</th>
-<th align="center">trt x regionUS</th>
-<th align="center">trt x regionAsia</th>
+<th align="center">trt_sexM</th>
+<th align="center">trt_sexF</th>
+<th align="center">trt_regionEU</th>
+<th align="center">trt_regionUS</th>
+<th align="center">trt_regionAsia</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
@@ -962,8 +973,9 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <li>Scenario A: Patient <span class="math inline">\(i\)</span>’s covariates, with treatment <span class="math inline">\(s_i=0\)</span> (Control).</li>
 <li>Scenario B: Patient <span class="math inline">\(i\)</span>’s covariates, with treatment <span class="math inline">\(s_i=1\)</span> (Treatment).</li>
 </ul>
+<p>For Scenario A (control), all treatment-by-subgroup interaction dummies are set to 0. For Scenario B (treatment), each interaction dummy <code>trt_subgroupLEVEL</code> is set to 1 if the patient belongs to that subgroup level, 0 otherwise.</p>
 </li>
-<li><p><strong>Predict Outcomes:</strong> Use the model formula and the parameters from Step 1 to predict the outcome for <em>every patient</em> under both Scenario A (<span class="math inline">\(\hat{\mu}_{i,0}\)</span>) and Scenario B (<span class="math inline">\(\hat{\mu}_{i,1}\)</span>).</p></li>
+<li><p><strong>Predict Outcomes:</strong> Use the model formula and the parameters from Step 1 to predict the outcome for <em>every patient</em> under both Scenario A (<span class="math inline">\(\hat{\mu}_{i,0}\)</span>) and Scenario B (<span class="math inline">\(\hat{\mu}_{i,1}\)</span>). The <code><a href="https://mc-stan.org/rstantools/reference/posterior_epred.html" class="external-link">brms::posterior_epred()</a></code> function automatically handles the computation using the model’s design matrix and parameters.</p></li>
 <li>
 <p><strong>Average within Subgroups:</strong> For a subgroup of interest <span class="math inline">\(l\)</span> (e.g., “Female”):</p>
 <ul>

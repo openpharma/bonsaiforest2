@@ -126,7 +126,9 @@
 <span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.7 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.6 seconds.</span></span>
+<span><span class="co">#&gt; Warning: 1 of 100 (1.0%) transitions hit the maximum treedepth limit of 10.</span></span>
+<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span><span class="co">#&gt; Loading required namespace: rstan</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Analysis complete.</span></span></code></pre></div>
@@ -293,25 +295,25 @@
 <span><span class="co">#&gt; time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unprogeffect + shprogeffect + shpredeffect </span></span>
 <span><span class="co">#&gt; unprogeffect ~ age + trt + subgroup + 0</span></span>
 <span><span class="co">#&gt; shprogeffect ~ region + 0</span></span>
-<span><span class="co">#&gt; shpredeffect ~ subgroup_S1_x_trt + subgroup_S2_x_trt + subgroup_S3_x_trt + 0</span></span>
+<span><span class="co">#&gt; shpredeffect ~ trt_subgroupS1 + trt_subgroupS2 + trt_subgroupS3 + 0</span></span>
 <span></span>
 <span><span class="co"># B. The processed data</span></span>
 <span><span class="co"># You should see new columns like 'subgroup_S1_x_trt', 'subgroup_S2_x_trt', etc.</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">prepared_model</span><span class="op">$</span><span class="va">data</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   time status trt      age region subgroup subgroup_S1_x_trt subgroup_S2_x_trt</span></span>
-<span><span class="co">#&gt; 1   29      0   1 57.87739      B       S2                 0                 1</span></span>
-<span><span class="co">#&gt; 2   79      1   1 57.69042      B       S1                 1                 0</span></span>
-<span><span class="co">#&gt; 3   41      1   1 53.32203      B       S3                 0                 0</span></span>
-<span><span class="co">#&gt; 4   88      0   0 39.91623      B       S3                 0                 0</span></span>
-<span><span class="co">#&gt; 5   94      1   1 48.80547      A       S3                 0                 0</span></span>
-<span><span class="co">#&gt; 6    6      1   1 47.19605      A       S2                 0                 1</span></span>
-<span><span class="co">#&gt;   subgroup_S3_x_trt</span></span>
-<span><span class="co">#&gt; 1                 0</span></span>
-<span><span class="co">#&gt; 2                 0</span></span>
-<span><span class="co">#&gt; 3                 1</span></span>
-<span><span class="co">#&gt; 4                 0</span></span>
-<span><span class="co">#&gt; 5                 1</span></span>
-<span><span class="co">#&gt; 6                 0</span></span></code></pre></div>
+<span><span class="co">#&gt;   time status trt      age region subgroup trt_subgroupS1 trt_subgroupS2</span></span>
+<span><span class="co">#&gt; 1   29      0   1 57.87739      B       S2              0              1</span></span>
+<span><span class="co">#&gt; 2   79      1   1 57.69042      B       S1              1              0</span></span>
+<span><span class="co">#&gt; 3   41      1   1 53.32203      B       S3              0              0</span></span>
+<span><span class="co">#&gt; 4   88      0   0 39.91623      B       S3              0              0</span></span>
+<span><span class="co">#&gt; 5   94      1   1 48.80547      A       S3              0              0</span></span>
+<span><span class="co">#&gt; 6    6      1   1 47.19605      A       S2              0              1</span></span>
+<span><span class="co">#&gt;   trt_subgroupS3</span></span>
+<span><span class="co">#&gt; 1              0</span></span>
+<span><span class="co">#&gt; 2              0</span></span>
+<span><span class="co">#&gt; 3              1</span></span>
+<span><span class="co">#&gt; 4              0</span></span>
+<span><span class="co">#&gt; 5              1</span></span>
+<span><span class="co">#&gt; 6              0</span></span></code></pre></div>
 </div>
 <div class="section level4" number="2.2.2">
 <h4 id="model-preparation">
@@ -350,8 +352,8 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.000127 seconds</span></span>
-<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.27 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.000139 seconds</span></span>
+<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.39 seconds.</span></span>
 <span><span class="co">#&gt; Chain 1: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
@@ -368,15 +370,15 @@
 <span><span class="co">#&gt; Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1:  Elapsed Time: 5.119 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 1:                1.854 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1:                6.973 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 1:  Elapsed Time: 5.262 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 1:                2.434 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1:                7.696 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: Gradient evaluation took 6.5e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.65 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2: Gradient evaluation took 5.8e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.58 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
@@ -393,15 +395,15 @@
 <span><span class="co">#&gt; Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2:  Elapsed Time: 5.459 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 2:                1.655 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2:                7.114 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 2:  Elapsed Time: 5.396 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 2:                2.152 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2:                7.548 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: Gradient evaluation took 6e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.6 seconds.</span></span>
+<span><span class="co">#&gt; Chain 3: Gradient evaluation took 5.8e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.58 seconds.</span></span>
 <span><span class="co">#&gt; Chain 3: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
@@ -418,9 +420,9 @@
 <span><span class="co">#&gt; Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3:  Elapsed Time: 4.959 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 3:                1.732 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3:                6.691 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 3:  Elapsed Time: 5.357 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 3:                2.673 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3:                8.03 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).</span></span>
@@ -443,11 +445,11 @@
 <span><span class="co">#&gt; Chain 4: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4:  Elapsed Time: 5.2 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 4:                2.044 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4:                7.244 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 4:  Elapsed Time: 5.156 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 4:                2.382 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4:                7.538 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 4:</span></span>
-<span><span class="co">#&gt; Warning: There were 4 divergent transitions after warmup. See</span></span>
+<span><span class="co">#&gt; Warning: There were 6 divergent transitions after warmup. See</span></span>
 <span><span class="co">#&gt; https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup</span></span>
 <span><span class="co">#&gt; to find out why this is a problem and how to eliminate them.</span></span>
 <span><span class="co">#&gt; Warning: Examine the pairs() plot to diagnose sampling problems</span></span></code></pre></div>
@@ -488,8 +490,8 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.000104 seconds</span></span>
-<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.04 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.000111 seconds</span></span>
+<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.11 seconds.</span></span>
 <span><span class="co">#&gt; Chain 1: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
@@ -506,15 +508,15 @@
 <span><span class="co">#&gt; Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1:  Elapsed Time: 5.074 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 1:                2.443 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1:                7.517 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 1:  Elapsed Time: 5.204 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 1:                2.663 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1:                7.867 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: Gradient evaluation took 5.7e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.57 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2: Gradient evaluation took 5.4e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.54 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
@@ -531,15 +533,15 @@
 <span><span class="co">#&gt; Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2:  Elapsed Time: 5.32 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 2:                2.182 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2:                7.502 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 2:  Elapsed Time: 5.145 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 2:                1.884 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2:                7.029 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: Gradient evaluation took 5.8e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.58 seconds.</span></span>
+<span><span class="co">#&gt; Chain 3: Gradient evaluation took 5.5e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.55 seconds.</span></span>
 <span><span class="co">#&gt; Chain 3: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
@@ -556,15 +558,15 @@
 <span><span class="co">#&gt; Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3:  Elapsed Time: 4.686 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 3:                1.578 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3:                6.264 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 3:  Elapsed Time: 4.612 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 3:                1.423 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3:                6.035 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4: Gradient evaluation took 5.3e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.53 seconds.</span></span>
+<span><span class="co">#&gt; Chain 4: Gradient evaluation took 5.4e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.54 seconds.</span></span>
 <span><span class="co">#&gt; Chain 4: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
@@ -581,11 +583,11 @@
 <span><span class="co">#&gt; Chain 4: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4:  Elapsed Time: 5.066 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 4:                1.633 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4:                6.699 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 4:  Elapsed Time: 5.111 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 4:                1.647 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4:                6.758 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 4:</span></span>
-<span><span class="co">#&gt; Warning: There were 6 divergent transitions after warmup. See</span></span>
+<span><span class="co">#&gt; Warning: There were 12 divergent transitions after warmup. See</span></span>
 <span><span class="co">#&gt; https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup</span></span>
 <span><span class="co">#&gt; to find out why this is a problem and how to eliminate them.</span></span>
 <span><span class="co">#&gt; Warning: Examine the pairs() plot to diagnose sampling problems</span></span></code></pre></div>
@@ -640,8 +642,8 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: Gradient evaluation took 9.2e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.92 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1: Gradient evaluation took 0.000102 seconds</span></span>
+<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 1.02 seconds.</span></span>
 <span><span class="co">#&gt; Chain 1: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
@@ -658,15 +660,15 @@
 <span><span class="co">#&gt; Chain 1: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 1: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1:  Elapsed Time: 8.37 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 1:                8.686 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1:                17.056 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 1:  Elapsed Time: 7.726 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 1:                4.94 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1:                12.666 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: Gradient evaluation took 5e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2: Gradient evaluation took 5.1e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.51 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
@@ -683,15 +685,15 @@
 <span><span class="co">#&gt; Chain 2: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 2: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2:  Elapsed Time: 7.642 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 2:                0.12 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2:                7.762 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 2:  Elapsed Time: 6.69 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 2:                3.241 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2:                9.931 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 3).</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3: Gradient evaluation took 5e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 3: Gradient evaluation took 5.1e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 3: 1000 transitions using 10 leapfrog steps per transition would take 0.51 seconds.</span></span>
 <span><span class="co">#&gt; Chain 3: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
@@ -708,15 +710,15 @@
 <span><span class="co">#&gt; Chain 3: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 3: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
-<span><span class="co">#&gt; Chain 3:  Elapsed Time: 7.693 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 3:                3.831 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 3:                11.524 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 3:  Elapsed Time: 7.047 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 3:                9.106 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 3:                16.153 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 3: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 4).</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4: Gradient evaluation took 5.1e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.51 seconds.</span></span>
+<span><span class="co">#&gt; Chain 4: Gradient evaluation took 8e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 4: 1000 transitions using 10 leapfrog steps per transition would take 0.8 seconds.</span></span>
 <span><span class="co">#&gt; Chain 4: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
@@ -733,15 +735,15 @@
 <span><span class="co">#&gt; Chain 4: Iteration: 1800 / 2000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 4: Iteration: 2000 / 2000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 4: </span></span>
-<span><span class="co">#&gt; Chain 4:  Elapsed Time: 7.591 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 4:                4.545 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 4:                12.136 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 4:  Elapsed Time: 7.206 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 4:                5.086 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 4:                12.292 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 4:</span></span>
-<span><span class="co">#&gt; Warning: There were 1310 divergent transitions after warmup. See</span></span>
+<span><span class="co">#&gt; Warning: There were 542 divergent transitions after warmup. See</span></span>
 <span><span class="co">#&gt; https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup</span></span>
 <span><span class="co">#&gt; to find out why this is a problem and how to eliminate them.</span></span>
 <span><span class="co">#&gt; Warning: Examine the pairs() plot to diagnose sampling problems</span></span>
-<span><span class="co">#&gt; Warning: The largest R-hat is 1.56, indicating chains have not mixed.</span></span>
+<span><span class="co">#&gt; Warning: The largest R-hat is 1.06, indicating chains have not mixed.</span></span>
 <span><span class="co">#&gt; Running the chains for more iterations may help. See</span></span>
 <span><span class="co">#&gt; https://mc-stan.org/misc/warnings.html#r-hat</span></span>
 <span><span class="co">#&gt; Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.</span></span>
@@ -808,8 +810,8 @@
 <span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.7 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 82 of 100 (82.0%) transitions hit the maximum treedepth limit of 10.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.8 seconds.</span></span>
+<span><span class="co">#&gt; Warning: 75 of 100 (75.0%) transitions hit the maximum treedepth limit of 10.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Analysis complete.</span></span></code></pre></div>
@@ -821,10 +823,9 @@
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span> <span class="co"># Auto-detects age_group interaction</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; --- Calculating specific subgroup effects... ---</span></span>
-<span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model interaction terms...</span></span>
-<span><span class="co">#&gt; ...detected subgroup variable(s): age_group</span></span>
 <span><span class="co">#&gt; Step 1: Creating counterfactual datasets...</span></span>
-<span><span class="co">#&gt; ...setting interaction dummy variables for the 'all treatment' scenario.</span></span>
+<span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model data...</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): age_group</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; ... (predicting expected outcomes)...</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
@@ -835,8 +836,8 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup           Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> age_group: Over60  -<span style="color: #BB0000;">10.8</span>     -<span style="color: #BB0000;">14.5</span>    -<span style="color: #BB0000;">7.17</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> age_group: Under60  -<span style="color: #BB0000;">7.95</span>    -<span style="color: #BB0000;">12.0</span>    -<span style="color: #BB0000;">5.00</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> age_group: Over60  -<span style="color: #BB0000;">11.2</span>     -<span style="color: #BB0000;">14.5</span>    -<span style="color: #BB0000;">7.69</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> age_group: Under60  -<span style="color: #BB0000;">8.31</span>    -<span style="color: #BB0000;">11.9</span>    -<span style="color: #BB0000;">4.49</span></span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">strat_continuous_summary</span>, title <span class="op">=</span> <span class="st">"Stratified Continuous: Subgroup Effects"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
@@ -900,7 +901,7 @@
 <span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 7.7 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 7.6 seconds.</span></span>
 <span><span class="co">#&gt; Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -913,13 +914,11 @@
 <span>  response_type <span class="op">=</span> <span class="st">"survival"</span> <span class="co"># Auto-detects biomarker interaction</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; --- Calculating specific subgroup effects... ---</span></span>
-<span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model interaction terms...</span></span>
-<span><span class="co">#&gt; ...detected subgroup variable(s): biomarker</span></span>
 <span><span class="co">#&gt; Step 1: Creating counterfactual datasets...</span></span>
-<span><span class="co">#&gt; ...setting interaction dummy variables for the 'all treatment' scenario.</span></span>
+<span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model data...</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): biomarker</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; ... (reconstructing baseline hazard and getting linear predictors)...</span></span>
-<span><span class="co">#&gt; ... model is stratified by 'country'. Reconstructing hazard for each stratum.</span></span>
 <span><span class="co">#&gt; Warning: Dropping 'draws_df' class as required metadata was removed.</span></span>
 <span><span class="co">#&gt; Warning: Dropping 'draws_df' class as required metadata was removed.</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
@@ -930,8 +929,8 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup        Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> biomarker: High  0.568    0.419    0.760</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> biomarker: Low   0.364    0.261    0.522</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> biomarker: High  0.530    0.377    0.753</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> biomarker: Low   0.398    0.267    0.521</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">strat_surv_summary</span>, title <span class="op">=</span> <span class="st">"Stratified Survival: Subgroup Effects (AHR)"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
