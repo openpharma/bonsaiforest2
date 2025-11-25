@@ -17,20 +17,21 @@ estimate_subgroup_effects(
 \item{brms_fit}{A fitted `brmsfit` object from `fit_brms_model()` or
 `run_brms_analysis()`.}
 
-\item{original_data}{A `data.frame` containing the original data before
-it was processed by `prepare_formula_model()`. This is essential for
-correctly identifying the original subgroup factor levels.}
+\item{original_data}{A `data.frame` containing the data. While this parameter
+is called "original_data" for backward compatibility, the function internally
+uses the processed data from `brms_fit$data` to ensure consistency with the
+model's factor coding and contrasts. This parameter is mainly used for
+validation purposes.}
 
 \item{trt_var}{A character string specifying the name of the treatment variable.}
 
 \item{subgroup_vars}{A character vector of subgroup variable names found in
 `original_data`. If set to `"auto"` (the default), the function
 attempts to automatically identify subgroup variables from the model's
-interaction terms.}
+formula.}
 
 \item{response_type}{The type of outcome variable. One of "binary", "count",
-"continuous", or "survival". This determines the scale of the effect
-(e.g., risk difference, rate ratio).}
+"continuous", or "survival".}
 
 \item{ndraws}{An integer specifying the number of posterior draws to use.
 If `NULL` (default), all available draws are used.}
@@ -44,63 +45,8 @@ posterior summaries (e.g., `mean`, `sd`, `q2.5`, `q97.5`).
 The function uses a counterfactual, marginal approach based on the posterior
 predictive distribution. It averages over all other covariates to provide
 robust estimates of subgroup-specific effects.
-
-The estimation follows these steps:
-\enumerate{
-  \item Creates two counterfactual datasets based on the model data: one where
-    all subjects receive "treatment" and one where all receive "control".
-  \item Generates posterior predictions (e.g., `brms::posterior_epred`) for
-    both scenarios.
-  \item Calculates the treatment effect (e.g., difference or ratio) for each
-    subject and posterior draw.
-  \item Averages these individual-level effects within each subgroup to
-    produce the final marginal subgroup estimates.
-}
 }
 \details{
 This post-processing function estimates marginal treatment effects for
 specified subgroups from a fitted `brmsfit` object.
-}
-\examples{
-if (require("brms") && require("survival")) {
-  # 1. Create Sample Data
-  set.seed(123)
-  n <- 100
-  sim_data <- data.frame(
-    time = round(runif(n, 1, 100)),
-    status = sample(0:1, n, replace = TRUE),
-    trt = sample(0:1, n, replace = TRUE),
-    age = rnorm(n, 50, 10),
-    region = sample(c("A", "B"), n, replace = TRUE),
-    subgroup = sample(c("S1", "S2", "S3"), n, replace = TRUE)
-  )
-  sim_data$trt <- factor(sim_data$trt, levels = c(0, 1))
-  sim_data$region <- as.factor(sim_data$region)
-  sim_data$subgroup <- as.factor(sim_data$subgroup)
-
-  # 2. Run the full analysis
-  \donttest{
-  full_fit <- run_brms_analysis(
-    data = sim_data,
-    response_formula_str = "Surv(time, status) ~ trt",
-    response_type = "survival",
-    shrunk_predictive_formula_str = "~ trt:subgroup",
-    unshrunk_prognostic_formula_str = "~ age",
-    shrunk_prognostic_formula_str = "~ region",
-    chains = 1, iter = 50, warmup = 10, refresh = 0
-  )
-
-  # 3. Estimate subgroup effects
-  # Note: We pass the original `sim_data`, not the processed model data.
-  effects <- estimate_subgroup_effects(
-    brms_fit = full_fit,
-    original_data = sim_data,
-    trt_var = "trt",
-    subgroup_vars = c("subgroup", "region"),
-    response_type = "survival"
-  )
-
-  print(effects)
-  }
-}
 }

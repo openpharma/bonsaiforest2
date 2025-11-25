@@ -54,7 +54,7 @@ unshrunk prognostic, shrunk prognostic, unshrunk predictive, and shrunk predicti
 \details{
 This classification allows for applying differential shrinkage (regularization)
 to different parts of the model. The function also prepares the corresponding
-data, including the automatic creation of dummy variables for predictive effects (interactions).
+data using R's contrast coding system for proper factor handling and interactions.
 }
 \section{Key Features}{
 
@@ -65,10 +65,10 @@ data, including the automatic creation of dummy variables for predictive effects
     in a non-linear model. This allows for assigning different priors to each
     component.
   \item \strong{Automated Interaction Handling:} Predictive terms (e.g.,
-    `~ trt:subgroup`) are automatically expanded. For each level of the
-    `subgroup` variable, a new dummy column is created in the dataset,
-    representing the interaction, simplifying the modeling of treatment effect
-    heterogeneity.
+    `~ trt:subgroup`) are automatically handled using R's contrast coding.
+    All variables involved in interactions are converted to factors with
+    treatment contrasts (reference coding), enabling proper model fitting and
+    prediction on new data without manual dummy variable creation.
   \item \strong{Hierarchical Integrity:} When a predictive term like
     `trt:subgroup` is specified, the function automatically ensures that the
     corresponding prognostic (main) effect `subgroup` is included in the model,
@@ -102,9 +102,11 @@ robust method for calculating spline knots to ensure stability:
 \section{Data Transformation}{
 
 It is critical to note that this function returns a modified `data.frame`.
-The treatment variable is converted to an integer (0/1), and new columns for
-interaction terms are created. The returned `data` object should be used in the
-subsequent call to `brms::brm()`, not the original data.
+The treatment variable and any variables involved in interactions are converted
+to factors with treatment contrasts (reference coding). This contrast-based
+approach enables proper model fitting and easy prediction on new data, as the
+same contrasts are automatically applied. The returned `data` object should be
+used in the subsequent call to `brms::brm()`, not the original data.
 }
 
 \section{Stratification}{

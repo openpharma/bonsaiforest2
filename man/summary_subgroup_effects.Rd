@@ -15,8 +15,7 @@ summary_subgroup_effects(
 \arguments{
 \item{brms_fit}{A fitted `brmsfit` object.}
 
-\item{original_data}{The original `data.frame` used for model fitting (before
-processing by `prepare_formula_model`).}
+\item{original_data}{The original `data.frame` used for model fitting.}
 
 \item{trt_var}{The name of the treatment variable (coded 0/1).}
 
@@ -24,62 +23,12 @@ processing by `prepare_formula_model`).}
 "continuous", or "survival".}
 
 \item{subgroup_vars}{A character vector of subgrouping variable names.
-Defaults to "auto", which detects subgroups from the model. Set to `NULL`
-to get only the overall effect.}
+Defaults to "auto". Cannot be NULL.}
 }
 \value{
-An object of class `subgroup_summary`, which is a list containing:
-\item{estimates}{A `tibble` combining the overall and subgroup-specific
-  effect estimates.}
-\item{response_type}{The specified response type.}
-\item{ci_level}{The credible interval level (hard-coded to 0.95).}
-\item{trt_var}{The name of the treatment variable.}
+An object of class `subgroup_summary`.
 }
 \description{
 This function orchestrates calls to `estimate_subgroup_effects` to generate
-a complete summary table. It calculates both the overall marginal effect
-and the effects for specific subgroups.
-}
-\examples{
-if (require("brms") && require("survival")) {
-  # 1. Create Sample Data
-  set.seed(123)
-  n <- 100
-  sim_data <- data.frame(
-    time = round(runif(n, 1, 100)),
-    status = sample(0:1, n, replace = TRUE),
-    trt = sample(0:1, n, replace = TRUE),
-    age = rnorm(n, 50, 10),
-    region = sample(c("A", "B"), n, replace = TRUE),
-    subgroup = sample(c("S1", "S2", "S3"), n, replace = TRUE)
-  )
-  sim_data$trt <- factor(sim_data$trt, levels = c(0, 1))
-  sim_data$region <- as.factor(sim_data$region)
-  sim_data$subgroup <- as.factor(sim_data$subgroup)
-
-  # 2. Run the full analysis
-  \donttest{
-  full_fit <- run_brms_analysis(
-    data = sim_data,
-    response_formula_str = "Surv(time, status) ~ trt",
-    response_type = "survival",
-    shrunk_predictive_formula_str = "~ trt:subgroup",
-    unshrunk_prognostic_formula_str = "~ age",
-    shrunk_prognostic_formula_str = "~ region",
-    chains = 1, iter = 50, warmup = 10, refresh = 0
-  )
-
-  # 3. Get the summary
-  # This function calls estimate_subgroup_effects internally
-  eff_summary <- summary_subgroup_effects(
-    brms_fit = full_fit,
-    original_data = sim_data,
-    trt_var = "trt",
-    response_type = "survival",
-    subgroup_vars = c("subgroup", "region")
-  )
-
-  print(eff_summary)
-  }
-}
+a summary table for specific subgroups.
 }

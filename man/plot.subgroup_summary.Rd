@@ -9,58 +9,15 @@
 \arguments{
 \item{x}{An object of class `subgroup_summary`.}
 
-\item{x_lab}{A character string for the x-axis label. If `NULL`, a default
-is chosen based on `response_type`.}
+\item{x_lab}{A character string for the x-axis label.}
 
 \item{title}{A character string for the plot title.}
 
-\item{...}{Additional arguments (not currently used).}
+\item{...}{Additional arguments.}
 }
 \value{
 A `ggplot` object representing the forest plot.
 }
 \description{
-Creates a forest plot from a `subgroup_summary` object. This version uses
-simplified labels of the format "variable: level".
-}
-\examples{
-if (require("brms") && require("survival")) {
-  # 1. Create Sample Data (as in previous examples)
-  set.seed(123)
-  n <- 100
-  sim_data <- data.frame(
-    time = round(runif(n, 1, 100)),
-    status = sample(0:1, n, replace = TRUE),
-    trt = sample(0:1, n, replace = TRUE),
-    age = rnorm(n, 50, 10),
-    region = sample(c("A", "B"), n, replace = TRUE),
-    subgroup = sample(c("S1", "S2", "S3"), n, replace = TRUE)
-  )
-  sim_data$trt <- factor(sim_data$trt, levels = c(0, 1))
-  sim_data$region <- as.factor(sim_data$region)
-  sim_data$subgroup <- as.factor(sim_data$subgroup)
-
-  # 2. Run the full analysis (fast example)
-  \donttest{
-  full_fit <- run_brms_analysis(
-    data = sim_data,
-    response_formula_str = "Surv(time, status) ~ trt",
-    response_type = "survival",
-    shrunk_predictive_formula_str = "~ trt:subgroup",
-    chains = 1, iter = 50, warmup = 10, refresh = 0
-  )
-
-  # 3. Get the summary object
-  eff_summary <- summary_subgroup_effects(
-    brms_fit = full_fit,
-    original_data = sim_data,
-    trt_var = "trt",
-    response_type = "survival",
-    subgroup_vars = c("subgroup", "region")
-  )
-
-  # 4. Plot the object
-  plot(eff_summary, title = "My Subgroup Analysis")
-  }
-}
+Creates a forest plot from a `subgroup_summary` object.
 }

@@ -70,7 +70,7 @@ continuous_data <- data.frame(
   sbp_change = rnorm(n_patients, mean = -5, sd = 10),
   trt = sample(0:1, n_patients, replace = TRUE),
   baseline_sbp = rnorm(n_patients, mean = 140, sd = 15),
-  region = factor(sample(c("NA", "EU", "APAC"), n_patients, replace = TRUE)),
+  region = factor(sample(c("USA", "EU", "APAC"), n_patients, replace = TRUE)),
   comorbidity = factor(sample(c("Yes", "No"), n_patients, replace = TRUE, prob = c(0.4, 0.6)))
 )
 

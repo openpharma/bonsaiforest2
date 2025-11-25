@@ -16,7 +16,6 @@
 #' @importFrom checkmate assert_class assert_data_frame assert_string assert_subset
 #' @importFrom checkmate assert_choice assert check_string check_character test_character
 #' @importFrom dplyr bind_rows
-#'
 #' @export
 summary_subgroup_effects <- function(brms_fit,
                                      original_data,
@@ -92,7 +91,6 @@ summary_subgroup_effects <- function(brms_fit,
 #'   annotate labs theme_classic theme element_text element_blank margin
 #'   coord_cartesian
 #' @importFrom checkmate assert_class assert_data_frame assert_string
-#'
 #' @exportS3Method graphics::plot
 plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
 
@@ -114,7 +112,7 @@ plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
   plot_data <- x$estimates %>%
     mutate(
       estimate_label = sprintf("%.2f (%.2f to %.2f)", .data$Median, .data$CI_Lower, .data$CI_Upper),
-      sort_group = str_extract(.data$Subgroup, "^[^:]+")
+      sort_group = stringr::str_extract(.data$Subgroup, "^[^:]+")
     ) %>%
     arrange(.data$sort_group, .data$Subgroup) %>%
     mutate(y_axis_label = factor(.data$Subgroup, levels = rev(unique(.data$Subgroup))))

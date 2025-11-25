@@ -106,11 +106,14 @@ We establish the following notation for the global model:
 
 A critical implementation detail is the construction of the design matrix for the subgroup-by-treatment interactions.
 
-We will then follow the same idea as in the `bonsaiforest` library. We will treat prognostic effects and predictive effects differently, as they serve different purposes in the model:
+The package treats prognostic effects and predictive effects differently, as they serve different purposes in the model:
 
--   **For prognostic effects :** The goal is interpretability and avoiding collinearity with the intercept. Here, standard dummy coding is the appropriate choice. For each of the J subgrouping variables, one level is dropped as a reference, resulting in L−J total columns for the subgroup main effects.
+-   **For prognostic effects:** The goal is interpretability and avoiding collinearity with the intercept. Here, standard treatment (dummy) coding is used. For each of the J subgrouping variables, one level is treated as reference, resulting in L−J total columns for the subgroup main effects.
 
--   **For predictive effects:** The goal is to treat all subgroup levels symmetrically under the assumption of exchangeability. Using one-hot encoding is essential here. This ensures that the shrinkage prior pulls all predictive effects toward a common center without privileging a reference level.
+-   **For predictive effects:** The package creates explicit dummy variables for each treatment-by-subgroup combination. For a subgrouping variable with levels {A, B, C}, the package creates interaction dummies `trt_subgroupA`, `trt_subgroupB`, `trt_subgroupC`, where each dummy equals 1 when the patient is both in the treatment group AND in that specific subgroup level. This approach ensures:
+    -   All subgroup levels are treated symmetrically under the exchangeability assumption
+    -   Each subgroup has an interpretable parameter directly representing its treatment effect modification
+    -   Predictions work correctly through G-computation (see Section 3.8)
 
 ## The Principle of Model Hierarchy
 
@@ -179,24 +182,26 @@ The Bayesian hierarchical structure is applied as follows:
 
 -   $\boldsymbol{\beta_{1,n}}$ is the $(M-P) \times 1$ vector of coefficients for the prognostic effects that we don't want to shrink.
 
--   $\mathbf{Z}= [\mathbf{Z_p} \;\;  \mathbf{Z}_n]$ is the $N \times L$ design matrix for the **predictive effects**. Its columns represent the interaction between the treatment and each of the $L$ subgroup levels across all subgrouping variables. This matrix is constructed without dropping a reference level to treat all subgroups symmetrically.
+-   $\mathbf{Z}= [\mathbf{Z_p} \;\;  \mathbf{Z}_n]$ is the $N \times L$ design matrix for the **predictive effects**. Its columns represent explicit dummy variables for the interaction between treatment and each of the $L$ subgroup levels. Each column `trt_subgroupLEVEL` equals 1 when patient $i$ is both on treatment ($s_i = 1$) AND belongs to that specific subgroup level, and 0 otherwise. This ensures all subgroups are treated symmetrically.
 
 ```{r}
 # Manually creating the interaction matrix for clarity
+# Each column represents trt_subgroupLEVEL (1 if treated AND in that level, 0 otherwise)
 interaction_matrix <- data.frame(
-  Patient      = 1:6,
-  `trt:sexM`   = c(1, 0, 1, 1, 0, 0),
-  `trt:sexF`   = c(0, 1, 0, 0, 1, 1),
-  `trt:regionEU` = c(0, 1, 0, 0, 1, 0),
-  `trt:regionUS` = c(1, 0, 0, 1, 0, 0),
-  `trt:regionAsia` = c(0, 0, 1, 0, 0, 1)
+  Patient           = 1:6,
+  `trt_sexM`        = c(1, 0, 1, 1, 0, 0),
+  `trt_sexF`        = c(0, 1, 0, 0, 1, 1),
+  `trt_regionEU`    = c(0, 1, 0, 0, 1, 0),
+  `trt_regionUS`    = c(1, 0, 0, 1, 0, 0),
+  `trt_regionAsia`  = c(0, 0, 1, 0, 0, 1)
 )
 
 # Using knitr::kable for a nice output
 knitr::kable(
   interaction_matrix,
   align = 'c',
-  col.names = c("Patient", "trt x sexM", "trt x sexF", "trt x regionEU", "trt x regionUS", "trt x regionAsia")
+  col.names = c("Patient", "trt_sexM", "trt_sexF", "trt_regionEU", "trt_regionUS", "trt_regionAsia"),
+  caption = "Interaction design matrix using explicit dummy variables"
 )
 ```
 
@@ -533,8 +538,10 @@ To obtain interpretable *marginal* effects for each subgroup, the package implem
 
     -   Scenario A: Patient $i$'s covariates, with treatment $s_i=0$ (Control).
     -   Scenario B: Patient $i$'s covariates, with treatment $s_i=1$ (Treatment).
+    
+    For Scenario A (control), all treatment-by-subgroup interaction dummies are set to 0. For Scenario B (treatment), each interaction dummy `trt_subgroupLEVEL` is set to 1 if the patient belongs to that subgroup level, 0 otherwise.
 
-3.  **Predict Outcomes:** Use the model formula and the parameters from Step 1 to predict the outcome for *every patient* under both Scenario A ($\hat{\mu}_{i,0}$) and Scenario B ($\hat{\mu}_{i,1}$).
+3.  **Predict Outcomes:** Use the model formula and the parameters from Step 1 to predict the outcome for *every patient* under both Scenario A ($\hat{\mu}_{i,0}$) and Scenario B ($\hat{\mu}_{i,1}$). The `brms::posterior_epred()` function automatically handles the computation using the model's design matrix and parameters.
 
 4.  **Average within Subgroups:** For a subgroup of interest $l$ (e.g., "Female"):
 

@@ -52,8 +52,9 @@ test_that("Basic functionality works (binary/continuous)", {
   expect_named(res_bin, c("formula", "data", "response_type")) # <-- UPDATED
   expect_equal(res_bin$response_type, "binary") # <-- NEW
 
-  # Check data modifications
-  expect_true(all(res_bin$data$trt %in% c(0, 1)))
+  # Check data modifications - treatment should be a factor with sum contrasts
+  expect_true(is.factor(res_bin$data$trt))
+  expect_true(!is.null(contrasts(res_bin$data$trt)))
 
   # Check formula components (trt automatically added to unprogeffect)
   expect_equal(get_formula_rhs(res_bin$formula), "unprogeffect") # Main formula has placeholder
@@ -82,18 +83,18 @@ test_that("Predictive terms (interactions) are processed correctly", {
     unshrunk_predictive_formula_str = "~ trt:region"
   )
 
-  # Check for new dummy columns in data
-  expect_true(all(c("subgroup1_S1_x_trt", "subgroup1_S2_x_trt") %in% names(res_int$data)))
-  expect_true(all(c("region_A_x_trt", "region_B_x_trt") %in% names(res_int$data)))
+  # Check for new dummy columns in data (NEW FORMAT: trt_subgroupVARlevel)
+  expect_true(all(c("trt_subgroup1S1", "trt_subgroup1S2") %in% names(res_int$data)))
+  expect_true(all(c("trt_regionA", "trt_regionB") %in% names(res_int$data)))
 
   # Check that dummy columns look correct (0 or 1)
-  expect_true(all(res_int$data$subgroup1_S1_x_trt %in% c(0, 1)))
-  expect_true(all(res_int$data$region_A_x_trt %in% c(0, 1)))
+  expect_true(all(res_int$data$trt_subgroup1S1 %in% c(0, 1)))
+  expect_true(all(res_int$data$trt_regionA %in% c(0, 1)))
 
   # Check formula components
   expect_equal(get_formula_rhs(res_int$formula), c("shpredeffect", "unpredeffect", "unprogeffect"))
-  expect_equal(get_formula_rhs(res_int$formula, "shpredeffect"), c("subgroup1_S1_x_trt", "subgroup1_S2_x_trt"))
-  expect_equal(get_formula_rhs(res_int$formula, "unpredeffect"), c("region_A_x_trt", "region_B_x_trt"))
+  expect_equal(get_formula_rhs(res_int$formula, "shpredeffect"), c("trt_subgroup1S1", "trt_subgroup1S2"))
+  expect_equal(get_formula_rhs(res_int$formula, "unpredeffect"), c("trt_regionA", "trt_regionB"))
 
   # Check hierarchical integrity: main effects subgroup1 and region added to unprogeffect
   expect_equal(get_formula_rhs(res_int$formula, "unprogeffect"), c("region", "subgroup1", "trt"))
@@ -135,8 +136,8 @@ test_that("Term overlaps and defaults are handled", {
   expect_equal(res_overlap_pred$response_type, "continuous")
 
   # Check that 'trt:region' dummies ended up in shrunk
-  expect_equal(get_formula_rhs(res_overlap_pred$formula, "shpredeffect"), c("region_A_x_trt", "region_B_x_trt", "subgroup2_X_x_trt", "subgroup2_Y_x_trt"))
-  expect_equal(get_formula_rhs(res_overlap_pred$formula, "unpredeffect"), c("subgroup1_S1_x_trt", "subgroup1_S2_x_trt"))
+  expect_equal(get_formula_rhs(res_overlap_pred$formula, "shpredeffect"), c("trt_regionA", "trt_regionB", "trt_subgroup2X", "trt_subgroup2Y"))
+  expect_equal(get_formula_rhs(res_overlap_pred$formula, "unpredeffect"), c("trt_subgroup1S1", "trt_subgroup1S2"))
 
   # Check treatment added by default message
   expect_message(

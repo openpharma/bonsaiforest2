@@ -4,16 +4,17 @@
 \name{bonsaiforest2-package}
 \alias{bonsaiforest2}
 \alias{bonsaiforest2-package}
-\title{bonsaiforest2: bonsaiforest2}
+\title{bonsaiforest2: Flexible Bayesian Shrinkage Based Forest Plots}
 \description{
 \if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-More about what it does (maybe more than one line). Continuation lines should be indented.
+An extension of the 'bonsaiforest' package that provides increased flexibility in prior selection and modeling options. It supports four types of endpoints and simplifies the fitting and interpretation of Bayesian models for subgroup analysis. Leveraging 'brms', it distinguishes between prognostic and predictive factors using differential shrinkage priors and generates publication-ready forest plots.
 }
 \seealso{
 Useful links:
 \itemize{
   \item \url{https://openpharma.github.io/bonsaiforest2/}
+  \item Report bugs at \url{https://github.com/openpharma/bonsaiforest2/issues}
 }
 
 }
@@ -23,6 +24,7 @@ Useful links:
 Authors:
 \itemize{
   \item Isaac Gravestock \email{isaac.gravestock@roche.com}
+  \item Marcel Wolbers \email{marcel.wolbers@roche.com}
 }
 
 }
