@@ -7,7 +7,7 @@
 #'
 #' This classification allows for applying differential shrinkage (regularization)
 #' to different parts of the model. The function also prepares the corresponding
-#' data, including the automatic creation of dummy variables for predictive effects (interactions).
+#' data using R's contrast coding system for proper factor handling and interactions.
 #'
 #' @section Key Features:
 #' \itemize{
@@ -17,10 +17,10 @@
 #'     in a non-linear model. This allows for assigning different priors to each
 #'     component.
 #'   \item \strong{Automated Interaction Handling:} Predictive terms (e.g.,
-#'     `~ trt:subgroup`) are automatically expanded. For each level of the
-#'     `subgroup` variable, a new dummy column is created in the dataset,
-#'     representing the interaction, simplifying the modeling of treatment effect
-#'     heterogeneity.
+#'     `~ trt:subgroup`) are automatically handled using R's contrast coding.
+#'     All variables involved in interactions are converted to factors with
+#'     treatment contrasts (reference coding), enabling proper model fitting and
+#'     prediction on new data without manual dummy variable creation.
 #'   \item \strong{Hierarchical Integrity:} When a predictive term like
 #'     `trt:subgroup` is specified, the function automatically ensures that the
 #'     corresponding prognostic (main) effect `subgroup` is included in the model,
@@ -50,9 +50,11 @@
 #'
 #' @section Data Transformation:
 #' It is critical to note that this function returns a modified `data.frame`.
-#' The treatment variable is converted to an integer (0/1), and new columns for
-#' interaction terms are created. The returned `data` object should be used in the
-#' subsequent call to `brms::brm()`, not the original data.
+#' The treatment variable and any variables involved in interactions are converted
+#' to factors with treatment contrasts (reference coding). This contrast-based
+#' approach enables proper model fitting and easy prediction on new data, as the
+#' same contrasts are automatically applied. The returned `data` object should be
+#' used in the subsequent call to `brms::brm()`, not the original data.
 #'
 #' @section Stratification:
 #' The `stratification_formula_str` argument allows for estimating certain parameters
@@ -89,6 +91,7 @@
 #'
 #' @importFrom stringr str_squish str_split str_starts str_match str_trim str_remove str_detect str_replace_all
 #' @importFrom checkmate assert_data_frame assert_string assert_choice assert_subset assert_numeric assert_character
+#' @importFrom stats contrasts
 #' @export
 #'
 #' @examples
@@ -181,36 +184,29 @@ prepare_formula_model <- function(data,
     trt_var = trt_var
   )
 
-  # --- 4. Process Predictive Terms  ---
-  shrunk_pred_str_resolved <- if (!is.null(term_lists$shrunk_pred) && length(term_lists$shrunk_pred) > 0) {
-    # Reconstruct the formula string, starting with ~
+  # 4. Process Predictive Terms (Now using the NEW .process_predictive_terms)
+  # Reconstruct full formula strings from the lists
+  shrunk_pred_str_full <- if (!is.null(term_lists$shrunk_pred) && length(term_lists$shrunk_pred) > 0) {
     paste("~", paste(term_lists$shrunk_pred, collapse = " + "))
-  } else {
-    NULL # Pass NULL if the resolved list is empty
-  }
+  } else NULL
 
-  unshrunk_pred_str_resolved <- if (!is.null(term_lists$unshrunk_pred) && length(term_lists$unshrunk_pred) > 0) {
-    # Reconstruct the formula string, starting with ~
+  unshrunk_pred_str_full <- if (!is.null(term_lists$unshrunk_pred) && length(term_lists$unshrunk_pred) > 0) {
     paste("~", paste(term_lists$unshrunk_pred, collapse = " + "))
-  } else {
-    NULL # Pass NULL if the resolved list is empty
-  }
+  } else NULL
 
-  # Now call the processing functions with the resolved formula strings
+  # Call the UPDATED processing function
   shrunk_pred_out <- .process_predictive_terms(
-    shrunk_pred_str_resolved, # Use the resolved string
+    shrunk_pred_str_full,
     processed_data,
     trt_var
   )
-  # Update processed_data sequentially, as .process_predictive_terms modifies it
   processed_data <- shrunk_pred_out$data
 
   unshrunk_pred_out <- .process_predictive_terms(
-    unshrunk_pred_str_resolved, # Use the resolved string
-    processed_data,             # Use the data updated by the previous step
+    unshrunk_pred_str_full,
+    processed_data,
     trt_var
   )
-  # Final update to processed_data
   processed_data <- unshrunk_pred_out$data
 
   # --- 5. Auto-add missing prognostic main effects  ---
@@ -255,7 +251,7 @@ prepare_formula_model <- function(data,
   checkmate::assert_data_frame(data)
   checkmate::assert_string(response_formula_str, pattern = "~")
 
-  formula_parts <- str_squish(str_split(response_formula_str, "~", n = 2)[[1]])
+  formula_parts <- stringr::str_squish(stringr::str_split(response_formula_str, "~", n = 2)[[1]])
   lhs_str <- formula_parts[1]
   trt_var <- formula_parts[2]
 
@@ -264,15 +260,21 @@ prepare_formula_model <- function(data,
   checkmate::assert_subset(trt_var, names(data))
 
   # Split the left-hand side to find the response and any offset
-  lhs_terms <- str_squish(str_split(lhs_str, "\\+")[[1]])
-  is_offset <- str_starts(lhs_terms, "offset\\(")
+  lhs_terms <- stringr::str_squish(stringr::str_split(lhs_str, "\\+")[[1]])
+  is_offset <- stringr::str_starts(lhs_terms, "offset\\(")
 
   offset_term <- if (any(is_offset)) lhs_terms[is_offset] else NULL
   response_term <- paste(lhs_terms[!is_offset], collapse = " + ")
 
-  if (is.factor(data[[trt_var]])) {
-    data[[trt_var]] <- as.integer(data[[trt_var]]) - 1
+  # Keep treatment as factor for contrast-based modeling
+  # This enables proper predictions on new data without manual dummy variable creation
+  if (!is.factor(data[[trt_var]])) {
+    message("Converting treatment variable '", trt_var, "' to factor for contrast coding.")
+    data[[trt_var]] <- as.factor(data[[trt_var]])
   }
+
+  # Set treatment contrast to treatment coding (reference = first level)
+  contrasts(data[[trt_var]]) <- stats::contr.sum(levels(data[[trt_var]]), contrasts = FALSE )
 
   return(list(
     response_term = response_term,
@@ -343,9 +345,9 @@ prepare_formula_model <- function(data,
   checkmate::assert_data_frame(data)
   checkmate::assert_string(stratification_formula_str, null.ok = TRUE)
 
-  surv_vars <- str_match(response_part, "Surv\\((.*?),(.*?)\\)")
-  time_var <- str_trim(surv_vars[, 2])
-  status_var <- str_trim(surv_vars[, 3])
+  surv_vars <- stringr::str_match(response_part, "Surv\\((.*?),(.*?)\\)")
+  time_var <- stringr::str_trim(surv_vars[, 2])
+  status_var <- stringr::str_trim(surv_vars[, 3])
   brms_response_part <- paste0(time_var, " | cens(1 - ", status_var, ")")
 
   message("Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().")
@@ -397,7 +399,7 @@ prepare_formula_model <- function(data,
   checkmate::assert_string(shrunk_predictive_str, null.ok = TRUE)
   checkmate::assert_string(trt_var)
 
-  get_terms <- function(s) if (is.null(s) || s == "") NULL else str_squish(str_split(str_remove(s, "~"), "\\+")[[1]])
+  get_terms <- function(s) if (is.null(s) || s == "") NULL else stringr::str_squish(stringr::str_split(stringr::str_remove(s, "~"), "\\+")[[1]])
 
   unshrunk_prog <- get_terms(unshrunk_prognostic_str)
   shrunk_prog <- get_terms(shrunk_prognostic_str)
@@ -429,26 +431,22 @@ prepare_formula_model <- function(data,
 }
 
 
-#' Process Predictive Interaction Terms
+#' Process Predictive Interaction Terms (Explicit Dummy Creation for brms Non-Linear)
 #'
-#' Creates new dummy variables in the data for interaction terms (e.g.,
-#' `trt:subgroup`) and returns the corresponding formula part.
+#' Creates explicit dummy variables for treatment interactions because brms non-linear
+#' formulas don't respect contrast coding for interactions in the expected way.
+#' This ensures we get ONE parameter per interaction (e.g., `b_trt_regionA`) rather
+#' than parameters for all level combinations.
 #'
-#' This function parses terms like `trt:subgroup` and creates new columns
-#' in the data (e.g., `subgroup_S1_x_trt`, `subgroup_S2_x_trt`) for each
-#' level of the factor, representing the interaction as a set of dummy variables.
-#'
-#' @param formula_str A character string formula, e.g., "~ trt:subgroup1", or NULL.
+#' @param formula_str A character string formula, e.g., "~ trt:subgroup".
 #' @param .data The data.frame to modify.
-#' @param .trt_var The character string name of the treatment variable (e.g., "trt").
+#' @param .trt_var The character string name of the treatment variable.
 #'
 #' @return A list containing:
-#' \item{formula_part}{A string for the new formula component (e.g., "subgroup_S1_x_trt + ...").}
-#' \item{data}{The modified data.frame with new dummy interaction columns.}
-#' \item{prognostic_effects}{A character vector of main effects (e.g., "subgroup")
-#'   that are needed to maintain model hierarchy.}
+#'   \item{formula_part}{The formula string with explicit dummy variable names.}
+#'   \item{data}{The data.frame with new interaction dummy columns added.}
+#'   \item{prognostic_effects}{A character vector of main effects needed for hierarchy.}
 #' @noRd
-#'
 .process_predictive_terms <- function(formula_str, .data, .trt_var) {
   # --- Assertions ---
   checkmate::assert_string(formula_str, null.ok = TRUE)
@@ -458,33 +456,76 @@ prepare_formula_model <- function(data,
   if (is.null(formula_str)) {
     return(list(formula_part = NULL, data = .data, prognostic_effects = character(0)))
   }
+
+  # Ensure treatment is a factor (should already be from .parse_initial_formula)
+  if (!is.factor(.data[[.trt_var]])) {
+    .data[[.trt_var]] <- as.factor(.data[[.trt_var]])
+  }
+
+  # Get treatment levels
+  trt_levels <- levels(.data[[.trt_var]])
+  if (length(trt_levels) != 2) {
+    stop("Treatment variable must have exactly 2 levels for interaction terms")
+  }
+
+  # Assuming levels are ordered as (control, treatment), e.g., c("0", "1")
+  # trt_levels[2] is the "active" treatment level
+
+  # Parse terms to check for validity and create dummies
   terms <- attr(terms(as.formula(formula_str)), "term.labels")
-  new_formula_terms <- c()
   prognostic_effects_needed <- c()
+  new_dummy_terms <- c()
 
   for (term in terms) {
-    if (str_detect(term, ":")) {
-      vars <- str_squish(str_split(term, ":")[[1]])
+    # We expect interactions like trt:subgroup
+    if (stringr::str_detect(term, ":")) {
+      vars <- stringr::str_squish(stringr::str_split(term, ":")[[1]])
       subgroup_var <- setdiff(vars, .trt_var)
-      if (length(subgroup_var) != 1) {
-        warning(paste("Skipping term:", term)); next
-      }
-      prognostic_effects_needed <- c(prognostic_effects_needed, subgroup_var)
-      if (!is.factor(.data[[subgroup_var]])) .data[[subgroup_var]] <- as.factor(.data[[subgroup_var]])
 
-      for (level in levels(.data[[subgroup_var]])) {
-        clean_level <- level %>% str_replace_all(c(" " = "_", "<" = "lt", ">" = "gt", "=" = "eq")) %>%
-          str_replace_all("[^a-zA-Z0-9_]", "")
-        new_col_name <- paste0(subgroup_var, "_", clean_level, "_x_", .trt_var)
-        .data[[new_col_name]] <- as.integer(.data[[subgroup_var]] == level & .data[[.trt_var]] == 1)
-        new_formula_terms <- c(new_formula_terms, new_col_name)
+      # Validity check: Interaction must include treatment and one other variable
+      if (length(subgroup_var) != 1) {
+        warning(paste("Skipping complex or non-treatment interaction term:", term))
+        next
+      }
+
+      prognostic_effects_needed <- c(prognostic_effects_needed, subgroup_var)
+
+      # Ensure the subgroup variable is a factor
+      if (!is.factor(.data[[subgroup_var]])) {
+        message(paste("Converting", subgroup_var, "to factor for interaction terms."))
+        .data[[subgroup_var]] <- as.factor(.data[[subgroup_var]])
+      }
+
+      # Also set contrasts for the main effect (for prognostic terms)
+      contrasts(.data[[subgroup_var]]) <- stats::contr.treatment(levels(.data[[subgroup_var]]))
+
+      # Create explicit dummy interaction variables for EACH level of subgroup
+      subgroup_levels <- levels(.data[[subgroup_var]])
+
+      for (level in subgroup_levels) {
+        # Create interaction dummy: 1 if (trt == treatment_level AND subgroup == level), else 0
+        dummy_name <- paste0(.trt_var, "_", subgroup_var, level)
+        .data[[dummy_name]] <- as.numeric(
+          .data[[.trt_var]] == trt_levels[2] & .data[[subgroup_var]] == level
+        )
+        new_dummy_terms <- c(new_dummy_terms, dummy_name)
       }
     }
   }
-  final_formula_part <- if (length(new_formula_terms) > 0) paste(new_formula_terms, collapse = " + ") else NULL
-  return(list(formula_part = final_formula_part, data = .data, prognostic_effects = unique(prognostic_effects_needed)))
-}
 
+  # Create formula string with the new dummy variable names
+  clean_formula <- if (length(new_dummy_terms) > 0) {
+    paste(new_dummy_terms, collapse = " + ")
+  } else {
+    NULL
+  }
+
+  return(list(
+    formula_part = clean_formula,
+    data = .data,
+    prognostic_effects = unique(prognostic_effects_needed)
+  ))
+}
 #' Add Missing Main Effects
 #'
 #' Ensures that any variable used in an interaction has its main effect
@@ -534,7 +575,7 @@ prepare_formula_model <- function(data,
   checkmate::assert_string(stratification_formula_str)
   checkmate::assert_data_frame(data)
 
-  strat_var <- str_squish(str_remove(stratification_formula_str, "~"))
+  strat_var <- stringr::str_squish(stringr::str_remove(stratification_formula_str, "~"))
   checkmate::assert_subset(strat_var, names(data))
   formulas <- list()
   if (response_type == "continuous") {

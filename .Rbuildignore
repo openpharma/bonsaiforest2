@@ -10,3 +10,7 @@ TODO
 ^README\.Rmd$
 ^\.gitlab-ci\.yml$
 ^\.github$
+^simulations$
+^test_contrast_coding\.R$
+^test_minimal\.R$
+^test_quickstart_example\.R$
