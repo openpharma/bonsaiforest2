@@ -1,0 +1,117 @@
+---
+title: "Scenarios_generation"
+output: html_document
+---
+
+# Scenarios Generation
+
+In this file we generate the data for each one of the 6 scenarios we want to study for the 4 different endpoints.
+
+## Library and functions loading
+```{r}
+# Ensure all required libraries are loaded
+library(checkmate)
+library(MASS) # Used by simul_covariates
+
+# --- LOAD ALL FUNCTIONS ---
+source('functions.R')
+
+# --- REPRODUCIBILITY ---
+# Set seed for all random generation, as seen in the legacy code
+RNGkind('Mersenne-Twister')
+set.seed(0)
+rnorm(25, sd = 0.3)
+```
+
+## Parameters definition
+```{r}
+# --- LOOP PARAMETERS ---
+endpoints <- c("count")
+scenarios <- as.character(1:6)
+
+# --- COMMON PARAMETERS ---
+# Number of datasets to generate for *each* scenario
+n_datasets <- 1000
+
+# --- TTE-SPECIFIC PARAMETERS ---
+tte_params <- list(
+  n_patients = 1000,
+  n_events = 247,
+  sigma_aft = 0.85,
+  recr_duration = 3,
+  rate_cens = 0.02,
+  add_uncensored_pfs = FALSE,
+  inflation_factor = 1
+)
+# --- NEW: PRE-GENERATE RANDOM HETEROGENEITY ---
+# Define group coef names (moved from helper functions)
+group_coefs_names <- c(
+  "x_1a_arm", "x_1b_arm", "x_2a_arm", "x_2b_arm",
+  "x_3a_arm", "x_3b_arm", "x_4a_arm", "x_4b_arm", "x_4c_arm", "x_5a_arm",
+  "x_5b_arm", "x_5c_arm", "x_5d_arm", "x_6a_arm", "x_6b_arm", "x_7a_arm",
+  "x_7b_arm", "x_8a_arm", "x_8b_arm", "x_8c_arm", "x_9a_arm", "x_9b_arm",
+  "x_10a_arm", "x_10b_arm", "x_10c_arm"
+)
+
+```
+
+## Loop for data generation
+```{r}
+for (ep in endpoints) {
+  
+  # Get the correct folder name (capitalization matters)
+  endpoint_folder <- switch(ep,
+    "tte" = "TTE",
+    "binary" = "Binary",
+    "count" = "Count",
+    "continuous" = "Continuous"
+  )
+  
+  for (scen in scenarios) {
+    
+    # --- 1. Log Start ---
+    message("------------------------------------------------------")
+    message(paste("🚀 Starting:", ep, "- Scenario", scen))
+    
+    
+    # --- 2. Set Up Function Arguments ---
+    # Start with the common arguments
+    call_args <- list(
+      endpoint = ep,
+      scenario = scen,
+      n_datasets = n_datasets
+    )
+    
+    # If the endpoint is "tte", add the TTE-specific parameters
+    if (ep == "tte") {
+      call_args <- c(call_args, tte_params)
+    }
+    
+    
+    # --- 3. Generate Data ---
+    # Call `simul_study_data` using do.call to pass our list of arguments
+    # This will either call:
+    #   - simul_scenario() (for TTE)
+    #   - .simul_new_endpoint_single() (for others)
+    message("   ...generating data...")
+    dataset_list <- do.call(simul_study_data, call_args)
+    
+    
+    # --- 4. Define Save Path and Save ---
+    file_name <- paste0("scenario", scen, ".rds")
+    
+    # Construct the full relative path
+    save_path <- file.path(endpoint_folder, "Scenarios", file_name)
+    
+    # Save the resulting list (e.g., of 1000 data.frames) as a single .rds file
+    message(paste("   ...saving to", save_path))
+    saveRDS(dataset_list, file = save_path)
+    
+    message(paste("✅ Completed:", ep, "- Scenario", scen))
+  }
+}
+
+message("------------------------------------------------------")
+message("🎉 All simulations generated and saved successfully! 🎉")
+```
+

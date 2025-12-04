@@ -1,0 +1,663 @@
+---
+title: "SUNFISH Simulation Results Analysis"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, fig.width = 12, fig.height = 8)
+
+# Load required libraries
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(checkmate)
+library(forcats)
+```
+
+# SUNFISH Simulation Analysis
+
+This document analyzes the performance of different estimators in the SUNFISH Part 2 trial simulation across 6 scenarios with varying degrees of regional and treatment heterogeneity.
+
+**Endpoint**: Continuous (Change from baseline in MFM32 score)  
+**Effect Metric**: Mean Difference (Treatment - Control)  
+**Sample Size**: N=180 (120 Risdiplam : 60 Placebo)
+
+## 1. Setup and Configuration
+
+```{r config}
+# Define endpoint parameters for continuous outcome
+ENDPOINT_ID <- 'SUNFISH'
+
+ep_params <- list(
+  folder = "SUNFISH",
+  truth_list_name = "simul_truth",
+  truth_overall_name = "truth_overall",
+  truth_subgroup_name = "truth_subgroup",
+  truth_metric_exp = "value",  # Mean difference (no exponentiation)
+  est_metric = "MeanDiff",
+  est_col = "estimate",
+  ci_low = "lower_ci",
+  ci_up = "upper_ci",
+  log_truth_col = "value"
+)
+
+cat("Analyzing SUNFISH simulation results...\n")
+cat("Endpoint:", ep_params$est_metric, "\n")
+```
+
+## 2. Load Results Files
+
+```{r load_results}
+# Find all results files
+results_path <- file.path("Results")
+all_files <- list.files(results_path, pattern = "\\.rds$", full.names = TRUE)
+
+cat("Found", length(all_files), "results files:\n")
+cat(paste("-", basename(all_files), collapse = "\n"), "\n")
+
+# Helper function to load and validate results
+load_and_validate_rds <- function(file_path) {
+  message(paste("Loading:", basename(file_path)))
+  
+  df <- readRDS(file_path)
+  
+  # Determine ID columns based on file type
+  if ("scenario_id" %in% names(df)) {
+    n_sims <- df %>% distinct(scenario_id, replication_id) %>% nrow()
+    id_cols <- c("scenario_id", "replication_id")
+  } else if ("scenario_no" %in% names(df)) {
+    n_sims <- df %>% distinct(scenario_no, simul_no) %>% nrow()
+    id_cols <- c("scenario_no", "simul_no")
+  } else {
+    warning(paste("Could not identify ID columns in:", basename(file_path)))
+    return(NULL)
+  }
+  
+  # Validate expected number of simulations (6 scenarios × 1000 reps = 6000)
+  if (n_sims != 6000) {
+    warning(sprintf("File %s is incomplete! Expected 6000 sims, found %d.", 
+                    basename(file_path), n_sims))
+  } else {
+    message(paste("  ✓ Validation OK:", n_sims, "simulations found"))
+  }
+  
+  # Add metadata
+  df %>% mutate(
+    file_name = basename(file_path),
+    estimator_name = str_remove(file_name, paste0("^", ENDPOINT_ID, "_")) %>%
+                     str_remove("\\.rds$")
+  )
+}
+
+# Load all files
+all_results_list <- lapply(all_files, load_and_validate_rds)
+all_results_list <- all_results_list[!sapply(all_results_list, is.null)]
+
+cat("\n✓ Successfully loaded", length(all_results_list), "result files\n")
+```
+
+## 3. Load Truth Data
+
+```{r load_truth}
+# Load the true treatment effects
+truth_file <- file.path("Scenarios", "truth.RData")
+
+if (!file.exists(truth_file)) {
+  stop("Truth file not found! Please run Truth.Rmd first to generate truth.RData")
+}
+
+load(truth_file)  # Loads simul_truth
+
+cat("✓ Loaded truth data from:", truth_file, "\n")
+
+# Standardize truth data for merging
+real_params_tidy <- simul_truth[[ep_params$truth_subgroup_name]] %>%
+  mutate(
+    # Create join_key: x_1.2-5y -> 12-5y (remove x_ and first dot)
+    join_key = gsub("^x_", "", subgroup) %>% sub("\\.", "", .),
+    scenario_no = as.character(scenario)
+  ) %>%
+  rename(
+    truth_value = !!sym(ep_params$log_truth_col)
+  ) %>%
+  select(scenario_no, join_key, truth_value)
+
+# Get population-level truth for heterogeneity flagging
+true_population_results <- simul_truth[[ep_params$truth_overall_name]] %>%
+  mutate(
+    scenario_no = as.character(scenario),
+    truth_population = value
+  ) %>%
+  select(scenario_no, truth_population)
+
+cat("✓ Truth data standardized\n")
+cat("  - Subgroups:", nrow(real_params_tidy), "\n")
+cat("  - Scenarios:", n_distinct(real_params_tidy$scenario_no), "\n")
+```
+
+## 4. Standardize All Results
+
+```{r standardize_results}
+# Standardize results from different estimator types
+standardized_results_list <- lapply(all_results_list, function(df) {
+  
+  estimator_type <- df$estimator_name[1]
+  
+  if (estimator_type == "population") {
+    # Population estimator: overall estimate replicated across subgroups
+    # Deduplicate by taking first row per scenario/simulation
+    df %>%
+      group_by(scenario_no, simul_no) %>%
+      slice(1) %>%
+      ungroup() %>%
+      mutate(
+        scenario_id = as.integer(scenario_no),
+        replication_id = as.integer(simul_no),
+        estimate_value = estimate,
+        ci_lower = lower_ci,
+        ci_upper = upper_ci,
+        estimator_name = estimator
+      ) %>%
+      select(scenario_id, replication_id, estimator_name,
+             estimate_value, ci_lower, ci_upper)
+      
+  } else if (estimator_type == "subgroup") {
+    # Subgroup estimator: subgroup-specific estimates
+    # Subgroup names are like S_1.12-17y, so remove S_ and first dot to get 112-17y
+    df %>%
+      mutate(
+        join_key = gsub("^S_", "", subgroup) %>% sub("\\.", "", .),
+        scenario_id = as.integer(scenario_no),
+        replication_id = as.integer(simul_no),
+        estimate_value = estimate,
+        ci_lower = lower_ci,
+        ci_upper = upper_ci,
+        estimator_name = estimator
+      ) %>%
+      select(scenario_id, replication_id, estimator_name, join_key, 
+             estimate_value, ci_lower, ci_upper)
+      
+  } else {
+    # bonsaiforest2 global/OVAT models
+    # Subgroup names are like x_1: 2-5y, so remove x_, space and colon to get 12-5y
+    df %>%
+      filter(Subgroup != "Overall") %>%
+      mutate(
+        join_key = gsub("^x_", "", Subgroup) %>% 
+                   gsub(": ", "", .) %>%
+                   gsub(" ", "", .),
+        estimator_name = paste(model_type, prior_name, sep = "_")
+      ) %>%
+      rename(
+        estimate_value = Median,
+        ci_lower = CI_Lower,
+        ci_upper = CI_Upper
+      ) %>%
+      select(scenario_id, replication_id, estimator_name, join_key, 
+             estimate_value, ci_lower, ci_upper)
+  }
+})
+
+# Combine all results
+all_estimators_df <- bind_rows(standardized_results_list)
+all_estimators_df$scenario_no <- as.character(all_estimators_df$scenario_id)
+
+cat("✓ Standardized", nrow(all_estimators_df), "estimate records\n")
+cat("✓ Estimators:", paste(sort(unique(all_estimators_df$estimator_name)), collapse = ", "), "\n")
+```
+
+## 5. Merge Results with Truth
+
+```{r merge_truth}
+# Separate population and subgroup estimators for different truth matching
+population_estimators <- all_estimators_df %>%
+  filter(estimator_name == "population") %>%
+  # Population estimator: deduplicate (same estimate for all subgroups) and match to overall truth
+  distinct(scenario_id, replication_id, estimator_name, estimate_value, ci_lower, ci_upper) %>%
+  mutate(scenario_no = as.character(scenario_id)) %>%
+  left_join(true_population_results, by = "scenario_no") %>%
+  rename(truth_value = truth_population)
+
+subgroup_estimators <- all_estimators_df %>%
+  filter(estimator_name != "population") %>%
+  # Subgroup estimators: match to subgroup-specific truth
+  left_join(real_params_tidy, by = c("scenario_no", "join_key")) %>%
+  left_join(true_population_results, by = "scenario_no")
+
+# Combine back together
+merged_df <- bind_rows(subgroup_estimators, population_estimators)
+
+# Check for missing truth values
+n_missing_truth <- sum(is.na(merged_df$truth_value))
+if (n_missing_truth > 0) {
+  warning(paste(n_missing_truth, "estimates could not be matched to truth values"))
+}
+
+cat("✓ Merged results with truth\n")
+cat("  - Total estimates:", nrow(merged_df), "\n")
+cat("  - Missing truth:", n_missing_truth, "\n")
+cat("  - Population estimates:", sum(merged_df$estimator_name == "population", na.rm = TRUE), "\n")
+cat("  - Subgroup estimates:", sum(merged_df$estimator_name != "population", na.rm = TRUE), "\n")
+```
+
+## 6. Calculate Overall RMSE by Scenario
+
+```{r calculate_rmse}
+# Calculate RMSE for each estimator × scenario combination
+rmse_results <- merged_df %>%
+  filter(!is.na(truth_value)) %>%
+  group_by(scenario_no, estimator_name) %>%
+  summarise(
+    rmse = sqrt(mean((estimate_value - truth_value)^2, na.rm = TRUE)),
+    n_estimates = n(),
+    .groups = 'drop'
+  )
+
+# Display RMSE table
+rmse_table <- rmse_results %>%
+  select(scenario_no, estimator_name, rmse) %>%
+  pivot_wider(names_from = scenario_no, values_from = rmse) %>%
+  arrange(estimator_name)
+
+kable(rmse_table, digits = 3, caption = "RMSE by Estimator and Scenario") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+## 7. Standardized RMSE Plot
+
+```{r standardized_rmse_plot}
+# Define reference estimator (naive subgroup analysis)
+reference_estimator_name <- "subgroup"
+
+# Calculate baseline RMSE for standardization
+baseline_rmse <- rmse_results %>%
+  filter(estimator_name == reference_estimator_name) %>%
+  select(scenario_no, rmse_baseline = rmse)
+
+# Scenario labels for SUNFISH
+scenario_labels <- c(
+  `1` = "Homogeneous\n(1.55 all)",
+  `2` = "Regional\nHeterogeneity",
+  `3` = "Null/Crossover\n(Type)",
+  `4` = "Mild Random\nHeterogeneity",
+  `5` = "Large Random\nHeterogeneity",
+  `6` = "Age×Type\nInteraction"
+)
+
+# Prepare plot data with standardized RMSE
+plot_data <- rmse_results %>%
+  left_join(baseline_rmse, by = "scenario_no") %>%
+  mutate(
+    standardized_rmse = rmse / rmse_baseline,
+    scenario_name = factor(scenario_no, levels = names(scenario_labels), labels = scenario_labels)
+  )
+
+# Create standardized RMSE plot
+ggplot(plot_data, 
+       aes(x = scenario_name, y = standardized_rmse, 
+           group = estimator_name, color = estimator_name)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 1.0, linetype = "dashed", color = "gray40", size = 0.8) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = "Standardized Overall RMSE Across SUNFISH Scenarios",
+    subtitle = "RMSE relative to naive subgroup estimator (no shrinkage)",
+    y = "Standardized RMSE (relative to subgroup)",
+    x = "Simulation Scenario",
+    color = "Estimator"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    legend.position = "bottom",
+    legend.box = "vertical",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(nrow = 2))
+```
+
+## 8. Subgroup-Level Performance Metrics
+
+```{r subgroup_metrics}
+# Calculate performance metrics at subgroup level
+subgroup_performance <- merged_df %>%
+  filter(!is.na(truth_value)) %>%
+  group_by(scenario_no, join_key, estimator_name) %>%
+  summarise(
+    truth_value = first(truth_value),
+    truth_population = first(truth_population),
+    
+    # Performance metrics
+    bias = mean(estimate_value - truth_value, na.rm = TRUE),
+    rmse = sqrt(mean((estimate_value - truth_value)^2, na.rm = TRUE)),
+    
+    # Coverage (95% CI/credible interval)
+    coverage = mean((truth_value >= ci_lower) & (truth_value <= ci_upper), na.rm = TRUE),
+    
+    n_sims = n(),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    # Flag heterogeneous subgroups (>10% difference from population effect)
+    heterogeneous = abs(truth_value - truth_population) > 0.155  # 10% of 1.55
+  )
+
+# Replace NaN coverage with NA
+subgroup_performance <- subgroup_performance %>%
+  mutate(coverage = if_else(is.nan(coverage), NA_real_, coverage))
+
+cat("✓ Calculated subgroup-level metrics\n")
+cat("  - Total subgroup×estimator combinations:", nrow(subgroup_performance), "\n")
+```
+
+## 9. Performance Summary Table
+
+```{r performance_table}
+# Helper functions for formatting
+display <- function(x, digits = 2) {
+  formatC(x, format = "f", digits = digits)
+}
+
+getPercentage <- function(x, digits = 0) {
+  val <- 100 * x
+  ifelse(is.na(val), "NA",
+         paste(formatC(val, digits = digits, format = "f"), "%", sep = ""))
+}
+
+# Overall summaries
+sum_rmse_bias <- subgroup_performance %>%
+  group_by(estimator_name) %>%
+  summarise(
+    rmse = paste(display(mean(rmse, na.rm = TRUE), 2), 
+                 " (", display(min(rmse, na.rm = TRUE), 2), 
+                 "-", display(max(rmse, na.rm = TRUE), 2), ")", sep = ""),
+    abs_bias = paste(display(mean(abs(bias), na.rm = TRUE), 2), 
+                     " (", display(min(abs(bias), na.rm = TRUE), 2), 
+                     "-", display(max(abs(bias), na.rm = TRUE), 2), ")", sep = "")
+  ) %>%
+  arrange(estimator_name)
+
+sum_coverage <- subgroup_performance %>%
+  group_by(estimator_name) %>%
+  summarise(
+    coverage = ifelse(all(is.na(coverage)), "NA",
+                      paste(getPercentage(mean(coverage, na.rm = TRUE)), 
+                            " (", getPercentage(min(coverage, na.rm = TRUE)), 
+                            "-", getPercentage(max(coverage, na.rm = TRUE)), ")", sep = ""))
+  ) %>%
+  arrange(estimator_name)
+
+# Summaries by heterogeneity
+sum_rmse_bias_het <- subgroup_performance %>%
+  group_by(heterogeneous, estimator_name) %>%
+  summarise(
+    rmse = paste(display(mean(rmse, na.rm = TRUE), 2), 
+                 " (", display(min(rmse, na.rm = TRUE), 2), 
+                 "-", display(max(rmse, na.rm = TRUE), 2), ")", sep = ""),
+    abs_bias = paste(display(mean(abs(bias), na.rm = TRUE), 2), 
+                     " (", display(min(abs(bias), na.rm = TRUE), 2), 
+                     "-", display(max(abs(bias), na.rm = TRUE), 2), ")", sep = ""),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator_name)
+
+sum_coverage_het <- subgroup_performance %>%
+  group_by(heterogeneous, estimator_name) %>%
+  summarise(
+    coverage = ifelse(all(is.na(coverage)), "NA",
+                      paste(getPercentage(mean(coverage, na.rm = TRUE)), 
+                            " (", getPercentage(min(coverage, na.rm = TRUE)), 
+                            "-", getPercentage(max(coverage, na.rm = TRUE)), ")", sep = "")),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator_name)
+
+# Get estimator names
+estimator_names <- sort(unique(subgroup_performance$estimator_name))
+estimator_rows <- paste("- ", estimator_names, sep = "")
+n_estimators <- length(estimator_names)
+
+# Filter estimators with coverage
+estimators_with_coverage <- sum_coverage$estimator_name[sum_coverage$coverage != "NA"]
+estimator_rows_coverage <- paste("- ", estimators_with_coverage, sep = "")
+n_estimators_coverage <- length(estimators_with_coverage)
+
+# Assemble table
+performance_table <- data.frame(
+  Criterion = c(
+    "Root mean squared error (RMSE)", estimator_rows,
+    "Absolute bias", estimator_rows,
+    "Coverage of 95% CI/credible interval", estimator_rows_coverage
+  ),
+  All_Subgroups = c(
+    " ", sum_rmse_bias$rmse,
+    " ", sum_rmse_bias$abs_bias,
+    " ", sum_coverage$coverage[sum_coverage$coverage != "NA"]
+  ),
+  Homogeneous = c(
+    " ", with(sum_rmse_bias_het, rmse[!heterogeneous]),
+    " ", with(sum_rmse_bias_het, abs_bias[!heterogeneous]),
+    " ", with(sum_coverage_het, coverage[!heterogeneous & coverage != "NA"])
+  ),
+  Heterogeneous = c(
+    " ", with(sum_rmse_bias_het, rmse[heterogeneous]),
+    " ", with(sum_rmse_bias_het, abs_bias[heterogeneous]),
+    " ", with(sum_coverage_het, coverage[heterogeneous & coverage != "NA"])
+  )
+)
+
+# Calculate footnote info
+n_scenarios <- n_distinct(subgroup_performance$scenario_no)
+n_subgroups_per_scenario <- n_distinct(subgroup_performance$join_key)
+total_subgroups <- n_scenarios * n_subgroups_per_scenario
+
+count_het <- subgroup_performance %>%
+  filter(estimator_name == estimator_names[1]) %>%
+  group_by(scenario_no) %>%
+  summarise(total_het = sum(heterogeneous))
+total_het <- sum(count_het$total_het)
+total_homo <- total_subgroups - total_het
+
+# Display table
+kbl(performance_table,
+    caption = "Performance Metrics for SUNFISH Simulation",
+    booktabs = TRUE,
+    linesep = c("", rep("", n_estimators),
+                "\\addlinespace", rep("", n_estimators),
+                "\\addlinespace", rep("", n_estimators_coverage)),
+    col.names = c("Criterion", "All subgroups", "Homogeneous", "Heterogeneous")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  footnote(
+    general = c(
+      paste("Summary across", total_subgroups, "subgroups (", n_subgroups_per_scenario, 
+            "subgroups ×", n_scenarios, "scenarios) including", total_homo, 
+            "homogeneous and", total_het, "heterogeneous subgroups."),
+      "Heterogeneous subgroups defined as >10% difference from population effect (>0.155 points).",
+      "Monte Carlo standard error of coverage ≈ 0.7% (1000 simulations, true coverage 95%)."
+    ),
+    general_title = ""
+  )
+```
+
+## 10. RMSE by Subgroup (Scenario 2 - Regional Heterogeneity)
+
+```{r rmse_by_subgroup_scenario2, fig.height=10}
+# Focus on Scenario 2 (dramatic regional heterogeneity)
+scenario2_data <- subgroup_performance %>%
+  filter(scenario_no == "2") %>%
+  mutate(
+    # Clean up subgroup names for display
+    subgroup_label = case_when(
+      grepl("5Europe", join_key) ~ "Region: Europe (ref)",
+      grepl("5NorthAmerica", join_key) ~ "Region: North America",
+      grepl("5China", join_key) ~ "Region: China (HARM)",
+      grepl("5Japan", join_key) ~ "Region: Japan (HARM)",
+      grepl("5RoW", join_key) ~ "Region: RoW",
+      TRUE ~ join_key
+    )
+  )
+
+# Plot RMSE by subgroup for Scenario 2
+ggplot(scenario2_data, 
+       aes(x = rmse, y = fct_rev(subgroup_label), 
+           color = estimator_name, shape = estimator_name)) +
+  geom_point(size = 4, position = position_dodge(width = 0.4)) +
+  scale_color_brewer(palette = "Set1") +
+  scale_shape_manual(values = c(15:20, 0:10)) +
+  labs(
+    title = "RMSE by Subgroup - Scenario 2 (Regional Heterogeneity)",
+    subtitle = "Focus on regional subgroups with qualitative interaction",
+    x = "Root Mean Squared Error (RMSE)",
+    y = "",
+    color = "Estimator",
+    shape = "Estimator"
+  ) +
+  theme_bw(base_size = 13) +
+  theme(
+    legend.position = "bottom",
+    legend.box = "vertical",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(nrow = 2), shape = guide_legend(nrow = 2))
+```
+
+## 11. Bias Patterns Across Scenarios
+
+```{r bias_patterns}
+# Calculate mean bias by scenario and estimator
+bias_summary <- subgroup_performance %>%
+  group_by(scenario_no, estimator_name) %>%
+  summarise(
+    mean_bias = mean(bias, na.rm = TRUE),
+    mean_abs_bias = mean(abs(bias), na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    scenario_name = factor(scenario_no, levels = names(scenario_labels), 
+                          labels = scenario_labels)
+  )
+
+# Plot mean absolute bias
+ggplot(bias_summary, 
+       aes(x = scenario_name, y = mean_abs_bias, 
+           group = estimator_name, color = estimator_name)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = "Mean Absolute Bias Across SUNFISH Scenarios",
+    y = "Mean Absolute Bias",
+    x = "Simulation Scenario",
+    color = "Estimator"
+  ) +
+  theme_bw(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    legend.position = "bottom",
+    legend.box = "vertical",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(nrow = 2))
+```
+
+## 12. Coverage Analysis
+
+```{r coverage_analysis}
+# Coverage by scenario
+coverage_by_scenario <- subgroup_performance %>%
+  filter(!is.na(coverage)) %>%
+  group_by(scenario_no, estimator_name) %>%
+  summarise(
+    coverage_pct = 100 * mean(coverage, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    scenario_name = factor(scenario_no, levels = names(scenario_labels), 
+                          labels = scenario_labels)
+  )
+
+# Plot coverage
+ggplot(coverage_by_scenario, 
+       aes(x = scenario_name, y = coverage_pct, 
+           group = estimator_name, color = estimator_name)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 95, linetype = "dashed", color = "gray40", size = 0.8) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = "95% CI/Credible Interval Coverage Across SUNFISH Scenarios",
+    y = "Coverage (%)",
+    x = "Simulation Scenario",
+    color = "Estimator"
+  ) +
+  ylim(85, 100) +
+  theme_bw(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.text.x = element_text(angle = 0, hjust = 0.5),
+    legend.position = "bottom",
+    legend.box = "vertical",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(nrow = 2))
+```
+
+## 13. Summary
+
+### Key Findings
+
+```{r summary_stats}
+# Best overall RMSE
+best_rmse <- subgroup_performance %>%
+  group_by(estimator_name) %>%
+  summarise(mean_rmse = mean(rmse, na.rm = TRUE)) %>%
+  arrange(mean_rmse) %>%
+  slice(1)
+
+# Best coverage
+best_coverage <- subgroup_performance %>%
+  filter(!is.na(coverage)) %>%
+  group_by(estimator_name) %>%
+  summarise(
+    mean_coverage = mean(coverage, na.rm = TRUE),
+    coverage_deviation = abs(mean_coverage - 0.95)
+  ) %>%
+  arrange(coverage_deviation) %>%
+  slice(1)
+
+cat("=== SUNFISH Simulation Summary ===\n\n")
+cat("Best Overall RMSE:\n")
+cat("  -", best_rmse$estimator_name, ":", round(best_rmse$mean_rmse, 3), "\n\n")
+cat("Best Coverage (closest to 95%):\n")
+cat("  -", best_coverage$estimator_name, ":", 
+    round(100 * best_coverage$mean_coverage, 1), "%\n\n")
+cat("Most Challenging Scenario:\n")
+cat("  - Scenario 2 (Regional Heterogeneity) with qualitative interaction\n")
+cat("  - Japan: -3.58 points (harm)\n")
+cat("  - China: -1.85 points (harm)\n")
+cat("  - Europe: +2.40 points (benefit)\n\n")
+```
+
+### Scenario-Specific Insights
+
+- **Scenario 1 (Homogeneous)**: Baseline performance, all methods should perform similarly
+- **Scenario 2 (Regional Heterogeneity)**: Tests ability to detect qualitative interactions (sign reversal)
+- **Scenario 3 (Null/Crossover)**: Tests type-based treatment-by-subgroup interaction
+- **Scenarios 4-5 (Random Heterogeneity)**: Tests robustness to unpredictable variation
+- **Scenario 6 (Age×Type Interaction)**: Tests detection of complex 2-way interactions
+
+---
+
+**Analysis Complete**: `r Sys.time()`

@@ -1,0 +1,8 @@
+Platform: apollo
+Region: eu
+Description: This is a sample job file
+ComputeType: 96CPU-768GB
+ScriptCommand: Rscript TTE/R2D2_mid_unshrunk_x4.R
+Image: 537212169289.dkr.ecr.eu-central-1.amazonaws.com/rstudio-standard:R4.4.3-15apr2025
+WorkingDirectory: /home/pedreram/bonsaiforest2/simulations
+Timeout: 40h

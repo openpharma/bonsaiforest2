@@ -1,0 +1,163 @@
+---
+title: "Simulation_specifications"
+format: html
+editor: visual
+---
+
+### **Simulation Study Specifications: Evaluating Shrinkage Estimators for Subgroup Analysis**
+
+**Project:** Shrinkage estimation of treatment effects in subgroups
+
+**Intern:** Miriam Pedrera Gómez
+
+**Supervisors:** Marcel Wolbers, Isaac Gravestock
+
+**Contributors:** Alex O’Campo, Björn Bornkamp, Sebastian Weber
+
+**Date:** October 14, 2025
+
+------------------------------------------------------------------------
+
+# Introduction and Background
+
+Subgroup analyses are a critical component of clinical trial reporting, but standard methods are prone to spurious findings due to issues of multiplicity and small sample sizes. Shrinkage estimation offers a statistically rigorous alternative by borrowing information across subgroups to achieve a more favorable bias-variance trade-off.
+
+This project aims to systematically compare different Bayesian shrinkage estimation approaches. The technical implementation will be powered by a purpose-built R library that facilitates the construction of complex `brms` models. This library separates model terms into unshrunk/shrunk prognostic and predictive components, allowing for differential regularization. It also uses a robust standardization approach to derive marginal treatment effects.
+
+This simulation study is designed to evaluate and compare the performance of different model structures and priors across a range of realistic clinical trial scenarios.
+
+# Objectives
+
+The primary objectives of this simulation study are:
+
+1.  To compare the performance of **global shrinkage models against one-variable-at-a-time (OVAT) models**.
+2.  To **evaluate a range of Bayesian priors** (e.g., Horseshoe, R2D2, Hierarchical) that induce different types and degrees of shrinkage on predictive model terms.
+3.  To evaluate the performance of models where specific, high-credibility predictive effects are excluded from shrinkage.
+4.  To benchmark Bayesian shrinkage approaches against standard **frequentist estimators, specifically a "population" (full shrinkage) model and a "subgroup" (no shrinkage) model**.
+5.  To assess the operating characteristics (bias, RMSE, coverage) of these methods across **Time-to-Event, continuous, binary, and count outcomes**.
+
+# Data Generating Process (DGP)
+
+The simulation parameters will be motivated by the GALLIUM trial, as described in Wolbers et al. (2025).
+
+-   **Baseline Subgrouping Variables:**
+    -   Tten categorical variables will be designated as the *subgrouping variables* for defining treatment interactions, matching the structure in Wolbers et al. (2025). All of them will be included in the model as both prognostic and predictive terms.
+-   **Scenarios:**
+    -   The six scenarios from Wolbers et al. (2025) will be used, plus one new scenario.
+        1.  **Homogeneous:** Treatment effect is constant across all subgroups. (Overall Positive, $HR=0.66$).
+        2.  **Heterogeneous:** No effect in subgroup $x_4a$ ($HR=1.0$). (Overall Positive, $HR \sim 0.66$).
+        3.  **Null (Crossover):** Hidden benefit in $x_4a$ ($HR=0.5$) and harm in $x_4b/c$ ($HR=1.25$). (Overall Null, $HR \sim 1.0$).
+        4.  **Random (Mild):** Mild, random treatment effect heterogeneity (noise). (Overall Null, $HR \sim 1.0$).
+        5.  **Random (Large):** Large, random treatment effect heterogeneity (noise). (Overall Null, $HR \sim 1.0$).
+        6.  **Interaction:** Complex 3-way interaction between $x_1$, $x_2$, and arm. (Overall Positive, $HR \sim 0.66$).
+-   **Data for Time-to-Event (TTE) Analysis:**
+    -   The initial TTE analysis will use the exact simulated datasets from the Wolbers et al. (2025) publication to ensure direct comparability.
+    -   These datasets are based on a two-arm trial with $N=1000$ and $n_{ev}=247$ events.
+-   **Data for Other Endpoints:**
+    -   Following the TTE analysis, the study will be extended to continuous, binary, and count outcomes, generating new datasets with a similar rich covariate structure and adapting coefficients from the TTE scenarios. All the parameters of the different endpoints have been selected to ensure and 80% power in our simulated trial.
+    -   **Binary (Logistic Regression):**
+        -   **Coefficients:** Adapted from TTE, preserving the HR structure as an Odds Ratio (OR) (e.g., Logistic coef = $log(0.66)$).
+        -   **Sample Size (N):** 760 ($n=380$ per arm).
+        -   **Control Event Rate:** \~45% (Set by Intercept $\beta_0 = -0.2$).
+        -   **Baseline Effect (Scen. 1):** Beneficial ($OR = 0.66$).
+    -   **Count (Negative Binomial Regression):**
+        -   **Interpretation:** Outcome Y is a "bad" event (e.g., exacerbations). A beneficial treatment reduces the count rate.
+        -   **Coefficients:** A beneficial effect ($RR=0.66$) requires a negative coefficient ($log(0.66)$).
+        -   **Sample Size (N):** 650 ($n=325$ per arm).
+        -   **Baseline Count (Control):** 2.7 (Set by Intercept to 1.0).
+        -   **Overdispersion:** 2.0.
+        -   **Baseline Effect (Scen. 1):** Beneficial ($RR = 0.66$).
+    -   **Continuous (Linear Regression):**
+        -   **Interpretation:** Outcome Y is a "bad" score (e.g., disease activity). A beneficial treatment lowers the score.
+        -   **Coefficients:** A beneficial effect (e.g., $SMD d = -0.3$) requires a negative coefficient.
+        -   **Sample Size (N):** 350.
+        -   **Baseline Mean (Control):** 0.
+        -   **Residual SD (**$\sigma$): 1.
+        -   **Baseline Effect (Scen. 1):** Beneficial ($d = -0.3$).
+
+# Methods to be Evaluated
+
+The study will compare frequentist benchmarks against fully Bayesian models.
+
+## Frequentist Benchmarks
+
+-   **Population Estimator (Full Shrinkage):**
+    -   **Methodology:** Fit a single model using the whole dataset, ignoring the subgrouping variables. The resulting overall treatment effect is then assigned to all subgroups.
+-   **Subgroup-Specific Estimator (No Shrinkage):**
+    -   **Methodology:** The data is split into $k$ dataframes based on the $k$ subgroups. A separate, simple model is fit for each subgroup, and the treatment effect is extracted from each.
+
+## Bayesian Model Structures for Comparison
+
+### Model A: Global Shrinkage on Predictive Effects (Wolbers et al. style)
+
+-   **`unshrunk_prognostic_formula_str`**: Will include the treatment variable and main effects for all baseline covariates.
+-   **`shrunk_predictive_formula_str`**: Will include interaction terms between treatment and all 25 subgroup levels.
+
+### Model B: One-Variable-at-a-Time (OVAT) Hierarchical Model
+
+-   **Methodology:** For each of the 10 subgrouping variables, a model will be fit where:
+    -   **`unshrunk_prognostic_formula_str`**: Includes treatment and the main effect for that single subgrouping variable.
+    -   **`shrunk_predictive_formula_str`**: Includes the interaction between treatment and the levels of that single variable.
+
+### Model C: Targeted Non-Shrinkage for Predictive Effects
+
+-   **Methodology:** It will fit a single global model where:
+    -   **`unshrunk_prognostic_formula_str`**: Includes treatment and all baseline covariate main effects.
+    -   **`unshrunk_predictive_formula_str`**: Includes the single, strong interaction term identified *a priori* (e.g., for $x_4$).
+    -   **`shrunk_predictive_formula_str`**: Includes all remaining treatment-by-subgroup interaction terms.
+
+## Priors for Evaluating Varying Degrees of Shrinkage
+
+The following priors will be applied to the `shrunk_predictive` and `shrunk_prognostic` components. Unless otherwise specified (e.g., in Model C), prognostic effects will use a non-shrinkage Normal prior.
+
+-   **Hierarchical Normal Prior:** For the OVAT approach (Model B), with $\beta_{s,k} \sim N(\mu_s , \sigma^2_s)$, $\mu_s \sim N(0, 100)$, and $\sigma_s \sim \text{Half-Normal}(1)$.
+-   **Horseshoe Prior:** A heavy-tailed prior for sparse signals, well-suited for the global models (A, C). Will be tested with **low, mid, and strong shrinkage** levels.
+-   **R2D2 Prior:** A prior on the model's $R^2$. Will be tested with **l, m, and s shrinkage** levels.
+
+## Estimation of Treatment Effects
+
+-   **Methodology:** For all models, subgroup treatment effects will be calculated as **marginal effects** using standardization (G-computation), as implemented in the `estimate_subgroup_effects` function.
+-   **Effect Measures:** The appropriate effect measure will be calculated based on the response type: Difference in Means (continuous), Odds Ratio (binary), Rate Ratio (count), and Average Hazard Ratio (AHR) for TTE.
+
+# Evaluation Criteria
+
+Performance will be evaluated based on $n_{sim}=1000$ simulations per scenario. The estimand is the true log(Effect Measure) in subgroup $S_k$, denoted by $\theta_k$.
+
+1.  **Overall Root Mean Squared Error (RMSE):** The primary metric, defined as in Wolbers et al. (2025).
+2.  **Subgroup-Specific Metrics:** For each subgroup: **RMSE, Bias, and frequentist coverage** of 95% credible intervals.
+3.  **Model Convergence:** Diagnostics will be run to assess model convergence.
+4.  **Stratified Analysis:** Results will be summarized separately for "homogeneous" and "heterogeneous" subgroups, with "heterogeneous" defined as a true log(AHR) deviation of more than $log(1.1)$ from the population log(AHR).
+5.  **Performance on Extreme Subgroups:** The analysis will assess performance metrics for the most extreme *estimated* subgroup effect and the probability of correctly identifying the null-effect subgroup in Scenario 2.
+
+# Implementation Plan
+
+-   **Software:** The simulation will be executed in R. The provided R library will serve as the core engine for formula creation (`prepare_formula_model`), model fitting (`run_brms_analysis`), and effect estimation (`summary_subgroup_effects`).
+-   **Workflow Management:** The `{targets}` R package will be used to manage the simulation workflow, ensuring reproducibility and efficiency.
+
+## Further analysis and ideas: Sensitivity Analyses on Trial Parameters
+
+To test the robustness of the estimators, we will vary key parameters inspired by real-world trial data from Wang et al. (2024) and Wolbers et al. (2025).
+
+-   **Total Sample Size (N):**
+    -   $N=100$: "Phase 2 / Rare Disease" scenario.
+    -   $N=300$: "Small Confirmatory" scenario (e.g., Remimazolam trial, $N=358$).
+    -   $N=1000$: "Medium Confirmatory" scenario (e.g., SURPASS-2, $N=937$; GALLIUM, $N=1202$).
+    -   $N=3000+$: "Large Confirmatory" scenario (e.g., LEADER trial, $N=9340$).
+-   **Number of Subgroup Levels (L):**
+    -   $L \approx 15$: Models "Low Multiplicity" (e.g., standard demographics-only analyses, $L=7-12$)
+    -   $L \approx 25$: Intermediate scenario.
+    -   $L \approx 40$: Models "High Multiplicity" (e.g., trials with many stratification factors like GALLIUM, $L=49$).
+-   **Subgroup Size Distribution:**
+    -   **Balanced:** Theoretical baseline (e.g., 50/50 split).
+    -   **Imbalanced (GALLIUM-like):** Moderate imbalance; smallest subgroup is still a viable size (e.g., \~10% of N).
+    -   **Extremely Imbalanced (Wang-like):** Realistic, severe imbalance; smallest subgroups are \< 5% of total N (e.g., $N=8$ or $N=20$).
+
+These parameters are motivated by case studies such as:
+
+| Case Study (Endpoint) | Overall Sample Size (N) | Subgrouping Variables | Total Subgroups (L) | Subgroup Size Distribution & Smallest Subgroup |
+|:---|:---|:---|:---|:---|
+| **Case 1: LEADER** (TTE) | \~9,340 | 4 (Age, Race, Region, Sex) | 12 | Highly Imbalanced. Smallest: "Other" Race ($N=389$) |
+| **Case 2: SURPASS-2** (Cont.) | \~937 | 3 (Age, Race, Sex) | 8 | Extremely Imbalanced. Smallest: "Asian" Race ($N=8$) |
+| **Case 3: Remimazolam** (Dichot.) | \~358 | 3 (Age, Race, Sex) | 7 | Imbalanced. Smallest: "Other" Race ($N=27$) |
+| **Case 4: Benralizumab** (Count) | \~534 | 3 (Age, Race, Sex) | 8 | Extremely Imbalanced. Smallest: "Black" Race ($N=20$) |
+| **Case 5: GALLIUM** (TTE) | \~1,202 | 15 (Stratification factors, etc.) | 49 | Imbalanced. Smallest: "CVP" Chemo ($N=118$) |

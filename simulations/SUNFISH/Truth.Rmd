@@ -1,0 +1,324 @@
+---
+title: "SUNFISH Truth Computation"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+# Calculate True Treatment Effects for SUNFISH Simulation
+
+This script computes the theoretical true treatment effects (overall and by subgroup) for all 6 SUNFISH scenarios.
+
+**Endpoint**: Continuous (change from baseline in MFM32 score)  
+**Effect Metric**: Mean difference (Treatment - Control)  
+**Scenarios**: 1-6 (Homogeneous, Age heterogeneity, Null/Crossover, Mild Random, Large Random, Age×Type Interaction)
+
+## Setup
+
+```{r setup, message=FALSE}
+library(tidyverse)
+library(checkmate)
+
+# Load SUNFISH simulation functions
+source('functions.R')
+
+set.seed(0) # For reproducibility (affects random scenarios 4 & 5)
+```
+
+## Parameters
+
+```{r parameters}
+# All scenarios
+all_scenarios <- as.character(1:6)
+
+# Subgroup definitions (matching SUNFISH covariates)
+# Under exchangeability assumption, we include ALL levels (no reference category)
+
+subgroup_names <- c(
+  # Age groups (x_1) - ALL 4 levels
+  "x_1.2-5y", "x_1.6-11y", "x_1.12-17y", "x_1.18-25y",
+  
+  # SMA Type (x_2) - ALL 2 levels
+  "x_2.Type2", "x_2.Type3",
+  
+  # SMN2 copies (x_3) - ALL 3 levels
+  "x_3.2_copies", "x_3.3_copies", "x_3.4_copies",
+  
+  # Disease Severity (x_4) - ALL 3 levels
+  "x_4.Severe_leQ1", "x_4.Moderate", "x_4.Mild_gtQ3",
+  
+  # Region (x_5) - ALL 5 levels
+  "x_5.Europe", "x_5.NorthAmerica", "x_5.China", "x_5.Japan", "x_5.RoW"
+)
+
+# Map subgroup names to coefficient names from model.matrix
+# For reference levels, the coefficient is just the base effect (arm1)
+# For non-reference levels, it's base effect + interaction coefficient
+subgroup_coef_map <- setNames(
+  c(
+    # Age interactions with arm (2-5y is reference, gets base effect only)
+    "arm1", "x_16-11y_arm", "x_112-17y_arm", "x_118-25y_arm",
+    # Type interaction with arm (Type2 is reference)
+    "arm1", "x_2Type3_arm",
+    # SMN2 interactions with arm (2_copies is reference)
+    "arm1", "x_33_copies_arm", "x_34_copies_arm",
+    # Severity interactions with arm (Severe_leQ1 is reference)
+    "arm1", "x_4Moderate_arm", "x_4Mild_gtQ3_arm",
+    # Region interactions with arm (Europe is reference)
+    "arm1", "x_5NorthAmerica_arm", "x_5China_arm", "x_5Japan_arm", "x_5RoW_arm"
+  ),
+  subgroup_names
+)
+
+# Scenario 6 special subgroups (Age × Type interaction)
+# These represent all combinations of Age and Type
+scen_6_subgroups <- c(
+  "x_1_2.2-5y_Type2", "x_1_2.2-5y_Type3",
+  "x_1_2.6-11y_Type2", "x_1_2.6-11y_Type3",
+  "x_1_2.12-17y_Type2", "x_1_2.12-17y_Type3",
+  "x_1_2.18-25y_Type2", "x_1_2.18-25y_Type3"
+)
+```
+
+## Compute True Effects
+
+```{r compute_truth}
+# Get model parameters (N=180, intercept=-0.19, base_effect=1.55, sd=6.0)
+model_params <- .get_model_parameters_sunfish()
+
+# Storage for results
+overall_results_list <- list()
+subgroup_results_list <- list()
+scen6_subgroup_list <- list()
+
+# Loop through all scenarios
+for (scen in all_scenarios) {
+  
+  message(paste("Computing truth for Scenario", scen))
+  
+  # Get coefficients for this scenario
+  coefs <- .get_scenario_coefs_sunfish(scenario = scen, model_params = model_params)
+  
+  # --- 1. OVERALL TREATMENT EFFECT ---
+  # Base treatment effect (arm1 coefficient)
+  overall_effect <- ifelse("arm1" %in% names(coefs), coefs["arm1"], 0)
+  
+  overall_results_list[[scen]] <- data.frame(
+    scenario = scen,
+    metric = "mean_diff",
+    value = overall_effect,
+    stringsAsFactors = FALSE
+  )
+  
+  # --- 2. SUBGROUP-SPECIFIC TREATMENT EFFECTS ---
+  for (subg_name in subgroup_names) {
+    
+    # Get the coefficient name for this subgroup
+    coef_name <- subgroup_coef_map[subg_name]
+    
+    # For reference levels, coef_name is "arm1" (base effect)
+    # For non-reference levels, it's the interaction coefficient
+    if (coef_name == "arm1") {
+      # Reference level: just use base effect
+      total_effect <- overall_effect
+    } else {
+      # Non-reference level: base effect + interaction
+      interaction_effect <- ifelse(coef_name %in% names(coefs), coefs[coef_name], 0)
+      total_effect <- overall_effect + interaction_effect
+    }
+    
+    subgroup_results_list[[length(subgroup_results_list) + 1]] <- data.frame(
+      scenario = scen,
+      subgroup = subg_name,
+      metric = "mean_diff",
+      value = total_effect,
+      stringsAsFactors = FALSE
+    )
+  }
+  
+  # --- 3. SCENARIO 6 INTERACTION SUBGROUPS ---
+  # For Scenario 6, also compute Age×Type interaction subgroups
+  if (scen == "6") {
+    
+    # In Scenario 6, we have the specific interaction coefficient: x_118-25y_x_2Type3_arm
+    # This is the ONLY 2-way interaction defined
+    # We need to compute effects for ALL Age×Type combinations
+    
+    # Age levels: 2-5y (ref), 6-11y, 12-17y, 18-25y
+    # Type levels: Type2 (ref), Type3
+    
+    age_levels <- c("2-5y", "6-11y", "12-17y", "18-25y")
+    type_levels <- c("Type2", "Type3")
+    
+    # Coefficients from Scenario 6:
+    # arm1 = 2.5 (base for 2-5y Type2)
+    # x_16-11y_arm = -0.5
+    # x_112-17y_arm = -1.0
+    # x_118-25y_arm = -2.0
+    # x_2Type3_arm = -0.8
+    # x_118-25y_x_2Type3_arm = -1.5 (SPECIAL interaction)
+    
+    for (age in age_levels) {
+      for (type in type_levels) {
+        
+        subg_name <- paste0("x_1_2.", age, "_", type)
+        
+        # Start with base effect
+        total_effect <- overall_effect
+        
+        # Add age effect (if not reference)
+        if (age != "2-5y") {
+          age_coef <- paste0("x_1", age, "_arm")
+          age_effect <- ifelse(age_coef %in% names(coefs), coefs[age_coef], 0)
+          total_effect <- total_effect + age_effect
+        }
+        
+        # Add type effect (if not reference)
+        if (type != "Type2") {
+          type_coef <- "x_2Type3_arm"
+          type_effect <- ifelse(type_coef %in% names(coefs), coefs[type_coef], 0)
+          total_effect <- total_effect + type_effect
+        }
+        
+        # Add 2-way interaction (only exists for 18-25y × Type3)
+        if (age == "18-25y" && type == "Type3") {
+          ia_coef <- "x_118-25y_x_2Type3_arm"
+          ia_effect <- ifelse(ia_coef %in% names(coefs), coefs[ia_coef], 0)
+          total_effect <- total_effect + ia_effect
+        }
+        
+        scen6_subgroup_list[[length(scen6_subgroup_list) + 1]] <- data.frame(
+          scenario = scen,
+          subgroup = subg_name,
+          metric = "mean_diff",
+          value = total_effect,
+          stringsAsFactors = FALSE
+        )
+      }
+    }
+  }
+}
+
+# Combine into tidy data frames
+truth_overall <- bind_rows(overall_results_list)
+truth_subgroup <- bind_rows(subgroup_results_list)
+truth_scen6_interaction <- bind_rows(scen6_subgroup_list)
+```
+
+## Display Results
+
+```{r display_overall}
+cat("\n=== OVERALL TREATMENT EFFECTS ===\n")
+cat("(Under exchangeability assumption - no reference categories)\n\n")
+truth_overall %>%
+  select(scenario, value) %>%
+  arrange(scenario) %>%
+  print()
+```
+
+```{r display_subgroups}
+cat("\n=== SUBGROUP TREATMENT EFFECTS ===\n")
+cat("(All levels included under exchangeability assumption)\n\n")
+
+# Show key subgroups for each scenario
+for (scen in all_scenarios) {
+  cat(paste("\n--- Scenario", scen, "---\n"))
+  
+  # Get overall effect for this scenario
+  overall <- truth_overall$value[truth_overall$scenario == scen]
+  cat(sprintf("Overall effect: %.2f\n\n", overall))
+  
+  subgroup_table <- truth_subgroup %>%
+    filter(scenario == scen) %>%
+    arrange(subgroup) %>%
+    select(subgroup, value) %>%
+    mutate(
+      deviation = value - overall
+    )
+  
+  print(as.data.frame(subgroup_table))
+  cat("\n")
+}
+```
+
+```{r display_scen6}
+if (nrow(truth_scen6_interaction) > 0) {
+  cat("\n=== SCENARIO 6 INTERACTION SUBGROUPS ===\n\n")
+  truth_scen6_interaction %>%
+    arrange(subgroup) %>%
+    select(subgroup, value) %>%
+    print()
+}
+```
+
+## Save Results
+
+```{r save_truth}
+# Create the truth object (matching format from other simulations)
+simul_truth <- list(
+  truth_overall = truth_overall,
+  truth_subgroup = truth_subgroup,
+  truth_scen6_interaction = truth_scen6_interaction
+)
+
+# Save to Scenarios folder
+save_file <- file.path("Scenarios", "truth.RData")
+save(simul_truth, file = save_file)
+
+message(paste("✅ Saved SUNFISH truth to:", save_file))
+```
+
+## Summary Statistics
+
+```{r summary}
+cat("\n=== SUMMARY STATISTICS ===\n\n")
+
+cat("Overall effects by scenario:\n")
+truth_overall %>%
+  select(scenario, value) %>%
+  arrange(scenario) %>%
+  print()
+
+cat("\n\nSubgroup effect ranges by scenario:\n")
+truth_subgroup %>%
+  group_by(scenario) %>%
+  summarise(
+    min_effect = min(value),
+    max_effect = max(value),
+    range = max(value) - min(value),
+    .groups = "drop"
+  ) %>%
+  arrange(scenario) %>%
+  print()
+
+cat("\n\nNumber of subgroups with benefit (effect > 0) by scenario:\n")
+truth_subgroup %>%
+  group_by(scenario) %>%
+  summarise(
+    n_beneficial = sum(value > 0),
+    n_harmful = sum(value < 0),
+    n_null = sum(value == 0),
+    .groups = "drop"
+  ) %>%
+  arrange(scenario) %>%
+  print()
+```
+
+---
+
+**Notes**:
+
+- For **Scenario 1 (Homogeneous)**: All subgroups should show 1.55 point improvement
+- For **Scenario 2 (Region Heterogeneity)**: 
+  - Europe (ref): +2.40 points
+  - North America: +2.44 points
+  - Japan: -3.58 points (HARM - qualitative interaction)
+  - China: -1.85 points (HARM - qualitative interaction)
+  - RoW: +3.30 points
+- For **Scenario 3 (Null/Crossover)**: Overall effect ~0, Type 2 positive (+2.0), Type 3 negative (-2.0)
+- For **Scenarios 4 & 5 (Random)**: Effects vary randomly around 1.55 base
+- For **Scenario 6 (Interaction)**: Complex Age×Type interaction with specific penalty for old Type 3 patients
+
+The saved `truth.RData` file contains the `simul_truth` list with three components:
+- `truth_overall`: Overall treatment effects for each scenario
+- `truth_subgroup`: Treatment effects for each subgroup within each scenario
+- `truth_scen6_interaction`: Age×Type interaction subgroups for Scenario 6
