@@ -20,7 +20,7 @@ source('functions.R')
 
 ```{r load_data}
 # Load scenario 1
-scenario_1 <- readRDS('Scenarios/SUNFISH_Scenario_1.rds')
+scenario_1 <- readRDS('Scenarios/SCT_Scenario_1.rds')
 
 # Get the first dataset
 dat <- scenario_1[[1]]
@@ -310,7 +310,7 @@ kable(auto_formatted, digits = 3, caption = "Automated Function Results")
 
 ```{r load_saved}
 # Load the saved subgroup results
-sub_results <- readRDS('Results/SUNFISH_subgroup.rds')
+sub_results <- readRDS('Results/SCT_subgroup.rds')
 
 # Filter for scenario 1, simulation 1
 sub_s1_sim1 <- sub_results %>%

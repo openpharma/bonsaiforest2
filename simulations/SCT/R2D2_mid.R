@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
-# RUN GLOBAL MODEL ANALYSIS (bonsaiforest2) FOR SUNFISH TRIAL
-# Prior: r2d2_strong
+# RUN GLOBAL MODEL ANALYSIS (bonsaiforest2) FOR SCT TRIAL
+# Prior: r2d2_mid
 # -----------------------------------------------------------------
 
 # --- 0. CONFIGURATION ---
@@ -8,7 +8,7 @@ ENDPOINT_ID <- "continuous"
 RESULTS_DIR <- "Results"
 
 PRIOR_SPECIFICATIONS <- list(
-  r2d2_strong = list(prior = "R2D2(mean_R2 = 0.5, prec_R2 = 4, cons_D2 = 2)", stanvars = NULL)
+  r2d2_mid = list(prior = "R2D2(mean_R2 = 0.5, prec_R2 = 2, cons_D2 = 1)", stanvars = NULL)
 )
 
 # --- 1. LOAD LIBRARIES AND FUNCTIONS ---
@@ -23,14 +23,14 @@ data.table::setDTthreads(threads = 1)
 
 source("../functions.R")
 
-endpoint_params <- list(folder = "SUNFISH", resp_formula = "y ~ arm", resptype = "continuous")
+endpoint_params <- list(folder = "SCT", resp_formula = "y ~ arm", resptype = "continuous")
 
 # --- 3. LOAD AND PROCESS INPUT DATA ---
-scenarios_to_run <- as.character(1:6)  # All 6 scenarios for SUNFISH
+scenarios_to_run <- as.character(1:6)  # All 6 scenarios for SCT
 scenarios_list <- list()
 
 for (scen in scenarios_to_run) {
-  scen_file <- file.path("Scenarios", paste0("SUNFISH_Scenario_", scen, ".rds"))
+  scen_file <- file.path("Scenarios", paste0("SCT_Scenario_", scen, ".rds"))
   if (!file.exists(scen_file)) stop(paste("File not found:", scen_file))
   scenarios_list[[scen]] <- readRDS(scen_file)
 }
@@ -50,7 +50,7 @@ task_grid <- expand.grid(sim_id = names(flat_named_list), model_type = c("Global
   prior_name = names(PRIOR_SPECIFICATIONS), stringsAsFactors = FALSE)
 
 prior_names_str <- paste(names(PRIOR_SPECIFICATIONS), collapse = "_")
-base_file_name <- paste("SUNFISH", "global", prior_names_str, sep = "_")
+base_file_name <- paste("SCT", "global", prior_names_str, sep = "_")
 log_file <- file.path(RESULTS_DIR, paste0(base_file_name, ".log"))
 if (file.exists(log_file)) file.remove(log_file)
 results_file <- file.path(RESULTS_DIR, paste0(base_file_name, ".rds"))

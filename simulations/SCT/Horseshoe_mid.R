@@ -1,8 +1,8 @@
 # -----------------------------------------------------------------
-# RUN GLOBAL MODEL ANALYSIS (bonsaiforest2) FOR SUNFISH TRIAL
+# RUN GLOBAL MODEL ANALYSIS (bonsaiforest2) FOR SCT TRIAL
 #
 # This script runs the "Global" model analysis using bonsaiforest2
-# with Horseshoe prior (scale_global = 0.1)
+# with Horseshoe prior (scale_global = 0.05)
 # -----------------------------------------------------------------
 
 # --- 0. CONFIGURATION ---
@@ -10,7 +10,7 @@ ENDPOINT_ID <- "continuous"
 RESULTS_DIR <- "Results"
 
 PRIOR_SPECIFICATIONS <- list(
-  horseshoe_strong = list(prior = "horseshoe(scale_global = 0.1)", stanvars = NULL)
+  horseshoe_mid = list(prior = "horseshoe(scale_global = 0.05)", stanvars = NULL)
 )
 
 # --- 1. LOAD LIBRARIES AND FUNCTIONS ---
@@ -37,20 +37,20 @@ source("../functions.R")
 # --- 2. DEFINE ENDPOINT-SPECIFIC PARAMETERS ---
 message(paste("--- Configuring for Endpoint:", ENDPOINT_ID, "---"))
 endpoint_params <- list(
-  folder = "SUNFISH",
+  folder = "SCT",
   resp_formula = "y ~ arm",
   resptype = "continuous"
 )
 
 # --- 3. LOAD AND PROCESS INPUT DATA ---
-cat(sprintf("--- Starting FULL GLOBAL MODEL RUN (SUNFISH) ---\n"))
+cat(sprintf("--- Starting FULL GLOBAL MODEL RUN (SCT) ---\n"))
 cat("Loading scenario data...\n")
 
-scenarios_to_run <- as.character(1:6)  # All 6 scenarios for SUNFISH
+scenarios_to_run <- as.character(1:6)  # All 6 scenarios for SCT
 scenarios_list <- list()
 
 for (scen in scenarios_to_run) {
-  scen_file <- file.path("Scenarios", paste0("SUNFISH_Scenario_", scen, ".rds"))
+  scen_file <- file.path("Scenarios", paste0("SCT_Scenario_", scen, ".rds"))
   
   if (!file.exists(scen_file)) {
     stop(paste("File not found:", scen_file, "- Did you run Scenarios_generation.Rmd?"))
@@ -89,7 +89,7 @@ task_grid <- expand.grid(
 
 # --- 5. SET UP LOGGING AND RESULTS FILES ---
 prior_names_str <- paste(names(PRIOR_SPECIFICATIONS), collapse = "_")
-base_file_name <- paste("SUNFISH", "global", prior_names_str, sep = "_")
+base_file_name <- paste("SCT", "global", prior_names_str, sep = "_")
 
 log_file <- file.path(RESULTS_DIR, paste0(base_file_name, ".log"))
 if (file.exists(log_file)) file.remove(log_file)

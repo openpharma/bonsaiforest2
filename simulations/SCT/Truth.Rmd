@@ -1,12 +1,12 @@
 ---
-title: "SUNFISH Truth Computation"
+title: "SCT Truth Computation"
 output: html_document
 date: "`r Sys.Date()`"
 ---
 
-# Calculate True Treatment Effects for SUNFISH Simulation
+# Calculate True Treatment Effects for SCT Simulation
 
-This script computes the theoretical true treatment effects (overall and by subgroup) for all 6 SUNFISH scenarios.
+This script computes the theoretical true treatment effects (overall and by subgroup) for all 6 SCT scenarios.
 
 **Endpoint**: Continuous (change from baseline in MFM32 score)  
 **Effect Metric**: Mean difference (Treatment - Control)  
@@ -18,7 +18,7 @@ This script computes the theoretical true treatment effects (overall and by subg
 library(tidyverse)
 library(checkmate)
 
-# Load SUNFISH simulation functions
+# Load SCT simulation functions
 source('functions.R')
 
 set.seed(0) # For reproducibility (affects random scenarios 4 & 5)
@@ -30,7 +30,7 @@ set.seed(0) # For reproducibility (affects random scenarios 4 & 5)
 # All scenarios
 all_scenarios <- as.character(1:6)
 
-# Subgroup definitions (matching SUNFISH covariates)
+# Subgroup definitions (matching SCT covariates)
 # Under exchangeability assumption, we include ALL levels (no reference category)
 
 subgroup_names <- c(
@@ -264,7 +264,7 @@ simul_truth <- list(
 save_file <- file.path("Scenarios", "truth.RData")
 save(simul_truth, file = save_file)
 
-message(paste("✅ Saved SUNFISH truth to:", save_file))
+message(paste("✅ Saved SCT truth to:", save_file))
 ```
 
 ## Summary Statistics

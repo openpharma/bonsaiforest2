@@ -120,7 +120,7 @@ generate_stacked_data <- function(base_model, subgr_model, data, resptype) {
 #' - SMN2 copy number correlates with baseline motor function
 #'
 #' Treatment assignment: 2:1 ratio (Risdiplam=1, Placebo=0)
-simul_covariates_sunfish <- function(n = 180, arm_factor = TRUE, max_attempts = 1000) {
+simul_covariates_sct <- function(n = 180, arm_factor = TRUE, max_attempts = 1000) {
   
   # Use rejection sampling to ensure at least 1 patient per subgroup per arm
   for (attempt in 1:max_attempts) {
@@ -258,7 +258,7 @@ simul_covariates_sunfish <- function(n = 180, arm_factor = TRUE, max_attempts = 
 #' - Intercept: -0.19 (Mean change in Placebo, Table 2)
 #' - Base effect: 1.55 (Treatment difference, Table 2)
 #' - SD: 5.0 (Reduced from 6.0 to decrease variance in estimates)
-.get_model_parameters_sunfish <- function() {
+.get_model_parameters_sct <- function() {
   list(
     endpoint = "continuous",
     N = 180,             # Total N from SUNFISH Part 2
@@ -274,7 +274,7 @@ simul_covariates_sunfish <- function(n = 180, arm_factor = TRUE, max_attempts = 
 #' Adapts the original 6-scenario framework to SUNFISH trial context.
 #'
 #' @param scenario Character, "1" through "6"
-#' @param model_params List from .get_model_parameters_sunfish()
+#' @param model_params List from .get_model_parameters_sct()
 #'
 #' @return Named vector of coefficients
 #'
@@ -310,7 +310,7 @@ simul_covariates_sunfish <- function(n = 180, arm_factor = TRUE, max_attempts = 
 #'   - SMN2 copy number has strong prognostic effect
 #'
 #' Note: Uses dummy coding where arm1 represents reference group
-.get_scenario_coefs_sunfish <- function(scenario, model_params) {
+.get_scenario_coefs_sct <- function(scenario, model_params) {
   
   # Set seed for reproducibility of random scenarios
   RNGkind('Mersenne-Twister')
@@ -414,15 +414,15 @@ simul_covariates_sunfish <- function(n = 180, arm_factor = TRUE, max_attempts = 
 #' Internal helper function to generate one dataset with MFM32 outcomes.
 #'
 #' @param n Sample size
-#' @param model_params List from .get_model_parameters_sunfish()
+#' @param model_params List from .get_model_parameters_sct()
 #' @param coefs Named vector of coefficients
 #' @param scenario Character scenario ID ("1" to "6") - needed for Scenario 6 interaction
 #'
 #' @return Data frame with id, arm, covariates (x_1 to x_5, baseline_mfm), and y (MFM32 change)
-.simul_sunfish_single <- function(n, model_params, coefs, scenario = "1") {
+.simul_sct_single <- function(n, model_params, coefs, scenario = "1") {
   
   # 1. Generate SUNFISH Covariates (N=180, 2:1 Ratio, Age/SMA/SMN2/Severity/Region)
-  covariates <- simul_covariates_sunfish(n = n, arm_factor = TRUE)
+  covariates <- simul_covariates_sct(n = n, arm_factor = TRUE)
   
   # 2. Build Design Matrix
   # Scenario 6 requires Age × Type interaction with treatment
@@ -483,7 +483,7 @@ simul_covariates_sunfish <- function(n = 180, arm_factor = TRUE, max_attempts = 
 #'
 #' Main wrapper function to generate replicated datasets for SUNFISH scenarios.
 #'
-#' @param scenario Character, "1" through "6" (see .get_scenario_coefs_sunfish for details)
+#' @param scenario Character, "1" through "6" (see .get_scenario_coefs_sct for details)
 #' @param n_datasets Number of replicate datasets to generate (default 1000)
 #'
 #' @return List of data frames, each containing one simulated dataset
@@ -491,18 +491,18 @@ simul_covariates_sunfish <- function(n = 180, arm_factor = TRUE, max_attempts = 
 #' @examples
 #' \dontrun{
 #' # Generate 1000 datasets for scenario 1 (homogeneous effect)
-#' datasets_s1 <- simul_sunfish_data(scenario = "1", n_datasets = 1000)
+#' datasets_s1 <- simul_sct_data(scenario = "1", n_datasets = 1000)
 #' 
 #' # Generate 1000 datasets for scenario 2 (age heterogeneity)
-#' datasets_s2 <- simul_sunfish_data(scenario = "2", n_datasets = 1000)
+#' datasets_s2 <- simul_sct_data(scenario = "2", n_datasets = 1000)
 #' 
 #' # Generate for all 6 scenarios
 #' for (s in 1:6) {
-#'   data <- simul_sunfish_data(scenario = as.character(s), n_datasets = 1000)
+#'   data <- simul_sct_data(scenario = as.character(s), n_datasets = 1000)
 #'   saveRDS(data, paste0("Scenario_", s, ".rds"))
 #' }
 #' }
-simul_sunfish_data <- function(scenario = c("1", "2", "3", "4", "5", "6"), n_datasets = 1000) {
+simul_sct_data <- function(scenario = c("1", "2", "3", "4", "5", "6"), n_datasets = 1000) {
   
   # Match arguments
   scenario <- match.arg(scenario)
@@ -511,15 +511,15 @@ simul_sunfish_data <- function(scenario = c("1", "2", "3", "4", "5", "6"), n_dat
   message(paste("Generating SUNFISH Data: Scenario", scenario))
   
   # Get SUNFISH parameters
-  params <- .get_model_parameters_sunfish()
+  params <- .get_model_parameters_sct()
   
   # Get coefficients based on scenario
-  coefs <- .get_scenario_coefs_sunfish(scenario, params)
+  coefs <- .get_scenario_coefs_sct(scenario, params)
   
   # Generate the list of n_datasets
   replicate(
     n_datasets,
-    .simul_sunfish_single(
+    .simul_sct_single(
       n = params$N,
       model_params = params,
       coefs = coefs,

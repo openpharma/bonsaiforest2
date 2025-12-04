@@ -1,5 +1,5 @@
 ---
-title: "SUNFISH Simulation Results Analysis"
+title: "SCT Simulation Results Analysis"
 output: 
   html_document:
     toc: true
@@ -23,9 +23,9 @@ library(checkmate)
 library(forcats)
 ```
 
-# SUNFISH Simulation Analysis
+# SCT Simulation Analysis
 
-This document analyzes the performance of different estimators in the SUNFISH Part 2 trial simulation across 6 scenarios with varying degrees of regional and treatment heterogeneity.
+This document analyzes the performance of different estimators in the SCT Part 2 trial simulation across 6 scenarios with varying degrees of regional and treatment heterogeneity.
 
 **Endpoint**: Continuous (Change from baseline in MFM32 score)  
 **Effect Metric**: Mean Difference (Treatment - Control)  
@@ -35,10 +35,10 @@ This document analyzes the performance of different estimators in the SUNFISH Pa
 
 ```{r config}
 # Define endpoint parameters for continuous outcome
-ENDPOINT_ID <- 'SUNFISH'
+ENDPOINT_ID <- 'SCT'
 
 ep_params <- list(
-  folder = "SUNFISH",
+  folder = "SCT",
   truth_list_name = "simul_truth",
   truth_overall_name = "truth_overall",
   truth_subgroup_name = "truth_subgroup",
@@ -50,7 +50,7 @@ ep_params <- list(
   log_truth_col = "value"
 )
 
-cat("Analyzing SUNFISH simulation results...\n")
+cat("Analyzing SCT simulation results...\n")
 cat("Endpoint:", ep_params$est_metric, "\n")
 ```
 
@@ -283,7 +283,7 @@ baseline_rmse <- rmse_results %>%
   filter(estimator_name == reference_estimator_name) %>%
   select(scenario_no, rmse_baseline = rmse)
 
-# Scenario labels for SUNFISH
+# Scenario labels for SCT
 scenario_labels <- c(
   `1` = "Homogeneous\n(1.55 all)",
   `2` = "Regional\nHeterogeneity",
@@ -310,7 +310,7 @@ ggplot(plot_data,
   geom_hline(yintercept = 1.0, linetype = "dashed", color = "gray40", size = 0.8) +
   scale_color_brewer(palette = "Set1") +
   labs(
-    title = "Standardized Overall RMSE Across SUNFISH Scenarios",
+    title = "Standardized Overall RMSE Across SCT Scenarios",
     subtitle = "RMSE relative to naive subgroup estimator (no shrinkage)",
     y = "Standardized RMSE (relative to subgroup)",
     x = "Simulation Scenario",
@@ -471,7 +471,7 @@ total_homo <- total_subgroups - total_het
 
 # Display table
 kbl(performance_table,
-    caption = "Performance Metrics for SUNFISH Simulation",
+    caption = "Performance Metrics for SCT Simulation",
     booktabs = TRUE,
     linesep = c("", rep("", n_estimators),
                 "\\addlinespace", rep("", n_estimators),
@@ -556,7 +556,7 @@ ggplot(bias_summary,
   geom_point(size = 3) +
   scale_color_brewer(palette = "Set1") +
   labs(
-    title = "Mean Absolute Bias Across SUNFISH Scenarios",
+    title = "Mean Absolute Bias Across SCT Scenarios",
     y = "Mean Absolute Bias",
     x = "Simulation Scenario",
     color = "Estimator"
@@ -597,7 +597,7 @@ ggplot(coverage_by_scenario,
   geom_hline(yintercept = 95, linetype = "dashed", color = "gray40", size = 0.8) +
   scale_color_brewer(palette = "Set1") +
   labs(
-    title = "95% CI/Credible Interval Coverage Across SUNFISH Scenarios",
+    title = "95% CI/Credible Interval Coverage Across SCT Scenarios",
     y = "Coverage (%)",
     x = "Simulation Scenario",
     color = "Estimator"
@@ -637,7 +637,7 @@ best_coverage <- subgroup_performance %>%
   arrange(coverage_deviation) %>%
   slice(1)
 
-cat("=== SUNFISH Simulation Summary ===\n\n")
+cat("=== SCT Simulation Summary ===\n\n")
 cat("Best Overall RMSE:\n")
 cat("  -", best_rmse$estimator_name, ":", round(best_rmse$mean_rmse, 3), "\n\n")
 cat("Best Coverage (closest to 95%):\n")

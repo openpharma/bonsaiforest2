@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# Quick test script to verify SUNFISH covariate generation and correlations
+# Quick test script to verify SCT covariate generation and correlations
 
 library(MASS)
 
@@ -8,9 +8,9 @@ source("functions.R")
 
 # Generate a test dataset
 set.seed(123)
-test_data <- simul_covariates_sunfish(n = 180, arm_factor = TRUE)
+test_data <- simul_covariates_sct(n = 180, arm_factor = TRUE)
 
-cat("=== SUNFISH Covariate Generation Test ===\n\n")
+cat("=== SCT Covariate Generation Test ===\n\n")
 
 # 1. Check sample size and structure
 cat("1. Dataset dimensions:\n")
@@ -78,8 +78,8 @@ cat("\n")
 # 6. Generate a scenario 2 dataset to verify coefficients
 cat("6. Testing Scenario 2 coefficient structure:\n")
 
-params <- .get_model_parameters_sunfish()
-coefs <- .get_scenario_coefs_sunfish("2", params)
+params <- .get_model_parameters_sct()
+coefs <- .get_scenario_coefs_sct("2", params)
 
 cat(sprintf("   - Number of non-zero coefficients: %d\n", sum(coefs != 0)))
 cat("   - Key coefficients:\n")
