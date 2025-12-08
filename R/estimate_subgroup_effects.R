@@ -146,7 +146,8 @@ estimate_subgroup_effects <- function(brms_fit,
         if (is.factor(original_data[[var_name]]) && var_name != trt_var) {
           # Check if any dummy matches this variable
           var_levels <- levels(original_data[[var_name]])
-          expected_dummies <- paste0(trt_var, "_", var_name, var_levels)
+          # Use make.names to match the sanitized names created in prepare_formula_model
+          expected_dummies <- make.names(paste0(trt_var, "_", var_name, var_levels), unique = FALSE)
           if (any(expected_dummies %in% interaction_cols)) {
             detected_vars <- c(detected_vars, var_name)
           }
@@ -233,6 +234,7 @@ estimate_subgroup_effects <- function(brms_fit,
   for (col in interaction_cols) {
     # Find which variable this corresponds to by checking which factor variable
     # in model_data has this level
+    matched <- FALSE
     for (var_name in names(model_data)) {
       if (is.factor(model_data[[var_name]]) && var_name != trt_var) {
         # Check if this dummy name contains a level of this factor
@@ -243,10 +245,19 @@ estimate_subgroup_effects <- function(brms_fit,
             # This is the dummy for this variable-level combination
             # Set to 1 for patients in this level, 0 otherwise
             data_treatment[[col]] <- as.numeric(model_data[[var_name]] == level)
+            matched <- TRUE
             break
           }
         }
+        if (matched) break
       }
+    }
+    
+    # If no match found, the dummy column might be from a variable that's not a factor
+    # in the current data. Keep it at 0 for safety.
+    if (!matched) {
+      warning(paste("Could not match interaction column", col, "to any factor variable. Setting to 0."))
+      data_treatment[[col]] <- 0
     }
   }
 

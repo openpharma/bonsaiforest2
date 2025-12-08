@@ -504,7 +504,8 @@ prepare_formula_model <- function(data,
 
       for (level in subgroup_levels) {
         # Create interaction dummy: 1 if (trt == treatment_level AND subgroup == level), else 0
-        dummy_name <- paste0(.trt_var, "_", subgroup_var, level)
+        # Use make.names to ensure valid R variable names (handles special chars like - in "2-5y")
+        dummy_name <- make.names(paste0(.trt_var, "_", subgroup_var, level), unique = FALSE)
         .data[[dummy_name]] <- as.numeric(
           .data[[.trt_var]] == trt_levels[2] & .data[[subgroup_var]] == level
         )
