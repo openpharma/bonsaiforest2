@@ -57,7 +57,7 @@
 #'   )
 #'
 #'   # 3. Fit the model
-#'   \donttest{
+#'   \dontrun{
 #'   fit <- fit_brms_model(
 #'     prepared_model = prepared_model,
 #'     # Note: intercept prior is not needed for survival models
