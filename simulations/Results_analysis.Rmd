@@ -1,0 +1,585 @@
+---
+title: "Automated Simulation Results Analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+# --- 2. LOAD LIBRARIES ---
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(purrr)     # For automated loading
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(checkmate)
+```
+
+# TTE
+```{r}
+# --- 3. DEFINE ENDPOINT PARAMETERS ---
+ENDPOINT_ID <- 'count'
+message(paste("--- Analyzing Endpoint:", ENDPOINT_ID, "---"))
+
+# Dynamically set paths and truth/estimate metrics
+ep_params <- switch(ENDPOINT_ID,
+  "tte" = list(
+    folder = "TTE",
+    truth_list_name = "simul_parameter",
+    truth_overall_name = "true_overall_results",
+    truth_subgroup_name = "true_subgroup_ahr", # exp-scale
+    truth_metric_exp = "AHR", # from true_overall_results
+    est_metric = "AHR", # from naive results
+    est_col = "estimate_ahr",
+    ci_low = "lower_ci_ahr",
+    ci_up = "upper_ci_ahr",
+    log_truth_col = "true_log_ahr"
+  ),
+  "binary" = list(
+    folder = "Binary",
+    truth_list_name = "simul_truth",
+    truth_overall_name = "truth_overall",
+    truth_subgroup_name = "truth_subgroup", # log-scale
+    truth_metric_exp = "exp_value",
+    est_metric = "OR",
+    est_col = "estimate",
+    ci_low = "lower_ci_ahr",
+    ci_up = "upper_ci_ahr",
+    log_truth_col = "value"
+  ),
+  "count" = list(
+    folder = "Count",
+    truth_list_name = "simul_truth",
+    truth_overall_name = "truth_overall",
+    truth_subgroup_name = "truth_subgroup", # log-scale
+    truth_metric_exp = "exp_value",
+    est_metric = "RR",
+    est_col = "estimate", # log-scale
+    ci_low = "lower_ci",
+    ci_up = "upper_ci",
+    log_truth_col = "value"
+  ),
+  "continuous" = list(
+    folder = "Continuous",
+    truth_list_name = "simul_truth",
+    truth_overall_name = "truth_overall",
+    truth_subgroup_name = "truth_subgroup", # log-scale
+    truth_metric_exp = "value", # This is the mean-diff, no exp
+    est_metric = "MeanDiff",
+    est_col = "estimate", # log-scale
+    ci_low = "lower_ci",
+    ci_up = "upper_ci",
+    log_truth_col = "value"
+  )
+)
+
+# --- 4. FIND AND LOAD ALL RESULTS FILES ---
+results_path <- file.path(ep_params$folder, "Results")
+all_files <- list.files(results_path, pattern = "\\.rds$", full.names = TRUE)
+
+# Helper function to load, validate, and add file metadata
+load_and_validate_rds <- function(file_path) {
+  message(paste("Loading:", basename(file_path)))
+  
+  df <- readRDS(file_path)
+  
+  # VALIDATION: Check for 6000 simulations
+  # (6 scenarios * 1000 reps)
+  # The 'bonsaiforest2' results have 'scenario_id' and 'replication_id'
+  if ("scenario_id" %in% names(df)) {
+    n_sims <- df %>% distinct(scenario_id, replication_id) %>% nrow()
+    id_cols <- c("scenario_id", "replication_id")
+  } 
+  # The 'naive' results have 'scenario_no' and 'simul_no'
+  else if ("scenario_no" %in% names(df)) {
+    n_sims <- df %>% distinct(scenario_no, simul_no) %>% nrow()
+    id_cols <- c("scenario_no", "simul_no")
+  } else {
+    warning(paste("Could not validate file:", basename(file_path)))
+    return(NULL)
+  }
+  
+  if (n_sims != 6000) {
+    warning(sprintf("File %s is incomplete! Expected 6000 sims, found %d.", 
+                    basename(file_path), n_sims))
+  } else {
+    message(paste("  ...Validation OK: 6000 simulations found."))
+  }
+  
+  # Add metadata from the file name
+  df %>% mutate(
+    file_name = basename(file_path),
+    # Parse estimator from filename, e.g., "tte_global_horseshoe_strong.rds"
+    estimator_name = str_remove(file_name, paste0("^", ENDPOINT_ID, "_")) %>%
+                     str_remove("\\.rds$")
+  )
+}
+
+# Load all files into a single list
+all_results_list <- lapply(all_files, load_and_validate_rds)
+#all_results_list<-all_results_list[1:7]
+# --- 5. LOAD "TRUTH" DATA ---
+truth_file <- file.path(ep_params$folder, "Scenarios", "truth.RData")
+load(truth_file) # This loads `simul_parameter` or `simul_truth`
+
+message(paste("Loaded truth data from:", truth_file))
+```
+
+
+
+```{r}
+# --- 6. STANDARDIZE THE "TRUTH" DATA ---
+real_params_tidy <- NULL
+
+if (exists("simul_parameter") && ENDPOINT_ID == "tte") {
+  # TTE Truth: `simul_parameter` list, exp-scale AHR
+  real_params_tidy <- simul_parameter[[ep_params$truth_subgroup_name]] %>%
+    mutate(scenario_no = as.character(row_number())) %>%
+    pivot_longer(
+      cols = -scenario_no,
+      names_to = "subgroup_real",
+      values_to = "truth_exp" # This is real_ahr
+    ) %>%
+    mutate(
+      join_key = gsub("x_|\\.", "", subgroup_real),
+      truth_log = log(truth_exp)
+    ) %>%
+    dplyr::select(scenario_no, join_key, truth_log, truth_exp)
+    
+  # Also get TTE overall truth
+  true_population_results <- simul_parameter[[ep_params$truth_overall_name]] %>%
+    mutate(
+      scenario_no = as.character(1:6),
+      truth_population_exp = !!sym(ep_params$truth_metric_exp),
+      truth_population_log = log(truth_population_exp)
+    ) %>%
+    dplyr::select(scenario_no, truth_population_exp, truth_population_log)
+    
+} else if (exists("simul_truth")) {
+  # Other Endpoints: `simul_truth` list, tidy log-scale data
+  real_params_tidy <- simul_truth[[ep_params$truth_subgroup_name]] %>%
+    mutate(
+      join_key = gsub("x_|\\.|aa|ab|ba|bb", "", subgroup),
+      scenario_no = as.character(scenario)
+    ) %>%
+    rename(
+      truth_log = !!sym(ep_params$log_truth_col), # This is log-OR/RR/MeanDiff
+      truth_exp = !!sym(ep_params$truth_metric_exp)
+    ) %>%
+    dplyr::select(scenario_no, join_key, truth_log, truth_exp)
+
+  # Also get other endpoints' overall truth
+  true_population_results <- simul_truth[[ep_params$truth_overall_name]] %>%
+    mutate(
+      scenario_no = as.character(scenario),
+      truth_population_exp = !!sym(ep_params$truth_metric_exp),
+      truth_population_log = !!sym(ep_params$log_truth_col)
+    ) %>%
+    dplyr::select(scenario_no, truth_population_exp, truth_population_log)
+} else {
+  stop("Could not find 'simul_parameter' or 'simul_truth' in loaded .RData file.")
+}
+
+
+# --- 7. STANDARDIZE ALL LOADED RESULTS ---
+# We will bind all results into one master data frame
+standardized_results_list <- lapply(all_results_list, function(df) {
+  
+  # Parse estimator name (e.g., "population", "subgroup", "global_horseshoe_strong")
+  estimator_type <- df$estimator_name[1]
+  
+  if (estimator_type %in% c("population", "subgroup")) {
+    # --- A. Standardize 'naive' and 'naivepop' results ---
+    # These have columns: scenario_no, simul_no, estimator, subgroup, estimate...
+    df %>%
+      mutate(
+        join_key = gsub("S_", "", subgroup) %>% gsub("Overall", "Overall", .),
+        scenario_id = as.integer(scenario_no),
+        replication_id = as.integer(simul_no),
+        # Standardize estimate names
+        estimate_log = estimate,
+        ci_lower = lower_ci,
+        ci_up = upper_ci,
+        # Create the unified estimator name
+        estimator_name = estimator
+      ) %>%
+      dplyr::select(scenario_id, replication_id, estimator_name, join_key, 
+             estimate_log, ci_lower, ci_up)
+      
+  } else {
+    # --- B. Standardize 'bonsaiforest2' (Global/OVAT) results ---
+    # These have columns: scenario_id, replication_id, model_type, prior_name, subgroup...
+    df %>%
+      filter(Subgroup != "Overall") %>% # Filter out overall rows from Global models
+      mutate(
+        join_key = gsub("x_", "", Subgroup),
+        # Create the unified estimator name
+        estimator_name = paste(model_type, prior_name, sep = "_")
+      ) %>%      
+      mutate(
+        join_key = gsub(": ", "", join_key)
+      ) %>%
+      # Standardize estimate names
+      rename(
+        estimate_log = Median, # This is misnamed in the Rmd, it's log-scale
+        ci_lower = CI_Lower,
+        ci_up = CI_Upper
+      ) %>%
+      # Handle TTE (exp-scale) vs other (log-scale) outputs
+      # The Rmd code `log(Median)` implies TTE results are on exp-scale
+      {
+        if (ENDPOINT_ID %in% c("tte", 'count')) {
+          mutate(.,
+            # Convert TTE estimates to log-scale
+            estimate_log = log(estimate_log),
+            ci_lower = log(ci_lower),
+            ci_up = log(ci_up)
+          )
+        } else {
+          . # For other endpoints, estimates are already log-scale
+        }
+      } %>%
+      dplyr::select(scenario_id, replication_id, estimator_name, join_key, 
+             estimate_log, ci_lower, ci_up)
+  }
+})
+
+# --- 8. COMBINE AND MERGE WITH TRUTH ---
+# Combine all standardized results into one big data frame
+all_estimators_df <- bind_rows(standardized_results_list)
+
+# Convert scenario_id to character for joining
+all_estimators_df$scenario_no <- as.character(all_estimators_df$scenario_id)
+
+# The syntax: gsub(pattern, replacement, vector, fixed = TRUE)
+all_estimators_df$join_key <- gsub(".", "", all_estimators_df$join_key, fixed = TRUE)
+
+# Merge results with the tidy truth data
+merged_df <- left_join(all_estimators_df, real_params_tidy, by = c("scenario_no", "join_key"))
+
+
+# Add population truth for heterogeneous flag
+merged_df_with_pop <- left_join(merged_df, true_population_results, by = "scenario_no")
+
+message("All data loaded, standardized, and merged.")
+```
+
+
+```{r}
+# --- 9. CALCULATE PERFORMANCE METRICS ---
+
+performance_results <- merged_df %>%
+  group_by(scenario_no, estimator_name) %>%
+  summarise(
+    # Calculate multiple metrics on the LOG scale for all endpoints
+    # This makes results comparable: log(HR), log(OR), log(RR), and mean_diff/SD
+    # For continuous: this is the standardized mean difference (since SD=1)
+    
+    # Root Mean Squared Error (penalizes large errors)
+    rmse = sqrt(mean((estimate_log - truth_log)^2, na.rm = TRUE)),
+    
+    # Mean Absolute Error (more robust to outliers)
+    mae = mean(abs(estimate_log - truth_log), na.rm = TRUE),
+    
+    # Mean Bias (systematic over/under-estimation)
+    bias = mean(estimate_log - truth_log, na.rm = TRUE),
+    
+    # Median Absolute Error (very robust)
+    median_ae = median(abs(estimate_log - truth_log), na.rm = TRUE),
+    
+    .groups = 'drop'
+  )
+
+# Keep backward compatibility
+rmse_results <- performance_results %>% dplyr::select(scenario_no, estimator_name, rmse)%>% filter(estimator_name!='Global_r2d2_mid_unshrunk_x4')
+
+
+
+# --- 10. PLOT RMSE ---
+scenario_labels <- c(
+  `1` = "Positive\n(homogeneous)",
+  `2` = "Positive\n(except 1 subgroup)",
+  `3` = "Negative\n(heterogeneity)",
+  `4` = "Mild\nheterogeneity",
+  `5` = "Strong\nheterogeneity",
+  `6` = "Misspecified"
+)
+
+plot_data <- rmse_results %>%
+  mutate(scenario_name = factor(scenario_no, levels = names(scenario_labels), labels = scenario_labels))
+
+final_plot <- ggplot(
+  data = plot_data,
+  aes(x = scenario_name, y = rmse, group = estimator_name, color = estimator_name)
+) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = paste("Overall RMSE Across Simulation Scenarios (Endpoint:", ep_params$folder, ")"),
+    subtitle = paste("Performance of various estimators of the subgroup", paste0("log(", ep_params$est_metric, ")")),
+    y = "RMSE",
+    x = "Simulation Scenario",
+    color = "Estimator"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title = element_text(size = 12),
+    legend.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+print(final_plot)
+```
+
+
+```{r}
+# --- 9. CALCULATE RMSE ---
+# (This section is the same as your original code, with a recommended .groups = 'drop')
+rmse_results <- merged_df %>%
+  group_by(scenario_no, estimator_name) %>%
+  summarise(
+    # RMSE is calculated on the LOG scale
+    rmse = sqrt(mean((estimate_log - truth_log)^2, na.rm = TRUE)),
+    .groups = 'drop' # Good practice to avoid downstream grouping issues
+  )%>% filter(estimator_name!='Global_r2d2_mid_unshrunk_x4')
+
+# --- 10. PREPARE DATA FOR PLOTTING (Modified) ---
+
+# !!! IMPORTANT !!!
+# Define the exact name of your baseline estimator as it appears
+# in the 'estimator_name' column of 'rmse_results'.
+# Based on the Wolbers et al. paper , it is likely this:
+reference_estimator_name <- "subgroup"
+
+# 1. Create a lookup data frame for the baseline (reference) RMSE for each scenario
+baseline_rmse <- rmse_results %>%
+  filter(estimator_name == reference_estimator_name) %>%
+  dplyr::select(scenario_no, rmse_baseline = rmse)
+
+# 2. Define scenario labels (matched to Wolbers et al. Fig 2 )
+scenario_labels <- c(
+  `1` = "Positive\n(homogeneous)",
+  `2` = "Positive\n(except 1 subgroup)",
+  `3` = "Negative\n(except 1 subgroup)", # Corrected from your example to match paper
+  `4` = "Mild\nheterogeneity",
+  `5` = "Strong\nheterogeneity",
+  `6` = "Misspecified"
+)
+
+# 3. Join the baseline RMSE, calculate standardized RMSE, and apply labels
+plot_data <- rmse_results %>%
+  left_join(baseline_rmse, by = "scenario_no") %>%
+  mutate(
+    # This is the new standardized RMSE value
+    standardized_rmse = rmse / rmse_baseline
+  ) %>%
+  mutate(
+    scenario_name = factor(scenario_no, levels = names(scenario_labels), labels = scenario_labels)
+  )
+
+# --- 11. PLOT STANDARDIZED RMSE (Modified) ---
+final_plot <- ggplot(
+  data = plot_data,
+  # Plot the new 'standardized_rmse' on the y-axis
+  aes(x = scenario_name, y = standardized_rmse, group = estimator_name, color = estimator_name)
+) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  # Add a dashed line at y=1.0 to show the reference level
+ # geom_hline(yintercept = 1.0, linetype = "dashed", color = "black", size = 1) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = paste("Standardized Overall RMSE Across Scenarios (Endpoint:", ep_params$folder, ")"),
+    subtitle = paste("RMSE relative to 'subgroup (no shrinkage)' estimator for", paste0("log(", ep_params$est_metric, ")")),
+    y = "Standardized Overall RMSE", # Updated y-axis label
+    x = "Simulation Scenario",
+    color = "Estimator"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title = element_text(size = 12),
+    legend.title = element_text(face = "bold"),
+    panel.grid.minor = element_blank()
+  )
+
+print(final_plot)
+```
+
+
+```{r}
+# --- 11. CALCULATE SUBGROUP PERFORMANCE METRICS ---
+subgroupPerformance <- merged_df_with_pop |>
+  group_by(scenario_no, join_key, estimator_name) |>
+  summarize(
+    # Get the true values (they are constant for this group)
+    truth_log = first(truth_log),
+    truth_exp = first(truth_exp),
+    truth_population_log = first(truth_population_log),
+    
+    # Calculate metrics
+    bias = mean(estimate_log - truth_log, na.rm = TRUE),
+    RMSE = sqrt(mean((estimate_log - truth_log)^2, na.rm = TRUE)),
+    
+    # Calculate coverage
+    # Note: TTE CIs were on exp-scale, others on log-scale.
+    # Our standardization step put ALL CIs (ci_lower, ci_upper) on the LOG-SCALE.
+    # So we compare them to the LOG-SCALE truth.
+    coverage = mean((truth_log >= ci_lower) & (truth_log <= ci_up), na.rm = TRUE)
+  ) |>
+  ungroup() |>
+  mutate(
+    # Create flag for "heterogeneous" subgroups
+    heterogeneous = (abs(truth_log - truth_population_log) > log(1.1))
+  )
+
+# Replace NaN with NA (happens if all CIs for a group were NA)
+subgroupPerformance <- subgroupPerformance %>%
+  mutate(
+    coverage = if_else(is.nan(coverage), NA_real_, coverage)
+  )
+
+# --- 12. HELPER FUNCTIONS FOR TABLE ---
+display <- function(x, digits = 2) {
+  formatC(x, format = "f", digits = digits)
+}
+
+getPercentage <- function(x, digits = 0) {
+  val <- 100 * x
+  ifelse(is.na(val),
+    "NA",
+    paste(formatC(val, digits = digits, format = "f"), "%", sep = "")
+  )
+}
+
+# --- 13. GENERATE TABLE DATA ---
+
+# Summaries by estimator (for 'All subgroups' column)
+sum_RMSEbias <- subgroupPerformance |>
+  group_by(estimator_name) |>
+  summarize(
+    RMSE = paste(display(mean(RMSE, na.rm = TRUE), 2), " (", display(min(RMSE, na.rm = TRUE), 2), "-", display(max(RMSE, na.rm = TRUE), 2), ")", sep = ""),
+    abs_bias = paste(display(mean(abs(bias), na.rm = TRUE), 2), " (", display(min(abs(bias), na.rm = TRUE), 2), "-", display(max(abs(bias), na.rm = TRUE), 2), ")", sep = "")
+  ) |>
+  arrange(estimator_name)
+
+sum_coverage <- subgroupPerformance |>
+  group_by(estimator_name) |>
+  summarize(
+    coverage = ifelse(
+      all(is.na(coverage)), "NA",
+      paste(getPercentage(mean(coverage, na.rm = TRUE)), " (", getPercentage(min(coverage, na.rm = TRUE)), "-", getPercentage(max(coverage, na.rm = TRUE)), ")", sep = "")
+    )
+  ) |>
+  arrange(estimator_name)
+
+# Summaries by heterogeneity status
+sum_RMSEbias_het <- subgroupPerformance |>
+  group_by(heterogeneous, estimator_name) |>
+  summarize(
+    RMSE = paste(display(mean(RMSE, na.rm = TRUE), 2), " (", display(min(RMSE, na.rm = TRUE), 2), "-", display(max(RMSE, na.rm = TRUE), 2), ")", sep = ""),
+    abs_bias = paste(display(mean(abs(bias), na.rm = TRUE), 2), " (", display(min(abs(bias), na.rm = TRUE), 2), "-", display(max(abs(bias), na.rm = TRUE), 2), ")", sep = "")
+  ) |>
+  ungroup() |>
+  arrange(estimator_name)
+
+sum_coverage_het <- subgroupPerformance |>
+  group_by(heterogeneous, estimator_name) |>
+  summarize(
+    coverage = ifelse(
+      all(is.na(coverage)), "NA",
+      paste(getPercentage(mean(coverage, na.rm = TRUE)), " (", getPercentage(min(coverage, na.rm = TRUE)), "-", getPercentage(max(coverage, na.rm = TRUE)), ")", sep = "")
+    )
+  ) |>
+  ungroup() |>
+  arrange(estimator_name)
+
+# Get the list of estimators
+estimator_names <- sort(unique(subgroupPerformance$estimator_name))
+estimator_rows <- paste("- ", estimator_names, sep = "")
+n_estimators <- length(estimator_names)
+
+# Filter to get coverage-specific rows
+estimators_with_coverage <- sum_coverage$estimator_name[sum_coverage$coverage != "NA"]
+estimator_rows_coverage <- paste("- ", estimators_with_coverage, sep = "")
+n_estimators_coverage <- length(estimators_with_coverage)
+
+# Assemble the final data frame 'r'
+r <- data.frame(
+  Criterion = c(
+    "Root mean squared error (RMSE)", estimator_rows,
+    "Absolute bias", estimator_rows,
+    "Coverage of 95% CI/credible interval", estimator_rows_coverage
+  ),
+  overall = c(
+    " ", sum_RMSEbias$RMSE,
+    " ", sum_RMSEbias$abs_bias,
+    " ", sum_coverage$coverage[sum_coverage$coverage != "NA"]
+  ),
+  homo = c(
+    " ", with(sum_RMSEbias_het, RMSE[!heterogeneous]),
+    " ", with(sum_RMSEbias_het, abs_bias[!heterogeneous]),
+    " ", with(sum_coverage_het, coverage[!heterogeneous & coverage != "NA"])
+  ),
+  het = c(
+    " ", with(sum_RMSEbias_het, RMSE[heterogeneous]),
+    " ", with(sum_RMSEbias_het, abs_bias[heterogeneous]),
+    " ", with(sum_coverage_het, coverage[heterogeneous & coverage != "NA"])
+  )
+)
+
+# Calculate footnote info
+n_scenarios <- n_distinct(subgroupPerformance$scenario_no)
+n_subgroups_per_scenario <- n_distinct(subgroupPerformance$join_key)
+total_subgroups <- n_scenarios * n_subgroups_per_scenario
+
+count_het <- subgroupPerformance |>
+  filter(estimator_name == estimator_names[1]) |> 
+  group_by(scenario_no) |> # Group by scenario
+  summarise(total_het = sum(heterogeneous))
+total_het <- sum(count_het$total_het)
+total_homo <- total_subgroups - total_het
+
+# --- 14. CREATE KABLE TABLE ---
+kbl(r,
+  caption = paste("Performance Metrics for Endpoint:", ep_params$folder),
+  booktabs = T,
+  linesep = c(
+    "", rep("", n_estimators),
+    "\\addlinespace", rep("", n_estimators),
+    "\\addlinespace", rep("", n_estimators_coverage)
+  ),
+  col.names = c("Criterion", "All subgroups", "Homogeneous subgroups", "Heterogeneous subgroups")
+) |>
+  footnote(
+    general = c(
+      paste("Summary is across", total_subgroups, "subgroups (", n_subgroups_per_scenario, "subgroups x", n_scenarios, "scenarios) including", total_homo, "homogeneous and", total_het, "heterogeneous subgroups."),
+      "The Monte Carlo standard error of the estimated coverage is estimated to be ~0.7% given 1'000 simulations and true coverage of 95%."
+    ),
+    general_title = ""
+  )
+```
+
+
+```{r}
+library(knitr)
+library(kableExtra)
+library(tidyverse)
+library(checkmate)
+
+p <- ggplot(data = subgroupPerformance %>% filter(scenario_no==3), 
+            aes(x = RMSE, fct_rev(join_key), color= estimator_name, shape = estimator_name))
+
+p + geom_jitter(size=4, width=0, height=0.2) + 
+  scale_colour_manual(values=c("red","orange","steelblue1","darkblue","springgreen4", "salmon4", "yellow", "pink")) +
+  scale_shape_manual(values = 13:20) +
+  theme(text = element_text(size = 24)) +
+  facet_wrap(~scenario_no, nrow=2) + 
+  ylab("") + xlab("Root mean squared error")
+
+```
+

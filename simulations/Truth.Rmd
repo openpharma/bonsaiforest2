@@ -1,0 +1,291 @@
+---
+title: "Truth"
+output: html_document
+---
+
+# Calculate "Truth" for All 4 Endpoints
+
+- TTE: Empirical truth (via simulation)
+- Binary, Count, Continuous: Theoretical truth (from coefficients)
+
+SAVING: Saves a single "truth.RData" file into each endpoint's Scenarios folder.
+
+
+## --- 1. LIBRARIES & SETUP ---
+```{r}
+library(survival)
+library(tidyverse) # For piping and dplyr
+library(checkmate) # For assertions
+library(MASS)      # For mvrnorm (in simul_covariates)
+library(broom)     # For tidy()
+library(bonsaiforest)
+
+# This script assumes ALL simulation functions are loaded:
+source('functions.R')
+
+set.seed(0) # For reproducibility
+```
+
+## --- 2. PARAMETERS AND CONTAINERS ---
+```{r}
+# Loop variables
+all_endpoints <- c("count")
+all_scenarios <- as.character(1:6)
+
+# TTE Model formulas
+base_model_tte <- Surv(tt_pfs, ev_pfs) ~ arm
+subgroup_model <- ~ x_1 + x_2 + x_3 + x_4 + x_5 + x_6 + x_7 + x_8 + x_9 + x_10
+
+# All subgroup names (from your TTE script)
+# NOTE: For TTE, all subgroups x_1 through x_10 are analyzed
+# For other endpoints (binary, count, continuous), only x_1 through x_5 are analyzed
+subgroup_names <- c(
+  "x_1.a", "x_1.b", "x_2.a", "x_2.b", "x_3.a", "x_3.b", "x_4.a",
+  "x_4.b", "x_4.c", "x_5.a", "x_5.b", "x_5.c", "x_5.d", "x_6.a",
+  "x_6.b", "x_7.a", "x_7.b", "x_8.a", "x_8.b", "x_8.c", "x_9.a",
+  "x_9.b", "x_10.a", "x_10.b", "x_10.c"
+)
+
+# Subgroup names for non-TTE endpoints (only x_1 through x_5)
+subgroup_names_short <- c(
+  "x_1.a", "x_1.b", "x_2.a", "x_2.b", "x_3.a", "x_3.b", "x_4.a",
+  "x_4.b", "x_4.c", "x_5.a", "x_5.b", "x_5.c", "x_5.d"
+)
+
+# Scenario 6 subgroups and their coefficient map
+scen_6_subgroups <- c("x_1_2.aa", "x_1_2.ab", "x_1_2.ba", "x_1_2.bb")
+scen_6_coef_map <- c(
+  "x_1_2.aa" = "x_1_2aa_arm",
+  "x_1_2.ab" = "x_1_2ab_arm",
+  "x_1_2.ba" = "x_1_2ba_arm",
+  "x_1_2.bb" = "x_1_2bb_arm"
+)
+
+# Map for theoretical coefs (e.g., "x_1.a" -> "x_1a_arm")
+subgroup_coef_map <- setNames(
+  paste0(gsub("\\.", "", subgroup_names), "_arm"),
+  subgroup_names
+)
+
+# TTE Simulation parameters
+inflation_factor <- 1000 # Use a large factor for "truth"
+n_repetitions <- 10       # Number of large simulations
+t_quantile <- 0.95       # For stable AHR calculation
+
+# Final result lists
+overall_results_list <- list()
+subgroup_results_list <- list()
+```
+
+## --- 3. MAIN CALCULATION LOOP ---
+```{r}
+for (ep in all_endpoints) {
+  
+  if (ep == "tte") {
+    
+    # ===============================================
+    # PART 1: TTE EMPIRICAL TRUTH (via Simulation)
+    # ===============================================
+    message(paste("🚀 Calculating TTE Truth (Empirical Simulation) for", n_repetitions, "reps..."))
+    
+    # Initialize TTE-specific result data.frames
+    # These will be saved in the TTE-specific list
+    true_overall_results <- init_data_frame(all_scenarios, c("HR", "AHR", "median_C", "median_I"))
+    true_subgroup_hr <- init_data_frame(all_scenarios, subgroup_names)
+    true_subgroup_ahr <- init_data_frame(all_scenarios, subgroup_names)
+    true_ia_subgroup_hr <- init_data_frame(all_scenarios[6], scen_6_subgroups)
+    true_ia_subgroup_ahr <- init_data_frame(all_scenarios[6], scen_6_subgroups)
+    
+    for (scenario in all_scenarios) {
+      
+      message(paste("  ...TTE Scenario", scenario))
+      
+      # Storage for the 10 repetitions
+      all_overall_results <- matrix(nrow = 4, ncol = n_repetitions) # logHR, logAHR, medC, medI
+      all_subgroups_log_hr <- matrix(nrow = length(subgroup_names), ncol = n_repetitions)
+      all_subgroups_log_ahr <- matrix(nrow = length(subgroup_names), ncol = n_repetitions)
+      
+      if (scenario == "6") {
+        ia_subgroups_log_hr <- matrix(nrow = length(scen_6_subgroups), ncol = n_repetitions)
+        ia_subgroups_log_ahr <- matrix(nrow = length(scen_6_subgroups), ncol = n_repetitions)
+      }
+      
+      for (j in seq_len(n_repetitions)) {
+        
+        # Simulate one massive dataset
+        sim_data <- simul_scenario(
+          scenario = scenario,
+          n_datasets = 1,
+          inflation_factor = inflation_factor,
+          add_uncensored_pfs = TRUE # IMPORTANT for median
+        )[[1]]
+        
+        # Ensure 'arm' is a factor for modeling and AHR
+        sim_data$arm <- factor(sim_data$arm)
+        
+        # 1. Overall Results
+        all_overall_results[1, j] <- coxph(base_model_tte, data = sim_data)$coef
+        all_overall_results[2, j] <- log(ahr_from_km("tt_pfs", "arm", sim_data, "ev_pfs", t_quantile))
+        all_overall_results[3, j] <- median(sim_data$tt_pfs_uncens[sim_data$arm == "0"])
+        all_overall_results[4, j] <- median(sim_data$tt_pfs_uncens[sim_data$arm == "1"])
+        
+        # 2. Subgroup Results
+        stacked_data <- generate_stacked_data(base_model_tte, subgroup_model, sim_data, resptype = "survival")
+        
+        # Calculate subgroup HRs
+        naive_estimates <- stacked_data %>%
+          dplyr::group_by(subgroup) %>%
+          dplyr::do(tidy(coxph(Surv(time, status) ~ arm, data = .))) %>%
+          dplyr::filter(term == "arm1") %>%
+          dplyr::select(subgroup, estimate)
+        
+        all_subgroups_log_hr[, j] <- naive_estimates$estimate[match(subgroup_names, naive_estimates$subgroup)]
+        
+        # Calculate subgroup AHRs (loop)
+        for (k in seq_along(subgroup_names)) {
+          data_subset_k <- subset(stacked_data, subgroup == subgroup_names[k])
+          if (nrow(data_subset_k) > 0 && length(unique(data_subset_k$arm)) == 2) {
+            all_subgroups_log_ahr[k, j] <- log(ahr_from_km("time", "arm", data_subset_k, "status", t_quantile))
+          } else {
+            all_subgroups_log_ahr[k, j] <- NA
+          }
+        }
+        
+        # 3. Scenario 6 Interaction Results
+        if (scenario == "6") {
+          sim_data$x_1_2 <- factor(with(sim_data, paste(as.character(x_1), as.character(x_2), sep = "")))
+          stacked_data_ia <- generate_stacked_data(base_model_tte, ~x_1_2, sim_data, resptype = "survival")
+          
+          naive_estimates_ia <- stacked_data_ia %>%
+            dplyr::group_by(subgroup) %>%
+            dplyr::do(tidy(coxph(Surv(time, status) ~ arm, data = .))) %>%
+            dplyr::filter(term == "arm1") %>%
+            dplyr::select(subgroup, estimate)
+          
+          ia_subgroups_log_hr[, j] <- naive_estimates_ia$estimate[match(scen_6_subgroups, naive_estimates_ia$subgroup)]
+          
+          # Calculate Scen 6 AHRs (loop)
+          for (k in seq_along(scen_6_subgroups)) {
+            data_subset_k <- subset(stacked_data_ia, subgroup == scen_6_subgroups[k])
+            if (nrow(data_subset_k) > 0 && length(unique(data_subset_k$arm)) == 2) {
+              ia_subgroups_log_ahr[k, j] <- log(ahr_from_km("time", "arm", data_subset_k, "status", t_quantile))
+            } else {
+              ia_subgroups_log_ahr[k, j] <- NA
+            }
+          }
+        }
+      } # end n_repetitions loop
+      
+      # Aggregate TTE results
+      true_overall_results[scenario, "HR"] <- exp(mean(all_overall_results[1, ], na.rm = TRUE))
+      true_overall_results[scenario, "AHR"] <- exp(mean(all_overall_results[2, ], na.rm = TRUE))
+      true_overall_results[scenario, "median_C"] <- mean(all_overall_results[3, ], na.rm = TRUE)
+      true_overall_results[scenario, "median_I"] <- mean(all_overall_results[4, ], na.rm = TRUE)
+      
+      true_subgroup_hr[scenario, ] <- exp(apply(all_subgroups_log_hr, 1, mean, na.rm = TRUE))
+      true_subgroup_ahr[scenario, ] <- exp(apply(all_subgroups_log_ahr, 1, mean, na.rm = TRUE))
+      
+      if (scenario == "6") {
+        true_ia_subgroup_hr[1, ] <- exp(apply(ia_subgroups_log_hr, 1, mean, na.rm = TRUE))
+        true_ia_subgroup_ahr[1, ] <- exp(apply(ia_subgroups_log_ahr, 1, mean, na.rm = TRUE))
+      }
+      
+    } # end TTE scenario loop
+    
+    # --- Create the TTE-specific list and save it ---
+    simul_parameter <- list(
+      true_overall_results = true_overall_results,
+      true_subgroup_hr = true_subgroup_hr,
+      true_subgroup_ahr = true_subgroup_ahr,
+      true_ia_subgroup_hr = true_ia_subgroup_hr,
+      true_ia_subgroup_ahr = true_ia_subgroup_ahr
+    )
+    
+    # Save this list as "truth.RData" in the TTE/Scenarios folder
+    save_file_tte <- file.path("TTE", "Scenarios", "truth.RData")
+    save(simul_parameter, file = save_file_tte)
+    message(paste("Saved TTE truth (legacy format) to:", save_file_tte))
+    
+    
+  } else {
+    
+    # ========================================================
+    # PART 2: THEORETICAL TRUTH (Binary, Count, Continuous)
+    # ========================================================
+    message(paste("Calculating Theoretical Truth for:", ep))
+    
+    metric_name <- switch(ep,
+      "binary" = "log_OR",
+      "count" = "log_RR",
+      "continuous" = "mean_diff"
+    )
+    
+    model_params <- .get_model_parameters(ep)
+    
+    # We will build simple overall/subgroup data frames for these
+    ep_overall_list <- list()
+    ep_subgroup_list <- list()
+    
+    for (scen in all_scenarios) {
+      
+      coefs <- .get_scenario_coefs(scen, model_params)
+      
+      # 1. Overall Result
+      overall_log_effect <- ifelse("arm1" %in% names(coefs), coefs["arm1"], 0)
+      
+      ep_overall_list[[scen]] <- data.frame(
+        scenario = scen,
+        metric = metric_name,
+        value = overall_log_effect,
+        exp_value = ifelse(ep == "continuous", NA, exp(overall_log_effect))
+      )
+      
+      # 2. Subgroup Results
+      # Use different subgroup lists for TTE vs other endpoints
+      current_subgroups <- if (ep == "tte") subgroup_names else subgroup_names_short
+      current_map <- subgroup_coef_map   # <-- Map works for both
+      
+      for (subg_name in current_subgroups) {
+        
+        coef_name <- current_map[subg_name]
+        interaction_log_effect <- ifelse(coef_name %in% names(coefs), coefs[coef_name], 0)
+        total_log_effect <- overall_log_effect + interaction_log_effect
+        
+        ep_subgroup_list[[length(ep_subgroup_list) + 1]] <- data.frame(
+          scenario = scen,
+          subgroup = subg_name,
+          metric = metric_name,
+          value = total_log_effect,
+          exp_value = ifelse(ep == "continuous", NA, exp(total_log_effect))
+        )
+      }
+    } # end scenario loop for other endpoints
+    
+    # --- Create the list and save it for this endpoint ---
+    
+    # Combine lists into tidy data frames
+    ep_truth_overall <- do.call(rbind, ep_overall_list)
+    ep_truth_subgroup <- do.call(rbind, ep_subgroup_list)
+    
+    # Create the list object to save
+    simul_truth <- list(
+      truth_overall = ep_truth_overall,
+      truth_subgroup = ep_truth_subgroup
+    )
+    
+    # Get the correct folder name
+    endpoint_folder <- switch(ep,
+      "binary" = "Binary",
+      "count" = "Count",
+      "continuous" = "Continuous"
+    )
+    
+    # Save this list as "truth.RData"
+    save_file_ep <- file.path(endpoint_folder, "Scenarios", "truth.RData")
+    save(simul_truth, file = save_file_ep)
+    message(paste("Saved", ep, "truth (tidy format) to:", save_file_ep))
+    
+  } # end if/else
+} # end endpoint loop
+```
+
