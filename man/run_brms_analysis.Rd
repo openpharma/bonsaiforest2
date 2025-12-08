@@ -87,9 +87,9 @@ if (require("brms") && require("survival")) {
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
   # 2. Run the full analysis
-  # We use \donttest{} because fitting a model can be slow
-  # and is not suitable for automated CRAN checks.
-  \donttest{
+  # We use \dontrun{} because fitting a model requires Stan compilation
+  # which may fail in automated CI/CD environments.
+  \dontrun{
   full_fit <- run_brms_analysis(
     data = sim_data,
     response_formula_str = "Surv(time, status) ~ trt",
