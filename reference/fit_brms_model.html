@@ -134,7 +134,7 @@ hierarchical or parameter-specific priors.</p>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="co"># 3. Fit the model</span></span></span>
-<span class="r-in"><span>  <span class="co"># \donttest{</span></span></span>
+<span class="r-in"><span>  <span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
 <span class="r-in"><span>  <span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu">fit_brms_model</span><span class="op">(</span></span></span>
 <span class="r-in"><span>    prepared_model <span class="op">=</span> <span class="va">prepared_model</span>,</span></span>
 <span class="r-in"><span>    <span class="co"># Note: intercept prior is not needed for survival models</span></span></span>
@@ -144,7 +144,7 @@ hierarchical or parameter-specific priors.</p>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span></span>
-<span class="r-in"><span> <span class="co"># }</span></span></span>
+<span class="r-in"><span>  <span class="op">}</span> <span class="co"># }</span></span></span>
 <span class="r-in"><span><span class="op">}</span></span></span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Loading required package: brms</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Loading required package: Rcpp</span>
@@ -166,61 +166,6 @@ hierarchical or parameter-specific priors.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Applying stratification: estimating separate baseline hazards by 'region'.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Treatment 'trt' added to unshrunk prognostic terms by default.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Auto-adding missing prognostic effect for interaction: subgroup</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Fitting brms model...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Compiling Stan program...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Start sampling</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>There were 33 divergent transitions after warmup. See</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> to find out why this is a problem and how to eliminate them.</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Examine the pairs() plot to diagnose sampling problems</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>The largest R-hat is 2.17, indicating chains have not mixed.</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> Running the chains for more iterations may help. See</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> https://mc-stan.org/misc/warnings.html#r-hat</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> Running the chains for more iterations may help. See</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> https://mc-stan.org/misc/warnings.html#bulk-ess</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> Running the chains for more iterations may help. See</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> https://mc-stan.org/misc/warnings.html#tail-ess</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Parts of the model have not converged (some Rhats are &gt; 1.05). Be careful when analysing the results! We recommend running more iterations and/or setting stronger priors.</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>There were 33 divergent transitions after warmup. Increasing adapt_delta above 0.8 may help. See http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>  Family: cox </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Links: mu = log </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Formula: time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unprogeffect + shprogeffect + shpredeffect </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          unprogeffect ~ age + trt + subgroup + 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          shprogeffect ~ region + 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          shpredeffect ~ trt_subgroupS1 + trt_subgroupS2 + trt_subgroupS3 + 0</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>    Data: data (Number of observations: 100) </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   Draws: 1 chains, each with iter = 50; warmup = 10; thin = 1;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>          total post-warmup draws = 40</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Regression Coefficients:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                             Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_age                0.01      0.00     0.01     0.02 1.02       13</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_trt0              -0.10      0.01    -0.11    -0.07 1.78        2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_trt1               0.75      0.01     0.74     0.76 1.33        3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_subgroupS2        -1.02      0.01    -1.03    -1.01 1.10       11</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_subgroupS3        -0.51      0.02    -0.53    -0.47 1.90        2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shprogeffect_regionA            0.01      0.01    -0.00     0.05 1.22        4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shprogeffect_regionB           -1.52      0.04    -1.57    -1.45 1.35        4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect_trt_subgroupS1     0.06      0.00     0.06     0.07 1.29        7</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect_trt_subgroupS2    -0.04      0.00    -0.04    -0.04 1.29        4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect_trt_subgroupS3     0.13      0.01     0.11     0.14 2.11        2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>                             Tail_ESS</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_age                  NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_trt0                 NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_trt1                 19</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_subgroupS2            4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unprogeffect_subgroupS3            4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shprogeffect_regionA              15</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shprogeffect_regionB              NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect_trt_subgroupS1        5</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect_trt_subgroupS2       NA</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect_trt_subgroupS3        4</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Draws were sampled using sampling(NUTS). For each parameter, Bulk_ESS</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> and Tail_ESS are effective sample size measures, and Rhat is the potential</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> scale reduction factor on split chains (at convergence, Rhat = 1).</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
