@@ -84,6 +84,6 @@ if (require("brms") && require("survival")) {
   )
 
   print(fit)
- }
+  }
 }
 }

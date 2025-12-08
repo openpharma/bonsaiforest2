@@ -36,7 +36,6 @@ Imports:
     checkmate,
     dplyr,
     ggplot2,
-    magrittr,
     posterior,
     rlang,
     splines2,

@@ -67,7 +67,7 @@
 #'   )
 #'
 #'   print(fit)
-#'  }
+#'   }
 #' }
 fit_brms_model <- function(prepared_model,
                            predictive_effect_priors = list(),
