@@ -240,7 +240,8 @@ estimate_subgroup_effects <- function(brms_fit,
         # Check if this dummy name contains a level of this factor
         var_levels <- levels(model_data[[var_name]])
         for (level in var_levels) {
-          expected_dummy_name <- paste0(trt_var, "_", var_name, level)
+          # Use make.names to match sanitized names created in prepare_formula_model
+          expected_dummy_name <- make.names(paste0(trt_var, "_", var_name, level), unique = FALSE)
           if (col == expected_dummy_name) {
             # This is the dummy for this variable-level combination
             # Set to 1 for patients in this level, 0 otherwise

@@ -174,7 +174,8 @@ This is the easiest example we can have. Just use the recommended priors without
 
 ```{r}
 fit_ex3 <- fit_brms_model(
-  prepared_model = prepared_model
+  prepared_model = prepared_model,
+  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 ```
 
@@ -189,7 +190,8 @@ r2d2_prior_string <- "R2D2(mean_R2 = 0.5, prec_R2 = 1)"
 
 fit_ex4 <- fit_brms_model(
   prepared_model = prepared_model,
-  predictive_effect_priors = list(shrunk = r2d2_prior_string)
+  predictive_effect_priors = list(shrunk = r2d2_prior_string),
+  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 ```
 
@@ -217,7 +219,8 @@ prior_full_hierarchical <- brms::set_prior("normal(mu_pred, sigma_pred)")
 fit_ex5 <- fit_brms_model(
   prepared_model = prepared_model,
   predictive_effect_priors = list(shrunk = prior_full_hierarchical),
-  stanvars = stanvars_full_hierarchical
+  stanvars = stanvars_full_hierarchical,
+  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 ```
 
