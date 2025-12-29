@@ -1,0 +1,149 @@
+---
+title: "Detailed_functions_explanation_for_software_developers"
+output: html_document
+---
+
+In this file I give a detailed explanation of the logic followed in the functions of the bonsaiforest2 library
+
+# File: prepare_formula_model.R
+Purpose: Prepares a multi-part brms formula and modified data for downstream model fitting; 
+Input: data, 
+       response_formula_str, 
+       shrunk_predictive_formula_str, 
+       unshrunk_prognostic_formula_str, 
+       unshrunk_predictive_formula_str,  
+       shrunk_prognostic_formula_str, 
+       response_type, 
+       stratification_formula_str 
+Returns: list(formula, data, response_type).
+
+Start
+|
+v
+prepare_formula_model(data, response_formula_str, 'Optional predictive/prognostic formulas', response_type)
+|
++-- 1) Argument validation & parse initial formula
+| - Calls: .parse_initial_formula(...)
+| - Inputs: raw data, response_formula_str
+| - Outputs: processed_data, response_term, offset_term, trt_var
+| - Side-effects: finds names of trt, outcome and offset variables;
+|                 converts trt_var to factor; sets treatment contrasts
+|
+v
+Decision: response_type == "survival" ?
+
+Yes:
+| +-- 2a) Handle survival specifics
+| - Calls: .handle_survival_response(response_term, 
+|                                    processed_data,
+|                                    stratification_formula_str)
+| - Internals: parses Surv(...), converts to time | cens(1 - status), computes 
+|              bhaz(...) args
+| - Uses: .calculate_bhaz_knots(time_vector) to compute boundary_knots &
+|          internal_knots
+| - Output: updated response_term (possibly with bhaz(...)) or fallback to default
+|           if knots NULL
+
+No:
+| +-- 2b) Optionally handle stratification for distributional params
+| - Calls: .handle_distributional_stratification(response_type, 
+|                                                stratification_formula_str,
+|                                                data)
+| - Output: sub_formulas list (e.g., sigma or shape brms::lf() objects)
+|
+v
++-- 3) Resolve term overlaps & defaults
+| - Calls: .resolve_term_overlaps_and_defaults(unshrunk_prognostic_str,
+|                                              shrunk_prognostic_str,
+|                                              unshrunk_predictive_str,
+|                                              shrunk_predictive_str, 
+|                                              trt_var, 
+|                                              data)
+| - Output: cleaned lists: unshrunk_prog, shrunk_prog, unshrunk_pred, shrunk_pred
+| - Ensures: treatment is added as prognostic if missing; removes overlaps
+|
+v
++-- 4) Process predictive terms (create explicit interaction dummies)
+| - For shrunk predictive: .process_predictive_terms(shrunk_pred_str_full,
+|                                                    processed_data, 
+|                                                    trt_var)
+| - For unshrunk predictive: .process_predictive_terms(unshrunk_pred_str_full,
+|                                                      processed_data, 
+|                                                      trt_var)
+| - Outputs per call: formula_part (string of dummy names), updated data,
+|                     prognostic_effects (main effects needed)
+| - Key behavior:
+| * Ensures trt_var factor has 2 levels
+| * Converts subgroup vars to factor; sets contrasts for them
+| * Creates explicit dummy columns like trt_subgroupLevel equal to 1 when (trt ==
+|   treatment_level) & (subgroup == level) else 0
+| * Returns formula fragment listing these dummies (e.g., "trt_subgroupA +
+|   trt_subgroupB")
+|
+v
++-- 5) Auto-add missing prognostic main effects
+| - Calls: .add_missing_prognostic_effects(prognostic_terms = c(unshrunk_prog, |   |                                                               shrunk_prog),
+|                                          needed_terms = unique(prognostic_effects |                                                         from pred process),
+|                                          target_term_list = unshrunk_prog)
+| - Ensures hierarchical principle: any var used in trt:x has x in prognostic terms
+|
+v
++-- 6) Assemble final brms formula
+| - Calls: .assemble_brms_formula(response_term, 
+|                                 offset_term, 
+|                                 response_type, 
+|                                 unshrunk_prog_terms, 
+|                                 shrunk_prog_terms, 
+|                                 unshrunk_pred_formula, 
+|                                 shrunk_pred_formula, 
+|                                 sub_formulas)
+| - Key steps:
+| * Builds sub-formulas as brms::lf() for unprogeffect, shprogeffect, unpredeffect, |   shpredeffect
+| * Applies intercept rules (has_intercept <- response_type != "survival")
+| * Strips offset() wrapper and appends offset RHS if present
+| * Creates main brms::bf(main_formula_str, nl = TRUE) and reduces with + to
+|   include sub-formulas
+|
+v
+Return
+
+list(formula = final_bf_obj, data = processed_data, response_type = response_type)
+
+
+### Key Details & Notes
+
+- Treatment handling (.parse_initial_formula): Converts trt_var to factor if needed and sets contrasts via contr.sum(...) (treatment contrasts).
+
+- Offset: offset(...) on LHS is detected and returned as offset_term; .assemble_brms_formula removes the offset() wrapper before including it in the RHS of the non-linear bf.
+
+- Predictive dummy naming: uses make.names(paste0(.trt_var, "_", subgroup_var, level)) to ensure valid names; these are numeric 0/1 columns so each interaction yields a single parameter in non-linear brms setup.
+
+- Hierarchical principle: predictive interactions auto-trigger addition of prognostic main effects; .add_missing_prognostic_effects appends missing main effects to unshrunk_prog with a message.
+
+- Survival baseline hazard (bhaz) knots: .calculate_bhaz_knots uses unique event times, adds a small buffer to boundaries, chooses internal knots by quantiles if sufficient unique times exist, else evenly spaced fallback. If too few unique times (<4) it returns NULL and the code falls back to default Cox handling.
+
+- Stratification: For response_type = "continuous", stratifies sigma; for "count", stratifies shape; for "survival" stratification triggers bhaz grouping via gr = strat_var.
+
+- Overlap resolution rules: Prognostic overlap → prioritized as unshrunk (remove from shrunk); Predictive overlap → prioritized as shrunk (remove from unshrunk).
+
+- Return contract: Use the returned data for brms::brm() because it contains factor conversions and created dummy columns required by the assembled formula.
+
+
+###Quick mapping: major internal helpers
+prepare_formula_model() → orchestrator
+
+.parse_initial_formula() → extract response, offset, trt_var; convert trt factor/contrasts
+
+.handle_survival_response() → transform Surv() and attach bhaz(...)
+
+.calculate_bhaz_knots() → compute spline knots for bhaz
+
+.handle_distributional_stratification() → create sigma/shape lf() sub-formulas
+
+.resolve_term_overlaps_and_defaults() → parse & clean user formula strings, add trt default
+
+.process_predictive_terms() → make explicit interaction dummies + return formula fragments
+
+.add_missing_prognostic_effects() → ensure main effects for interactions
+
+.assemble_brms_formula() → build brms::bf(..., nl=TRUE) and combine lf() parts
