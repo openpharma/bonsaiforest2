@@ -250,7 +250,7 @@ fit_ex3 <- fit_brms_model(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 4.3 seconds.
+#> Chain 1 finished in 4.4 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 ```
@@ -527,7 +527,7 @@ strat_surv_summary <- summary_subgroup_effects(
 #> `subgroup_vars` set to 'auto'. Detecting from model data...
 #> ...detected subgroup variable(s): biomarker
 #> Step 2: Generating posterior predictions...
-#> ... (reconstructing baseline hazard and getting linear predictors)...
+#> ... (reconstructing baseline hazard and obtaining linear predictors)...
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Step 3: Calculating marginal effects...
