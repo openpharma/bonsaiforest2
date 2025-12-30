@@ -3,7 +3,7 @@ title: "Detailed_functions_explanation_for_software_developers"
 output: html_document
 ---
 
-In this file I give a detailed explanation of the logic followed in the functions of the bonsaiforest2 library
+In this file I give a detailed explanation of the logic followed in the functions of the bonsaiforest2 library.
 
 # File: prepare_formula_model.R
 Purpose: Prepares a multi-part brms formula and modified data for downstream model fitting; 
@@ -20,7 +20,10 @@ Returns: list(formula, data, response_type).
 Start
 |
 v
-prepare_formula_model(data, response_formula_str, 'Optional predictive/prognostic formulas', response_type)
+prepare_formula_model(data, 
+|                     response_formula_str, 
+|                     'Optional predictive/prognostic formulas', 
+|                     response_type)
 |
 +-- 1) Argument validation & parse initial formula
 | - Calls: .parse_initial_formula(...)
@@ -147,3 +150,187 @@ prepare_formula_model() → orchestrator
 .add_missing_prognostic_effects() → ensure main effects for interactions
 
 .assemble_brms_formula() → build brms::bf(..., nl=TRUE) and combine lf() parts
+
+
+# File: fit_brms_model.R
+Purpose: Wraps brms::brm() to fit the multi-part model produced by prepare_formula_model(), building and assigning appropriate priors (strings or brmsprior objects), handling family selection, and returning a brmsfit.
+Input: prepared_model,
+       predictive_effect_priors,
+       prognostic_effect_priors,
+       stanvars 
+Returns: fitted `brmsfit` object.
+
+Start
+|
+v
+fit_brms_model(prepared_model, 
+|              predictive_effect_priors, 
+|              prognostic_effect_priors, 
+|              stanvars, ...)
+|
++-- 1) Argument validation & unpack
+| - Validates prepared_model is a named list containing formula (class
+|   brmsformula), data (data.frame), and response_type (one of 
+|   "binary","count","continuous","survival")
+| - Validates prior lists (predictive_effect_priors, prognostic_effect_priors) |     and stanvars
+| - Unpacks: formula, data, response_type
+|
+v
++-- 2) Determine brms family
+| - Maps response_type -> family:
+|   * "continuous" -> gaussian()
+|   * "binary" -> bernoulli(link = "logit")
+|   * "count" -> negbinomial()
+|   * "survival" -> cox()
+| - Stops on invalid response_type
+|
+v
++-- 3) Construct prior configuration & process each prior target
+| - Defines prior_config: a list of target records for
+|   * shrunk prognostic (nlpar = "shprogeffect", default "horseshoe(1)")
+|   * unshrunk prognostic (nlpar = "unprogeffect", default "normal(0,5)")
+|   * prognostic intercept (nlpar = "unprogeffect", coef = "Intercept", default |     "normal(0,5)") — skipped for survival
+|   * shrunk predictive (nlpar = "shpredeffect", default "horseshoe(1)")
+|   * unshrunk predictive (nlpar = "unpredeffect", default "normal(0,10)")
+| - Fetches which nlpars actually exist from names(formula$pforms)
+| - For each configured target present in formula:
+| - Calls .process_and_retarget_prior(user_prior, 
+|                                     target_nlpar, 
+|                                     default_str, 
+|                                     target_class, 
+|                                     target_coef)
+| - Collects returned brmsprior objects in priors_list
+| - Tracks which defaults were used to message the user
+|
+v
++-- 4) .process_and_retarget_prior() helper logic (see below)
+|
+v
++-- 5) Combine priors & prepare final prior object
+| - If any priors were created: final_priors <- Reduce("+", priors_list)
+| - Else: final_priors <- brms::empty_prior()
+| - Prints message listing defaults used (if any)
+|
+v
++-- 6) Call brms::brm()
+| - Arguments: formula, 
+|              data, 
+|              family = model_family, 
+|              prior = final_priors,
+|              stanvars, ... (other brm args)
+| - Returns fitted brmsfit object
+|
+v
+Return brmsfit
+
+### Key Details & Notes
+
+- Validation and safety: Uses checkmate to assert structure and types for prepared_model, prior lists, and stanvars. Requires prepared_model$formula be a brmsformula and prepared_model$data a non-empty data.frame.
+
+- Family mapping: A simple switch() maps response_type to brms family constructors; invalid types error out.
+
+- Prior configuration: The code only applies priors to nlpars present in formula$pforms (so unused components are ignored). Intercept prior is skipped for response_type == "survival" because survival non-linear parts have no intercept. Defaults are used when user does not provide a prior for a target; defaults are logged via message.
+
+- Prior processing behavior (.process_and_retarget_prior):
+Accepts user_prior that may be:
+ * NULL → function uses default_str and flags default_used = TRUE.
+ * character string → wraps into a brmsprior via brms::set_prior(prior = "...",    nlpar = target_nlpar, [class], [coef]).
+ * brmsprior object → retargets rows with empty nlpar to the target_nlpar and   
+   (optionally) sets class and coef columns for those rows; logs an informative    message about retargeting. 
+
+If user_prior is a brmsprior, the helper only modifies rows where nlpar is blank (so already-targeted priors remain untouched).
+The helper returns a list: list(prior = <brmsprior>, default_used = <TRUE/FALSE>).
+If user_prior is none of the accepted types, it errors.
+Combining priors:
+priors_list elements are combined with Reduce("+", priors_list) to produce a single brmsprior object accepted by brms::brm().
+If no priors defined, brms::empty_prior() is used.
+
+- stanvars support: stanvars (class stanvars) are accepted and forwarded to brms::brm() unchanged, enabling custom Stan code inclusion.
+
+- ... passthrough: All extra arguments are forwarded to brms::brm(), so the caller controls sampling parameters (chains, iter, warmup, backend, etc.).
+
+- Messaging: The function emits messages listing default priors that were used and retargeting actions when brmsprior objects are adjusted.
+
+- Return value: Returns the brmsfit object returned by brms::brm() for downstream use (posterior prediction, diagnostics, etc.).
+
+### Quick mapping: major internal helper
+
+fit_brms_model() → orchestrator; validates input, chooses family, builds priors, calls brms::brm()
+
+.process_and_retarget_prior() → converts/retargets user-specified priors; returns brmsprior + flag indicating if default was used
+
+# File: run_brms_analysis.R
+Purpose: High-level user-facing wrapper that prepares formula/data via prepare_formula_model() and fits the model via fit_brms_model(), returning a brmsfit.
+Input: data, 
+       response_formula_str, 
+       shrunk_predictive_formula_str, 
+       unshrunk_prognostic_formula_str, 
+       unshrunk_predictive_formula_str,  
+       shrunk_prognostic_formula_str, 
+       response_type, 
+       stratification_formula_str, 
+       predictive_effect_priors,
+       prognostic_effect_priors,
+       stanvars 
+Returns: fitted `brmsfit` object.
+
+Start
+|
+v
+run_brms_analysis(data, 
+|                 response_formula_str, 
+|                 response_type, ..., 
+|                 prognostic_effect_priors, 
+|                 predictive_effect_priors,
+|                 stanvars, ...)
+|
++-- 1) Prepare formula & data
+| - Calls: prepare_formula_model(data, 
+|                                response_formula_str,
+|                                shrunk_predictive_formula_str,
+|                                unshrunk_prognostic_formula_str, 
+|                                unshrunk_predictive_formula_str,
+|                                shrunk_prognostic_formula_str, 
+|                                response_type, 
+|                                stratification_formula_str)
+| - Side-effects / outputs:
+| - Messages: "Step 1: Preparing formula and data..."
+| - Returns prepared_model (list with formula, data, response_type)
+|
+v
++-- 2) Fit the Bayesian model
+| - Messages: "Step 2: Fitting the brms model..."
+| - Calls: fit_brms_model(prepared_model = prepared_model,
+|                         predictive_effect_priors = predictive_effect_priors,
+|                         prognostic_effect_priors = prognostic_effect_priors, 
+|                         stanvars = stanvars, ...)
+| - Passes through user ... args (chains, iter, cores, backend, etc.)
+| - fit_brms_model() handles validation, family selection, prior construction, and brms::brm() call
+|
+v
++-- 3) Return final model
+| - Messages: "Analysis complete."
+| - Returns: fitted brmsfit object from fit_brms_model()
+|
+v
+End
+
+### Key Details & Notes
+
+- run_brms_analysis() is a thin orchestrator: it does not validate priors itself; it delegates data/formula prep to prepare_formula_model() and prior handling + fitting to fit_brms_model().
+
+- Defaults: predictive_effect_priors and prognostic_effect_priors default to empty lists; fit_brms_model() will apply defaults where needed and message which defaults were used.
+
+-Passthrough: All additional arguments in ... are forwarded to fit_brms_model() and ultimately to brms::brm(), giving callers full control over sampling and performance options.
+
+- Messages: The function prints three concise progress messages to help track the run steps.
+
+- Return contract: Always returns the brmsfit object produced by fit_brms_model(); callers should inspect/validate convergence and diagnostics themselves.
+
+###Quick mapping: major collaborators
+run_brms_analysis() → orchestrator/wrapper
+
+prepare_formula_model() → builds multi-part brmsformula, prepares/encodes data
+
+fit_brms_model() → validates prepared object, constructs priors, calls brms::brm(), returns brmsfit
+

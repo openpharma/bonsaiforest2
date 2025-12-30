@@ -5,7 +5,7 @@
 #'
 #' This function is the main user-facing entry point. It first calls
 #' `prepare_formula_model` to build the `brmsformula` and process the data,
-#' then passes the results to `fit_brms_model` to run the analysis.
+#' then passes the results to `fit_brms_model` to fit the model.
 #'
 #' @param data A data.frame containing all the necessary variables.
 #' @param response_formula_str A character string for the response part, e.g.,
@@ -54,8 +54,6 @@
 #'   sim_data$subgroup <- as.factor(sim_data$subgroup)
 #'
 #'   # 2. Run the full analysis
-#'   # We use \dontrun{} because fitting a model requires Stan compilation
-#'   # which may fail in automated CI/CD environments.
 #'   \dontrun{
 #'   full_fit <- run_brms_analysis(
 #'     data = sim_data,
@@ -107,15 +105,14 @@ run_brms_analysis <- function(data,
   # --- 2. Fit the Bayesian Model ---
   message("\nStep 2: Fitting the brms model...")
 
-  # --- THIS IS THE MODIFIED PART ---
   model_fit <- fit_brms_model(
-    prepared_model = prepared_model, # Pass the entire list
+    prepared_model = prepared_model,
     predictive_effect_priors = predictive_effect_priors,
     prognostic_effect_priors = prognostic_effect_priors,
     stanvars = stanvars,
     ...
   )
-  # --- END OF MODIFICATION ---
+
 
   # --- 3. Return the Final Model ---
   message("\nAnalysis complete.")
