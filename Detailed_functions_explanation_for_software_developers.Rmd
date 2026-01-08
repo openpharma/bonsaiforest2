@@ -334,3 +334,285 @@ prepare_formula_model() → builds multi-part brmsformula, prepares/encodes data
 
 fit_brms_model() → validates prepared object, constructs priors, calls brms::brm(), returns brmsfit
 
+# File: estimate_subgroup_effects.R
+Purpose: Post-processing function that estimates marginal subgroup treatment effects from a fitted brmsfit object using a counterfactual, G-computation approach.
+Input: brms_fit,
+       original_data,
+       trt_var,
+       subgroup_vars,
+       response_type,
+       ndraws
+Returns: list(estimates = data.frame with marginal effects per subgroup, draws = data.frame with posterior draws).
+
+Start
+|
+v
+estimate_subgroup_effects(brms_fit,
+|                         original_data,
+|                         trt_var,
+|                         subgroup_vars = "auto",
+|                         response_type,
+|                         ndraws = NULL)
+|
++-- 1) Validate inputs and extract model data
+| - Assertions: brms_fit is brmsfit, original_data is data.frame, trt_var exists
+| - Check response_type is valid: "continuous", "binary", "count", or "survival"
+| - Extract model_data from brms_fit$data (contains factor levels & contrasts used in fitting)
+| - Warning: if row count differs between original_data and brms_fit$data
+|
+v
++-- 2) Prepare subgroup variables and determine which to analyze
+| - Calls: .prepare_subgroup_vars(brms_fit, original_data, trt_var, subgroup_vars)
+| - If subgroup_vars == "auto": 
+|   * Scans model_data for interaction dummy columns (pattern: trt_var_...)
+|   * Infers which factor variables were used in interactions
+|   * If no interactions found: sets is_overall = TRUE, subgroup_vars = "Overall"
+| - Else: validates user-provided subgroup_vars exist in original_data
+| - Output: prep list with (subgroup_vars, data [possibly with "Overall" added], is_overall)
+|
+v
++-- 3) Create counterfactual datasets
+| - Calls: .create_counterfactual_datasets(prep$data, trt_var)
+| - Creates two identical datasets (treatment and control):
+|   * All rows set to reference level (control) or active level (treatment)
+|   * Recreates explicit interaction dummy columns (trt_var_...) for treatment arm
+|   * Interaction dummies = 1 when: patient in subgroup level AND treatment = active
+|   * Otherwise 0 in both counterfactuals
+| - Output: counterfactual_data list with (control, treatment) datasets
+|
+v
++-- 4) Generate posterior predictions
+| - Calls: .get_posterior_predictions(brms_fit, data_control, data_treatment, 
+|                                     response_type, prep$data, ndraws)
+| - Decision: response_type == "survival" ?
+| 
+| Yes:
+| | - Extracts linear predictors (eta) for both counterfactuals via posterior_linpred()
+| | - Reconstructs baseline hazard posterior:
+| | | - Calls: .extract_baseline_hazard(brms_fit, prep$data, ndraws)
+| | | - Parses formula for Surv(time, status) structure & stratification var
+| | | - Rebuilds spline basis (iSpline) for baseline hazard evaluation
+| | | - Returns H0_posterior (list, possibly stratified), strat_var
+| | - Output: list(H0_posterior, linpred_control, linpred_treatment, strat_var, original_data)
+| 
+| No:
+| | - Gets expected outcomes via posterior_epred() for both counterfactuals
+| | - Handles memory efficiently: combines datasets, makes single call, splits results
+| | - Output: list(pred_control [matrix: draws x observations], 
+| |                pred_treatment [matrix: draws x observations])
+|
+v
++-- 5) Calculate marginal effects per subgroup & summarize
+| - Calls: .calculate_and_summarize_effects(posterior_preds, prep$data, 
+|                                           prep$subgroup_vars, prep$is_overall, 
+|                                           response_type)
+| - For each subgroup variable:
+|   * For each level in that subgroup:
+|     - Gets indices of observations belonging to that level
+|     - Decision: response_type == "survival" ?
+|     
+|     Yes:
+|     | - Calls: .calculate_survival_ahr_draws(linpred_control, linpred_treatment,
+|     |                                         H0_posterior_list, indices, 
+|     |                                         strat_var, original_data)
+|     | - For each posterior draw (chunked for memory efficiency):
+|     |   * Reconstructs marginal survival curves for subgroup via .get_marginal_survival_vectorized()
+|     |     - Applies linear predictors to baseline hazard: S(t) = exp(-H0(t) * exp(eta))
+|     |     - Averages survival curves across individuals in subgroup for each draw
+|     |   * Computes Average Hazard Ratio (AHR) from marginal curves via .calculate_ahr_vectorized()
+|     |     - AHR = sum(S_control * dS_treatment) / sum(S_treatment * dS_control)
+|     | - Returns: vector of AHR draws (one per posterior draw)
+|     
+|     No:
+|     | - Extracts predictions for subgroup individuals
+|     | - Computes marginal (averaged) effect per draw: difference or ratio
+|     | - For continuous/binary: effect = mean(pred_treatment) - mean(pred_control)
+|     | - For count: effect = mean(pred_treatment) / mean(pred_control)
+|     | - Returns: vector of effect draws
+|     
+|     - Summarizes draws: median & 95% credible interval (q2.5, q97.5)
+|     - Creates result tibble row with: subgroup, effect, mean, sd, q2.5, q97.5
+|
+v
++-- 6) Combine and return results
+| - Binds all subgroup result rows into final estimates tibble
+| - Binds all effect draws into draws data.frame (columns = subgroups)
+| - Returns: list(estimates, draws)
+|
+v
+End
+
+### Key Details & Notes
+
+- Data consistency: Uses brms_fit$data (with factor contrasts) rather than original_data for all internal operations, ensuring predictions align with model's encoding.
+
+- Counterfactual principle: Both treatment and control datasets have all other covariates unchanged; only treatment assignment and related interaction dummies differ. This enables G-computation (marginal effect) via averaging.
+
+- Auto-detection of subgroups: Searches for explicit interaction dummy columns created by prepare_formula_model() (pattern: trt_var_levelname); if none found, computes overall marginal effect.
+
+- Survival AHR calculation: Uses reconstructed spline-based baseline hazard to compute marginal survival curves, then derives hazard ratios. Handles stratified hazards (separate baseline per stratum).
+
+- Memory efficiency: 
+  * For non-survival: combines control/treatment in single posterior_epred() call
+  * For survival: chunks AHR calculations to avoid storing all draws × all individuals simultaneously
+
+- Posterior draw processing: If ndraws specified, subsamples from posterior; otherwise uses all available draws for inference.
+
+- Effect computation: 
+  * Continuous/binary: difference in marginal outcomes
+  * Count: ratio of marginal means
+  * Survival: average hazard ratio from marginal survival curves
+
+- Output structure: Returns both point estimates (median ± 95% CI) and full posterior draws for downstream visualization/inference.
+
+### Quick mapping: major internal helpers
+
+estimate_subgroup_effects() → orchestrator; validates inputs, coordinates 4-step process
+
+.prepare_subgroup_vars() → auto-detects or validates subgroup variables from model interaction structure
+
+.create_counterfactual_datasets() → builds all-treated and all-control datasets with interaction dummies
+
+.get_posterior_predictions() → dispatches to posterior_linpred (survival) or posterior_epred (other) with appropriate data handling
+
+.extract_baseline_hazard() → reconstructs spline basis & evaluates baseline hazard posterior from fitted model
+
+.get_marginal_survival_vectorized() → computes marginal survival curves by averaging over subgroup individuals
+
+.calculate_survival_ahr_draws() → per-draw average hazard ratio from marginal survival curves (chunked for memory)
+
+.calculate_ahr_vectorized() → converts survival probability matrices to hazard ratio per draw
+
+.calculate_and_summarize_effects() → computes marginal effects per subgroup, summarizes with posterior statistics
+
+# File: summary_subgroup_effects.R
+Purpose: High-level wrapper that creates a formatted summary object from marginal subgroup treatment effects and provides a forest plot visualization.
+Input (summary_subgroup_effects): brms_fit,
+                                  original_data,
+                                  trt_var,
+                                  response_type,
+                                  subgroup_vars
+Input (plot.subgroup_summary): x (subgroup_summary object),
+                               x_lab (optional),
+                               title (optional)
+Returns (summary_subgroup_effects): list with class "subgroup_summary"
+Returns (plot.subgroup_summary): ggplot object (forest plot).
+
+## Part 1: summary_subgroup_effects()
+
+Start
+|
+v
+summary_subgroup_effects(brms_fit,
+|                        original_data,
+|                        trt_var,
+|                        response_type,
+|                        subgroup_vars = "auto")
+|
++-- 1) Validate all inputs
+| - Assertions: brms_fit is brmsfit, original_data is data.frame, trt_var exists
+| - Check response_type is valid: "binary", "count", "continuous", or "survival"
+| - Validate subgroup_vars: must be "auto" OR character vector (cannot be NULL)
+| - If subgroup_vars is character vector: assert all names exist in original_data
+|
+v
++-- 2) Call estimate_subgroup_effects()
+| - Passes: brms_fit, original_data, trt_var, subgroup_vars, response_type
+| - Returns: list with (estimates = tibble, draws = data.frame)
+| - Assigns estimates_tbl for downstream use
+|
+v
++-- 3) Construct summary_subgroup_effects object
+| - Creates list with components:
+|   * estimates: tibble from estimate_subgroup_effects()
+|   * response_type: passed through for plot defaults
+|   * ci_level: fixed at 0.95 (95% credible interval)
+|   * trt_var: treatment variable name (metadata)
+| - Assigns class "subgroup_summary" for S3 dispatch
+|
+v
+Return list(estimates, response_type, ci_level, trt_var) with class "subgroup_summary"
+
+## Part 2: plot.subgroup_summary() [S3 method]
+
+Start
+|
+v
+plot.subgroup_summary(x,
+|                     x_lab = NULL,
+|                     title = NULL,
+|                     ...)
+|
++-- 1) Validate inputs
+| - Assert x is class "subgroup_summary"
+| - Assert x_lab is character string or NULL
+| - Assert title is character string or NULL
+| - Assert x$estimates is non-empty data.frame
+|
+v
++-- 2) Determine plot parameters based on response_type
+| - null_effect_line (x-intercept value):
+|   * continuous → 0 (no difference)
+|   * binary → 1 (odds ratio = 1)
+|   * count → 1 (rate ratio = 1)
+|   * survival → 1 (average hazard ratio = 1)
+| - Default x_lab if not provided:
+|   * continuous → "Difference in Mean Outcome"
+|   * binary → "Odds Ratio"
+|   * count → "Rate Ratio"
+|   * survival → "Average Hazard Ratio (AHR)"
+|
+v
++-- 3) Prepare plot data
+| - Creates estimate_label: formatted string "%.2f (%.2f to %.2f)"
+| - Extracts sort_group: first component before ":" in Subgroup name
+| - Sorts by sort_group then Subgroup alphabetically
+| - Converts Subgroup to factor with reversed level order (for correct y-axis orientation)
+|
+v
++-- 4) Calculate plot limits and text positioning
+| - Finds min(CI_Lower), max(CI_Upper) across all subgroups
+| - Computes x_range = max_ci - min_ci
+| - Sets pos_estimate = max_ci + (x_range * 0.15) for label placement
+|
+v
++-- 5) Build ggplot2 visualization
+| - Layer 1: geom_vline at null_effect_line (dashed, grey50)
+| - Layer 2: geom_errorbar for confidence intervals (y-oriented, width = 0.2)
+| - Layer 3: geom_point for point estimates (shape = 22, size = 3, black)
+| - Layer 4: geom_text for estimate labels right-aligned at pos_estimate
+| - Layer 5: annotate() for column header "Estimate (95% CI)"
+| - Axes: x = response-specific label, y = blank (uses subgroup names)
+| - Theme: classic base (12pt), centered bold title, clean y-axis (no ticks/lines)
+| - Margins: enlarged right margin (8 lines) for label space
+| - Clipping: turned off (clip = "off") to allow labels outside plot area
+|
+v
+Return ggplot object (forest plot)
+
+### Key Details & Notes
+
+- Two-function pattern: summary_subgroup_effects() orchestrates effect estimation and creates the S3 object; plot.subgroup_summary() provides forest plot visualization via S3 dispatch.
+
+- Input validation: subgroup_vars must be "auto" or explicit character vector (never NULL); ensures user intent is clear.
+
+- Metadata storage: response_type, ci_level, and trt_var are stored in the summary object for consistent plot defaults and transparency.
+
+- Null effect line: Automatically placed at response-type-specific value (0 for difference, 1 for ratio-based effects).
+
+- Sorting logic: Subgroups are sorted by variable name first (sort_group), then by level within each variable, enabling readable grouped display.
+
+- Spatial arrangement: Uses y-axis labels for subgroup names and positions estimate text at x = pos_estimate (15% beyond max CI) to avoid overlap with error bars.
+
+- ggplot2 construction: Purposefully disables y-axis ticks and lines (theme), reverses factor levels for correct orientation, and uses coord_cartesian(clip = "off") to display labels outside plotting area.
+
+- Label formatting: Median estimate and 95% CI displayed as "value (lower to upper)" with 2 decimal places for readability.
+
+### Quick mapping: major collaborators
+
+summary_subgroup_effects() → orchestrator; validates inputs, delegates effect estimation, returns S3 object
+
+estimate_subgroup_effects() → computes marginal effects per subgroup, returns estimates + draws
+
+plot.subgroup_summary() → S3 method; transforms summary object into forest plot via ggplot2
+

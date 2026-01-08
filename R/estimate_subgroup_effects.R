@@ -1,7 +1,8 @@
 #' Estimate Marginal Subgroup Treatment Effects
 #'
 #' This post-processing function estimates marginal treatment effects for
-#' specified subgroups from a fitted `brmsfit` object.
+#' specified subgroups from a fitted `brmsfit` object. It applies the G-computation
+#' logic to go from the conditional estimates to the marginal ones.
 #'
 #' @description
 #' The function uses a counterfactual, marginal approach based on the posterior
