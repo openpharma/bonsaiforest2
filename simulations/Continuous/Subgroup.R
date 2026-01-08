@@ -16,6 +16,10 @@ ENDPOINT_ID <- "continuous"
 # Set the main results directory
 RESULTS_DIR <- "Results"
 
+# Set seed for reproducibility
+RNGkind('Mersenne-Twister')
+set.seed(0)
+
 # --- 1. LOAD LIBRARIES AND FUNCTIONS ---
 message("--- Loading Libraries and Functions ---")
 library(checkmate)

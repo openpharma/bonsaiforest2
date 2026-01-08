@@ -7,9 +7,6 @@
 #    endpoint defined in the `ENDPOINT_ID` variable.
 # 3. Saves the results to the `Results/` folder using the
 #    standardized (log-scale) format.
-#
-# MODIFIED: `population_method_endpoint` is now fully dynamic
-#           and no longer hard-coded for survival.
 # -----------------------------------------------------------------
 
 # --- 0. CONFIGURATION ---
@@ -19,6 +16,10 @@ ENDPOINT_ID <- "continuous"
 
 # Set the main results directory
 RESULTS_DIR <- "Results"
+
+# Set seed for reproducibility
+RNGkind('Mersenne-Twister')
+set.seed(0)
 # ------------------------
 
 
