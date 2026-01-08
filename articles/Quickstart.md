@@ -134,7 +134,7 @@ continuous_model_fit <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.3 seconds.
+#> Chain 1 finished in 2.4 seconds.
 
 print(continuous_model_fit)
 #>  Family: gaussian 

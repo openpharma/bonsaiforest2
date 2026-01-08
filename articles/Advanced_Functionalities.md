@@ -76,7 +76,7 @@ count_model_fit <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.6 seconds.
+#> Chain 1 finished in 2.5 seconds.
 #> Warning: 1 of 100 (1.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
@@ -250,7 +250,7 @@ fit_ex3 <- fit_brms_model(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 4.4 seconds.
+#> Chain 1 finished in 4.3 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 ```
@@ -335,7 +335,7 @@ fit_ex5 <- fit_brms_model(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.9 seconds.
+#> Chain 1 finished in 2.8 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 ```
@@ -508,7 +508,7 @@ fit_surv_stratified <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 7.7 seconds.
+#> Chain 1 finished in 7.6 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 
