@@ -62,8 +62,8 @@ PRIOR_SPECIFICATIONS <- list(
 )
 
 # Reproducibility
-RNGkind("L'Ecuyer-CMRG")
-set.seed(42)
+RNGkind('Mersenne-Twister')
+set.seed(0)
 
 # Source all helper functions (from the same directory)
 source("functions.R")
@@ -200,6 +200,8 @@ run_ovat_model_task <- function(sim_id,
 
   # --- CRITICAL FIX: Ensure library is loaded in the worker process ---
   library(bonsaiforest2)
+  library(purrr)
+  library(dplyr)
 
   # --- Get task info ---
   df <- all_data[[sim_id]]
@@ -251,7 +253,11 @@ run_ovat_model_task <- function(sim_id,
         ovat_results_list[[covariate]] <- summary_obj$estimates
 
       }, error = function(e) {
-        stop(sprintf("Error in covariate '%s': %s", covariate, e$message))
+        # Store error for this covariate instead of stopping
+        ovat_results_list[[covariate]] <<- tibble(
+          subgroup = covariate,
+          error = paste("Error in", covariate, ":", conditionMessage(e))
+        )
       })
 
     } # End for loop
@@ -260,7 +266,9 @@ run_ovat_model_task <- function(sim_id,
     bind_rows(ovat_results_list)
 
   }, error = function(e) {
-    clean_message <- gsub("\\n", " ", e$message)
+    # Get full error message
+    full_error <- paste(conditionMessage(e), collapse = " | ")
+    clean_message <- gsub("\\n", " ", full_error)
     cat(sprintf("[%s] ERROR in %s: %s\n", Sys.time(), task_description, clean_message),
         file = log_path, append = TRUE)
     return(tibble(error = clean_message))
@@ -279,21 +287,45 @@ run_ovat_model_task <- function(sim_id,
       file = log_path, append = TRUE)
 
   if (is.data.frame(result_for_task) && nrow(result_for_task) > 0 && !"error" %in% names(result_for_task)) {
-    result_for_task %>%
+    return(result_for_task %>%
       mutate(
         model_type = model_type,
         prior_name = prior_name,
         .before = 1
-      )
+      ))
   } else {
-    tibble(
+    return(tibble(
       model_type = model_type,
       prior_name = prior_name,
       error = ifelse(is.data.frame(result_for_task) && "error" %in% names(result_for_task),
                      result_for_task$error[1],
                      "Unknown error")
-    )
+    ))
   }
+}
+
+# --- 6b. Define wrapper function for mclapply ---
+run_parallel_ovat_fit_task <- function(i, task_grid, flat_named_list, 
+                                       PRIOR_SPECIFICATIONS, endpoint_params, 
+                                       subgr_vars, log_file) {
+  # Extract task info from grid
+  current_task <- task_grid[i, ]
+  sim_id <- current_task$sim_id
+  model_type <- current_task$model_type
+  prior_name <- current_task$prior_name
+  prior_spec <- PRIOR_SPECIFICATIONS[[prior_name]]
+  
+  # Call the actual task function
+  run_ovat_model_task(
+    sim_id = sim_id,
+    model_type = model_type,
+    prior_name = prior_name,
+    all_data = flat_named_list,
+    subgr_vars = subgr_vars,
+    log_path = log_file,
+    prior_spec = prior_spec,
+    endpoint_params = endpoint_params
+  )
 }
 
 # --- 7. Run All Tasks (Serial Compile + Parallel Run) ---
@@ -303,7 +335,15 @@ cat(sprintf("(This will compile all 10 OVAT models for endpoint '%s'...)\n", END
 # Run task 1 serially to compile all models.
 # We put its result in a list to match the mclapply output.
 results_list_serial <- list(
-  run_parallel_ovat_fit_task(1)
+  run_parallel_ovat_fit_task(
+    i = 1,
+    task_grid = task_grid,
+    flat_named_list = flat_named_list,
+    PRIOR_SPECIFICATIONS = PRIOR_SPECIFICATIONS,
+    endpoint_params = endpoint_params,
+    subgr_vars = subgr_vars,
+    log_file = log_file
+  )
 )
 cat("--- Serial compile task finished. ---\n")
 
@@ -325,6 +365,12 @@ if (total_tasks > 1) {
   results_list_parallel <- mclapply(
     2:total_tasks,
     FUN = run_parallel_ovat_fit_task,
+    task_grid = task_grid,
+    flat_named_list = flat_named_list,
+    PRIOR_SPECIFICATIONS = PRIOR_SPECIFICATIONS,
+    endpoint_params = endpoint_params,
+    subgr_vars = subgr_vars,
+    log_file = log_file,
     mc.cores = parallel_cores,
     mc.preschedule = FALSE
   )

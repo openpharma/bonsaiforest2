@@ -7,9 +7,6 @@
 #    the one endpoint defined in `ENDPOINT_ID`.
 # 3. Allows custom prior definitions.
 # 4. Saves the results to the `Results/` folder.
-#
-# MODIFICATION: Removed the survival "monkey-patching" (knot-fixing)
-# logic. This script WILL NOT work correctly for TTE analysis.
 # -----------------------------------------------------------------
 
 # --- 0. CONFIGURATION ---
@@ -112,8 +109,8 @@ gc()
 
 
 # --- 4. DEFINE PARAMETERS AND CREATE TASK LIST ---
-RNGkind("L'Ecuyer-CMRG") # Recommended for parallel reproducibility
-set.seed(42)
+RNGkind('Mersenne-Twister') # Recommended for parallel reproducibility
+set.seed(0)
 
 covariate_set <- c("x_1", "x_2", "x_3", "x_4", "x_5", "x_6", "x_7", "x_8", "x_9", "x_10")
 num_cores <- availableCores()
