@@ -78,8 +78,8 @@ PRIOR_SPECIFICATIONS <- list(
 )
 
 # Reproducibility
-RNGkind("L'Ecuyer-CMRG")
-set.seed(42)
+RNGkind('Mersenne-Twister')
+set.seed(0)
 
 # Source all helper functions (from the same directory)
 source("functions.R")
@@ -199,11 +199,17 @@ if (ENDPOINT_ID == "tte") {
 # --- 6. Define the Parallel "Fit from Scratch" Function ---
 # This replaces both the serial compile and parallel update steps
 
-run_parallel_ovat_fit_task <- function(i) {
+run_parallel_ovat_fit_task <- function(i, task_grid, flat_named_list, PRIOR_SPECIFICATIONS, 
+                                       endpoint_params, subgr_vars, ENDPOINT_ID, log_file) {
   # Set threads *again* just to be safe in the new process
   RhpcBLASctl::blas_set_num_threads(1)
   RhpcBLASctl::omp_set_num_threads(1)
   data.table::setDTthreads(threads = 1)
+  
+  # Reload required libraries in worker
+  library(purrr)
+  library(dplyr)
+  library(bonsaiforest2)
 
   # --- Get task info from grid ---
   current_task <- task_grid[i, ]
@@ -237,9 +243,7 @@ run_parallel_ovat_fit_task <- function(i) {
 
       # --- B. Fit from scratch (slow) ---
       fitted_model_cov <- fit_brms_model(
-        formula = prepared_run$formula,
-        data = prepared_run$data,
-        response_type = endpoint_params$resptype, # Dynamic
+        prepared_model = prepared_run,
         predictive_effect_priors = list(shrunk = prior_spec$prior),
         stanvars = prior_spec$stanvars,
         chains = 4, iter = 2000, warmup = 1000, cores = 1, backend = "cmdstanr"
@@ -274,18 +278,18 @@ run_parallel_ovat_fit_task <- function(i) {
 
   # Add identifying columns
   if (is.data.frame(result_for_task) && nrow(result_for_task) > 0) {
-    result_for_task %>%
+    return(result_for_task %>%
       mutate(
         model_type = current_task$model_type,
         prior_name = current_task$prior_name,
         .before = 1
-      )
+      ))
   } else {
-    tibble(
+    return(tibble(
       model_type = current_task$model_type,
       prior_name = current_task$prior_name,
       error = ifelse(is.data.frame(result_for_task), "No results returned", "Unknown error")
-    )
+    ))
   }
 }
 
@@ -296,7 +300,16 @@ cat(sprintf("(This will compile all 10 OVAT models for endpoint '%s'...)\n", END
 # Run task 1 serially to compile all models.
 # We put its result in a list to match the mclapply output.
 results_list_serial <- list(
-  run_parallel_ovat_fit_task(1)
+  run_parallel_ovat_fit_task(
+    i = 1,
+    task_grid = task_grid,
+    flat_named_list = flat_named_list,
+    PRIOR_SPECIFICATIONS = PRIOR_SPECIFICATIONS,
+    endpoint_params = endpoint_params,
+    subgr_vars = subgr_vars,
+    ENDPOINT_ID = ENDPOINT_ID,
+    log_file = log_file
+  )
 )
 cat("--- Serial compile task finished. ---\n")
 
@@ -318,6 +331,13 @@ if (total_tasks > 1) {
   results_list_parallel <- mclapply(
     2:total_tasks,
     FUN = run_parallel_ovat_fit_task,
+    task_grid = task_grid,
+    flat_named_list = flat_named_list,
+    PRIOR_SPECIFICATIONS = PRIOR_SPECIFICATIONS,
+    endpoint_params = endpoint_params,
+    subgr_vars = subgr_vars,
+    ENDPOINT_ID = ENDPOINT_ID,
+    log_file = log_file,
     mc.cores = parallel_cores,
     mc.preschedule = FALSE
   )

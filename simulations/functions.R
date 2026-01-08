@@ -1,45 +1,3 @@
-#' Clean Up Temporary Simulation Files
-#'
-#' Removes temporary Stan model output files to free up disk space
-#' during long-running simulations.
-#'
-#' @param verbose Logical. If TRUE, prints cleanup information.
-#'
-#' @return Invisible NULL. Called for side effects.
-#'
-#' @details
-#'   This function is useful when running large-scale simulations that
-#'   create many temporary Stan model files. It removes cmdstan output
-#'   directories in tempdir() to prevent disk space exhaustion.
-#'
-#' @examples
-#' \dontrun{
-#' # Clean up after running simulations
-#' cleanup_simulation_temp()
-#' }
-cleanup_simulation_temp <- function(verbose = TRUE) {
-  # Clean cmdstan directories in current temp directory
-  temp_pattern <- file.path(tempdir(), "cmdstan_*")
-  cmdstan_dirs <- Sys.glob(temp_pattern)
-
-  if (length(cmdstan_dirs) > 0) {
-    if (verbose) {
-      total_size <- sum(sapply(cmdstan_dirs, function(d) {
-        size_output <- tryCatch(
-          system(paste("du -sb", shQuote(d)), intern = TRUE),
-          error = function(e) "0\t"
-        )
-        as.numeric(strsplit(size_output, "\t")[[1]][1])
-      }))
-      message(sprintf("Removing %d cmdstan directories (%.2f MB)",
-                      length(cmdstan_dirs), total_size / 1024^2))
-    }
-    lapply(cmdstan_dirs, unlink, recursive = TRUE)
-  }
-
-  invisible(NULL)
-}
-
 #' Simulate Study Data for Multiple Endpoints and Scenarios
 #'
 #' Generates replicated datasets for TTE, binary, count, or continuous
@@ -216,245 +174,173 @@ simul_study_data <- function(endpoint = c("tte", "binary", "count", "continuous"
   data.frame(id = 1:n, covariates, y)
 }
 
-#' Get Model Parameters for New Endpoints
-#' (Internal Helper Function)
+#' Get Model Parameters for New Endpoints (Internal Helper Function)
 #'
-#' Returns a list of parameters (N, intercept, base effect)
-#' for the binary, count, and continuous models.
-#'
-#' @param endpoint One of "binary", "count", "continuous".
-#' @return A list of model parameters.
-#' Get Model Parameters for New Endpoints
-#' (Internal Helper Function)
-#'
-#' Returns a list of parameters (N, intercept, base effect)
-#' for the binary, count, and continuous models.
+#' Returns a list of parameters (N, intercept, base_effect, sigma_scale)
+#' for the binary, count, and continuous models, calibrated for ~80% power.
 #'
 #' CALIBRATION TARGETS:
-#' 1. Sample Size (N) = 1000 (Matches TTE)
-#' 2. Power ~ 90% (Matches TTE)
-#' 3. Variance (SE) ~ 0.127 (Matches TTE)
+#' - Binary: N = 800 (400 per arm) for 80% power to detect OR=0.66
+#' - Count: N = 770 (385 per arm) with overdispersion shape=0.34
+#' - Continuous: N = 770 (385 per arm) with residual SD=2.06
 #'
 #' @param endpoint One of "binary", "count", "continuous".
-#' @return A list of model parameters.
-#' Get Model Parameters for New Endpoints
-#' (Internal Helper Function)
-#'
-#' Returns a list of parameters (N, intercept, base effect)
-#' for the binary, count, and continuous models.
-#'
-#' CALIBRATION TARGETS (Matched to TTE):
-#' 1. Sample Size (N) = 1000
-#' 2. Power ~ 90%
-#' 3. Standard Error (SE) ~ 0.127
-#'
-#' @param endpoint One of "binary", "count", "continuous".
-#' @return A list of model parameters.
+#' @return A list of model parameters including N, intercept, base_effect,
+#'   sigma_scale, and endpoint-specific parameters.
 .get_model_parameters <- function(endpoint) {
   switch(
     endpoint,
     "binary" = list(
       endpoint = "binary",
-      N = 1000,
-      # Intercept 0.0 -> 50% prevalence.
-      # Maximizes variance (SE ~0.127) to match TTE.
-      intercept = -0.3,
-      base_effect = log(0.66)
+      # Sample size: 800 (400 per arm) for ~80% power to detect OR=0.66
+      N = 800,
+      # Intercept -0.2 gives baseline event rate ~45%
+      intercept = -0.2,
+      # Base treatment effect: log(0.66) = -0.416 (beneficial)
+      base_effect = log(0.66),
+      # No coefficient scaling for binary
+      sigma_scale = 1.0
     ),
     "count" = list(
       endpoint = "count",
-      N = 1000,
-
-      # 1. INTERCEPT: 1.0
-      # This gives a Baseline Mean of exp(1) = 2.718 events/patient.
-      # This is VERY safe for subgroup stability (almost zero chance of empty arms).
-      intercept = 1.0,
-
+      # Sample size: 770 (385 per arm) for ~80% power with overdispersion
+      N = 770,
+      # Intercept 0.0 gives baseline count = exp(0.0) = 1.0
+      intercept = 0.0,
+      # Base treatment effect: log(0.66) = -0.416 (beneficial: reduced rate)
       base_effect = log(0.66),
-
-      # 2. OVERDISPERSION (Theta): 0.28
-      # We must lower Theta (increase noise) to 0.28 to force the SE
-      # back up to ~0.127. If you leave this at 1.0, your SE will be too small.
-      overdispersion = 2.0
+      # Negative Binomial shape parameter: 0.34 (variance/mean ~3)
+      overdispersion = 0.34,
+      # No coefficient scaling for count
+      sigma_scale = 1.0
     ),
     "continuous" = list(
       endpoint = "continuous",
-      N = 1000,
+      # Sample size: 770 (385 per arm) for ~80% power with residual SD=2.06
+      N = 770,
+      # Intercept 0.0 (baseline mean = 0)
       intercept = 0.0,
-      # Use log(0.66) magnitude (~ -0.415) to match signal strength.
-      base_effect = log(0.66),
-      # High SD (2.0) required to match TTE noise level (SE ~0.127).
-      sd = 2.0
+      # Base treatment effect: d = -0.3 (beneficial: lower score)
+      base_effect = -0.3,
+      # Residual standard deviation: 2.06 (calibrated for power)
+      sd = 2.06,
+      # No coefficient scaling for continuous
+      sigma_scale = 1.0
     )
   )
 }
-#' Get Scenario Coefficients for New Endpoints
-#' (Internal Helper Function)
-#'
-#' Translates the 6 TTE scenarios into coefficients for
-#' logistic, NB, and linear models.
+
+#' Get Scenario Coefficients (Direct Translation of TTE Logic)
 #'
 #' @param scenario The simulation scenario (1-6).
 #' @param model_params A list of parameters from .get_model_parameters().
-#' @return A named vector of *non-zero* coefficients.
+#' @return A named vector of coefficients.
+#' Internal: Get Scenario Coefficients
+#' Applies endpoint-specific scaling factors and treatment effect signs.
 .get_scenario_coefs <- function(scenario, model_params) {
   RNGkind('Mersenne-Twister')
   set.seed(0)
+  # --- SCALING FACTOR ---
+  # Extract from model_params (0.85 for TTE, 1.0 for others)
+  sigma_scale <- model_params$sigma_scale
 
-  base_effect <- as.numeric(model_params$base_effect)
-  intercept <- as.numeric(model_params$intercept)
-
-  # Load TTE truth data to extract empirical coefficients
-  truth_path <- file.path("TTE", "Scenarios", "truth.RData")
-  if (!file.exists(truth_path)) {
-    stop("TTE truth.RData file not found at: ", truth_path,
-         "\nPlease run Truth.Rmd first to generate the truth coefficients.")
-  }
-
-  # Load the truth data (creates 'simul_parameter' object)
-  load(truth_path)
-
-  # Extract HRs for this scenario
-  scenario_hr <- simul_parameter$true_subgroup_hr[scenario, ]
-
-  # Convert subgroup names from x_1.a format to x_1a_arm format
-  subgroup_names <- names(scenario_hr)
-  # Remove dots: x_1.a -> x_1a
-  clean_names <- gsub("\\.", "", subgroup_names)
-  # Add _arm suffix: x_1a -> x_1a_arm
-  group_coefs_names <- paste0(clean_names, "_arm")
-
-  # Convert HRs to log scale (appropriate for log(OR), log(RR), or log(HR))
-  # This makes the effect sizes consistent across endpoint types
-  group_coefs_values <- log(scenario_hr)
-  names(group_coefs_values) <- group_coefs_names
-
-  # Ensure group_coefs_values is a numeric vector
-  group_coefs_values <- as.numeric(group_coefs_values)
-  names(group_coefs_values) <- group_coefs_names
-
-  # Check for NA values in coefficients
-  if (any(is.na(group_coefs_values))) {
-    warning("NA values detected in group_coefs_values for scenario ", scenario,
-            ". NA coefficient names: ",
-            paste(names(group_coefs_values)[is.na(group_coefs_values)], collapse = ", "))
-  }
-
-  # Extract prognostic effects from TTE data (x_4c and x_6b)
-  # These are embedded in the overall patterns across scenarios
-  # For simplicity, we'll use the empirical values from scenario 1
-  # as they reflect the baseline prognostic effects
-  prog_hr_s1 <- simul_parameter$true_subgroup_hr["1", ]
-  x_4c_prog <- as.numeric(log(prog_hr_s1["x_4.c"]))  # Prognostic effect for x_4c
-  x_6b_prog <- as.numeric(log(prog_hr_s1["x_6.b"]))  # Prognostic effect for x_6b
-
-  # Check if prognostic effects are valid
-  if (is.na(x_4c_prog) || is.na(x_6b_prog)) {
-    warning("NA values in prognostic effects. x_4c_prog: ", x_4c_prog, ", x_6b_prog: ", x_6b_prog)
-    # Set to 0 if NA
-    if (is.na(x_4c_prog)) x_4c_prog <- 0
-    if (is.na(x_6b_prog)) x_6b_prog <- 0
-  }
-
-  constant_coefs <- c(
-    "(Intercept)" = intercept,
-    "x_4c" = x_4c_prog * 0.5,  # Scale down as these are prognostic, not treatment effects
-    "x_6b" = x_6b_prog * 0.5
+  subgroup_covariates <- c(
+    "x_1a", "x_1b", "x_2a", "x_2b", "x_3a", "x_3b",
+    "x_4a", "x_4b", "x_4c", "x_5a", "x_5b", "x_5c", "x_5d",
+    "x_6a", "x_6b", "x_7a", "x_7b", "x_8a", "x_8b", "x_8c",
+    "x_9a", "x_9b", "x_10a", "x_10b", "x_10c"
   )
+  ia_names <- paste0(subgroup_covariates, "_arm")
 
-  # Debug: Check if constant_coefs is numeric
-  if (!is.numeric(constant_coefs)) {
-    stop("constant_coefs is not numeric. Class: ", class(constant_coefs),
-         ", intercept class: ", class(intercept),
-         ", x_4c_prog class: ", class(x_4c_prog),
-         ", x_6b_prog class: ", class(x_6b_prog))
+  # Initialize
+  coefs <- c("(Intercept)" = as.numeric(model_params$intercept))
+
+  # Determine sign for treatment effects based on endpoint
+  # TTE: -log(HR) because lower hazard is better (HR<1 is beneficial)
+  # Binary: log(OR) because interpretation depends on outcome direction
+  # Count: log(RR) because Y is "bad" events, so RR<1 is beneficial
+  # Continuous: direct coefficient because Y is "bad" score, so negative is beneficial
+  endpoint <- model_params$endpoint
+
+  # For prognostic effects, always use same direction as TTE AFT model
+  # In TTE AFT: positive coef = longer survival = beneficial
+  # x_4c: HR=0.7 (beneficial) -> AFT coef = -log(0.7) * 0.85 = positive
+  # x_6b: HR=1.5 (harmful) -> AFT coef = -log(1.5) * 0.85 = negative
+  # For non-TTE: keep same direction of effect
+  if (endpoint == "continuous") {
+    # For continuous, use direct scaling without log transformation
+    coefs["x_4c"] <- -log(0.7) * sigma_scale  # Beneficial (lower bad score)
+    coefs["x_6b"] <- -log(1.5) * sigma_scale  # Harmful (higher bad score)
+  } else {
+    # For binary/count, use log scale
+    coefs["x_4c"] <- log(0.7) * sigma_scale   # Beneficial
+    coefs["x_6b"] <- log(1.5) * sigma_scale   # Harmful
   }
 
-  # Build coefficients based on scenario
-  coefs <- switch(
-    scenario,
-    # 1. Homogeneous: Use average treatment effect from TTE truth
-    "1" = c(
-      constant_coefs,
-      "arm1" = base_effect  # Keep specified base effect for consistency
-    ),
-    # 2. Heterogeneous: Use actual TTE subgroup effects
-    "2" = {
-      # Extract specific x_4 subgroup effects from TTE truth
-      x_4a <- unname(group_coefs_values["x_4a_arm"])
-      x_4b <- unname(group_coefs_values["x_4b_arm"])
-      x_4c <- unname(group_coefs_values["x_4c_arm"])
-
-      # Validate that we got numeric values
-      if (is.na(x_4a) || is.na(x_4b) || is.na(x_4c)) {
-        stop("Missing x_4 coefficients in scenario 2. Available names: ",
-             paste(names(group_coefs_values), collapse = ", "))
-      }
-
-      c(
-        constant_coefs,
-        "arm1" = base_effect,
-        "x_4a_arm" = x_4a,
-        "x_4b_arm" = x_4b,
-        "x_4c_arm" = x_4c
-      )
-    },
-    # 3. Null (Crossover): Use TTE truth for x_4 subgroups
-    "3" = {
-      # Extract specific x_4 subgroup effects from TTE truth
-      x_4a <- unname(group_coefs_values["x_4a_arm"])
-      x_4b <- unname(group_coefs_values["x_4b_arm"])
-      x_4c <- unname(group_coefs_values["x_4c_arm"])
-
-      # Validate that we got numeric values
-      if (is.na(x_4a) || is.na(x_4b) || is.na(x_4c)) {
-        stop("Missing x_4 coefficients in scenario 3. Available names: ",
-             paste(names(group_coefs_values), collapse = ", "))
-      }
-
-      c(
-        constant_coefs,
-        "arm1" = 0, # Overall null
-        "x_4a_arm" = x_4a,
-        "x_4b_arm" = x_4b,
-        "x_4c_arm" = x_4c
-      )
-    },
-    # 4. Random (Mild): Use all TTE subgroup effects
-    "4" = c(
-      constant_coefs,
-      "arm1" = 0, # Overall null
-      group_coefs_values
-    ),
-    # 5. Random (Large): Use all TTE subgroup effects
-    "5" = c(
-      constant_coefs,
-      "arm1" = 0, # Overall null
-      group_coefs_values
-    ),
-    # 6. Interaction: Use TTE interaction truth
-    "6" = {
-      # Extract interaction subgroup HRs from TTE truth
-      ia_hr <- simul_parameter$true_ia_subgroup_hr["6", ]
-      # Convert to coefficient names: x_1_2.aa -> x_1_2aa_arm
-      ia_names <- gsub("\\.", "", names(ia_hr))
-      ia_coef_names <- paste0(ia_names, "_arm")
-      ia_coefs <- as.numeric(log(ia_hr))
-      names(ia_coefs) <- ia_coef_names
-
-      c(
-        constant_coefs,
-        "arm1" = base_effect,
-        ia_coefs
-      )
+  # Helper to get treatment effect coefficient based on endpoint
+  # Returns the coefficient corresponding to a given hazard ratio
+  get_trt_coef <- function(hr) {
+    if (endpoint == "continuous") {
+      # For continuous: use direct standardized effect
+      # HR=0.66 maps to d=-0.3 (beneficial = negative for "bad" outcome)
+      # Scale proportionally: log(hr) / log(0.66) * (-0.3)
+      (log(hr) / log(0.66)) * (-0.3) * sigma_scale
+    } else {
+      # For binary/count: use log(effect measure)
+      # OR=0.66 or RR=0.66 (beneficial = <1)
+      log(hr) * sigma_scale
     }
-  )
+  }
 
-  # Ensure coefs is a numeric vector (not a list)
-  if (!is.numeric(coefs)) {
-    stop("coefs is not numeric. Class: ", class(coefs),
-         ", Type: ", typeof(coefs),
-         ", Length: ", length(coefs))
+  if (scenario == "1") {
+    coefs["arm1"] <- get_trt_coef(0.66)
+  }
+  else if (scenario == "2") {
+    coefs["arm1"] <- get_trt_coef(0.66)
+    # x_4a has NO effect. Cancels out the arm effect.
+    coefs["x_4a_arm"] <- -get_trt_coef(0.66)
+    coefs["x_4b_arm"] <- get_trt_coef(0.8)
+    coefs["x_4c_arm"] <- get_trt_coef(0.8)
+  }
+  else if (scenario == "3") {
+    coefs["arm1"] <- 0
+    coefs["x_4a_arm"] <- get_trt_coef(0.5)
+    coefs["x_4b_arm"] <- get_trt_coef(1.25)
+    coefs["x_4c_arm"] <- get_trt_coef(1.25)
+  }
+  else if (scenario == "4") {
+    coefs["arm1"] <- 0
+    # Generate random treatment effects with mild heterogeneity
+    if (endpoint == "continuous") {
+      # For continuous: random effects around 0
+      ia_coefs <- rnorm(25, mean = 0, sd = 0.15) * sigma_scale
+    } else {
+      # For binary/count: random log effects
+      # Negative mean for beneficial direction on average
+      ia_coefs <- -rnorm(25, mean = 0, sd = 0.15) * sigma_scale
+    }
+    names(ia_coefs) <- ia_names
+    coefs <- c(coefs, ia_coefs)
+  }
+  else if (scenario == "5") {
+    coefs["arm1"] <- 0
+    # Generate random treatment effects with large heterogeneity
+    if (endpoint == "continuous") {
+      # For continuous: random effects around 0
+      ia_coefs <- rnorm(25, mean = 0, sd = 0.3) * sigma_scale
+    } else {
+      # For binary/count: random log effects
+      ia_coefs <- -rnorm(25, mean = 0, sd = 0.3) * sigma_scale
+    }
+    names(ia_coefs) <- ia_names
+    coefs <- c(coefs, ia_coefs)
+  }
+  else if (scenario == "6") {
+    coefs["arm1"] <- get_trt_coef(0.66)
+    coefs["x_1_2aa_arm"] <- get_trt_coef(1.5)
+    coefs["x_1_2ba_arm"] <- get_trt_coef(0.5)
+    coefs["x_1_2ab_arm"] <- get_trt_coef(0.92)
+    coefs["x_1_2bb_arm"] <- get_trt_coef(1.07)
   }
 
   return(coefs)
@@ -749,10 +635,11 @@ simul_scenario <- function(scenario = c("1", "2", "3", "4", "5", "6"),
   assert_count(n_datasets)
 
   # Set constant (across scenarios) intercept and prognostic factors.
+  # For TTE AFT model: positive coef = longer survival
   constant_coefs <- c(
     "(Intercept)" = 2,
-    "x_4c" = -log(0.7) * sigma_aft,
-    "x_6b" = -log(1.5) * sigma_aft
+    "x_4c" = -log(0.7) * sigma_aft,   # Beneficial (HR=0.7)
+    "x_6b" = -log(1.5) * sigma_aft    # Harmful (HR=1.5)
   )
 
   # Names of all the subgroup specific coefficients.
@@ -889,6 +776,12 @@ generate_stacked_data <- function(base_model, subgr_model, data, resptype) {
     base_vars[2]
   }
 
+  # For survival, extract time and status variable names
+  if (resptype == "survival") {
+    time_var <- base_vars[1]
+    status_var <- base_vars[2]
+  }
+
   # Store the original arm factor levels
   arm_levels <- levels(data[[trt_var]])
 
@@ -920,9 +813,9 @@ generate_stacked_data <- function(base_model, subgr_model, data, resptype) {
 
       # Rename variables for the naive function
       if (resptype == "survival") {
-        # For survival: keep original variable names (time, status, arm)
-        resp_var <- base_vars[1]  # Assuming first var is response
-        subgroup_data$time <- subgroup_data[[resp_var]]
+        # For survival: create standardized time, status, arm columns
+        subgroup_data$time <- subgroup_data[[time_var]]
+        subgroup_data$status <- subgroup_data[[status_var]]
         subgroup_data$arm <- factor(subgroup_data[[trt_var]], levels = arm_levels)
       } else {
         # For binary/count/continuous: standardize to y and arm
@@ -980,7 +873,8 @@ naive <- function(resp, trt, subgr, data,
     fit <- lapply(list_subg, FUN = function(d) {
       survival::coxph(survival::Surv(time, status) ~ arm, data = d)
     })
-    names(fit) <- gsub("\\.", "", names(fit))
+    # Keep dots in subgroup names for consistency with truth data
+    # names(fit) <- gsub("\\.", "", names(fit))
 
     # Robust extraction for survival
     naive_estimates <- dplyr::bind_rows(lapply(fit, broom::tidy), .id = "subgroup") %>%
@@ -998,7 +892,7 @@ naive <- function(resp, trt, subgr, data,
 
     model_fun <- switch(resptype,
                         "binary"     = function(d) stats::glm(y ~ arm, data = d, family = "binomial"),
-                        "count"      = function(d) MASS::glm.nb(y ~ arm, data = d),
+                        "count"      = function(d) { MASS::glm.nb(y ~ arm, data = d) },
                         "continuous" = function(d) stats::lm(y ~ arm, data = d)
     )
 
@@ -1034,10 +928,11 @@ subgroup_method_endpoint <- function(df, simul_no) {
   df$arm <- factor(df$arm) # Ensure arm is a factor
 
   # Call the naive function (loaded from functions.R)
+  # Use all 10 variables to match data generation
   model <- naive(
     resp = endpoint_params$resp,
     trt = "arm",
-    subgr = c("x_1", "x_2", "x_3", "x_4", "x_5"),
+    subgr = c("x_1", "x_2", "x_3", "x_4", "x_5", "x_6", "x_7", "x_8", "x_9", "x_10"),
     data = df,
     resptype = endpoint_params$resptype,
     status = endpoint_params$status
@@ -1180,7 +1075,7 @@ naivepop <- function(resp, trt, data,
     )
   }
 
-  # --- 4. Extract estimates (UPDATED) ---
+  # --- 4. Extract estimates ---
   # Use broom::tidy to get the coefficient for the treatment arm
   est <- broom::tidy(fit)
 
@@ -1192,13 +1087,11 @@ naivepop <- function(resp, trt, data,
     arm_est_row <- est[est$term == "arm1" | est$term == "arm", ][1, ]
   }
 
-  # **MODIFICATION HERE**
   # Add the 'subgroup' column to match the 'naive' function's output structure
   arm_est <- cbind(
-    subgroup = "Overall", # Add the subgroup column
-    arm_est_row           # The single row of estimates
+    subgroup = "Overall",
+    arm_est_row
   )
-  # **END MODIFICATION**
 
 
   # --- 5. Return a consistent list structure ---
@@ -1227,8 +1120,8 @@ population_method_endpoint <- function(df, simul_no) {
   # --- 1. Get subgroup list dynamically from data ---
   # This list is used to "recycle" the single population
   # estimate, matching the format of the subgroup output.
-  # IMPORTANT: Only use x_1 through x_5 to match subgroup_method_endpoint
-  subgr_vars <- c("x_1", "x_2", "x_3", "x_4", "x_5")
+  # Use all 10 variables to match data generation and subgroup_method_endpoint
+  subgr_vars <- c("x_1", "x_2", "x_3", "x_4", "x_5", "x_6", "x_7", "x_8", "x_9", "x_10")
 
   # Generate all subgroup names by iterating through variables and their levels
   all_subgroups <- character(0)

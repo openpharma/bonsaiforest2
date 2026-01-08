@@ -6,5 +6,4 @@ docs
 inst/doc
 /doc/
 /Meta/
-simulations/**/*.rds
-simulations/**/*.log
+
