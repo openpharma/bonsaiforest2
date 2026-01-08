@@ -1,8 +1,0 @@
-Platform: apollo
-Region: eu
-Description: Simulation job for Count/Horseshoe_mid.R
-ComputeType: 96CPU-768GB
-ScriptCommand: Rscript Count/Horseshoe_mid.R
-Image: 537212169289.dkr.ecr.eu-central-1.amazonaws.com/rstudio-standard:R4.4.3-15apr2025
-WorkingDirectory: /home/pedreram/bonsaiforest2/simulations
-Timeout: 40h
