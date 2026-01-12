@@ -34,6 +34,8 @@ The `bonsaiforest2` package consists of 3 core functions which are typically cal
 2.  `summary_subgroup_effects()` - Calculates the marginal overall and subgroup treatment effects.
 3.  `plot()` - Creates a forest plot from the summary object.
 
+This introductory vignette describes how to run these functions on a simulated dataset. 
+
 This example makes use of Bayesian modeling, which requires the installation of the 
 [`brms`](https://paulbuerkner.com/brms/) package and a working Stan installation (e.g., via 
 [`cmdstanr`](https://mc-stan.org/cmdstanr/)).
