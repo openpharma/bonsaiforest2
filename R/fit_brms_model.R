@@ -45,7 +45,7 @@
 #'   sim_data$region <- as.factor(sim_data$region)
 #'   sim_data$subgroup <- as.factor(sim_data$subgroup)
 #'
-#'   # 2. Prepare the formula and data
+#'   # 2. Prepare the formula and data using colon syntax
 #'   prepared_model <- prepare_formula_model(
 #'     data = sim_data,
 #'     response_formula_str = "Surv(time, status) ~ trt",
@@ -75,7 +75,8 @@ fit_brms_model <- function(prepared_model,
                            stanvars = NULL,
                            ...) {
 
-  # --- 1. Argument Validation ---
+  # --- 1. Argument Validation (Validate-First) ---
+
   # 1a. Validate the container and its structure
   checkmate::assert_list(prepared_model, names = "named", .var.name = "prepared_model")
   checkmate::assert_names(
@@ -95,7 +96,7 @@ fit_brms_model <- function(prepared_model,
   checkmate::assert_list(prognostic_effect_priors, names = "named", null.ok = TRUE)
   checkmate::assert_class(stanvars, "stanvars", null.ok = TRUE)
 
-  # Unpack
+  # --- Unpack  ---
   formula <- prepared_model$formula
   data <- prepared_model$data
   response_type <- prepared_model$response_type
@@ -113,33 +114,35 @@ fit_brms_model <- function(prepared_model,
   }
 
   # --- 3. Construct the Prior List  ---
+
   # Define all possible prior components
+  # KEY CHANGE: The Intercept is class 'b' with coef 'Intercept'
   prior_config <- list(
-    # Shrunk Prognostic (b)
+    # Shrunk Prognostic (b) - No intercept by definition ( ~ 0 + ...)
     list(nlpar = "shprogeffect", class = "b", coef = NULL,
          user_prior = prognostic_effect_priors$shrunk,
          default = "horseshoe(1)",
          label = "shrunk prognostic (b)"),
 
-    # Unshrunk Prognostic (b)
+    # Unshrunk Prognostic (b) - NON-intercepts
     list(nlpar = "unprogeffect", class = "b", coef = NULL,
          user_prior = prognostic_effect_priors$unshrunk,
          default = "normal(0, 5)",
          label = "unshrunk prognostic (b)"),
 
     # Unshrunk Prognostic (Intercept)
-    list(nlpar = "unprogeffect", class = "b", coef = "Intercept",
+    list(nlpar = "unprogeffect", class = "b", coef = "Intercept", # <-- CHANGED
          user_prior = prognostic_effect_priors$intercept,
          default = "normal(0, 5)",
          label = "prognostic intercept"),
 
-    # Shrunk Predictive (b)
+    # Shrunk Predictive (b) - No intercept by definition
     list(nlpar = "shpredeffect", class = "b", coef = NULL,
          user_prior = predictive_effect_priors$shrunk,
          default = "horseshoe(1)",
          label = "shrunk predictive (b)"),
 
-    # Unshrunk Predictive (b)
+    # Unshrunk Predictive (b) - No intercept by definition
     list(nlpar = "unpredeffect", class = "b", coef = NULL,
          user_prior = predictive_effect_priors$unshrunk,
          default = "normal(0, 10)",
@@ -156,6 +159,7 @@ fit_brms_model <- function(prepared_model,
 
       # Special case: Intercept prior only relevant if nlpar is unprogeffect
       # AND the response type is NOT survival (which has no intercept)
+      # CHANGED: Check conf$coef now, not conf$class
       if (!is.null(conf$coef) && conf$coef == "Intercept" && response_type == "survival") {
         next # Skip intercept prior for survival models
       }
@@ -165,7 +169,7 @@ fit_brms_model <- function(prepared_model,
         target_nlpar = conf$nlpar,
         default_str = conf$default,
         target_class = conf$class,
-        target_coef = conf$coef
+        target_coef = conf$coef  # <-- PASSING NEW ARG
       )
 
       priors_list <- c(priors_list, list(processed$prior))
@@ -223,7 +227,7 @@ fit_brms_model <- function(prepared_model,
 #' @noRd
 .process_and_retarget_prior <- function(user_prior, target_nlpar, default_str, target_class = NULL, target_coef = NULL) {
 
-  # Assertions for helper function
+  # --- Assertions for helper function ---
   checkmate::assert_string(target_nlpar, min.chars = 1)
   checkmate::assert_string(default_str, min.chars = 1)
   checkmate::assert_string(target_class, null.ok = TRUE)
@@ -240,6 +244,7 @@ fit_brms_model <- function(prepared_model,
   }
 
   if (is.character(prior_to_use)) {
+    # --- THIS BLOCK IS REVISED ---
     # Build a list of arguments, excluding NULLs
     args <- list(
       prior = prior_to_use,
@@ -285,6 +290,7 @@ fit_brms_model <- function(prepared_model,
       }
     }
     return(list(prior = modified_prior, default_used = FALSE))
+    # --- END REVISION ---
   }
 
   stop(paste("Prior for", target_nlpar, "must be NULL, a string, or a brmsprior object."), call. = FALSE)

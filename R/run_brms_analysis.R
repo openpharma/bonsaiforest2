@@ -5,7 +5,7 @@
 #'
 #' This function is the main user-facing entry point. It first calls
 #' `prepare_formula_model` to build the `brmsformula` and process the data,
-#' then passes the results to `fit_brms_model` to fit the model.
+#' then passes the results to `fit_brms_model` to run the analysis.
 #'
 #' @param data A data.frame containing all the necessary variables.
 #' @param response_formula_str A character string for the response part, e.g.,
@@ -13,11 +13,12 @@
 #' @param response_type The type of outcome variable. One of "binary", "count",
 #'   "continuous", or "survival".
 #' @param shrunk_predictive_formula_str Predictive terms to be shrunk ('shpredeffect').
-#'   E.g., "~ trt:subgroup1".
+#'   E.g., "~ trt:subgroup1" or "~ (trt || subgroup1)".
 #' @param unshrunk_prognostic_formula_str Prognostic terms not to be shrunk
 #'   ('unprogeffect'). E.g., "~ age + sex".
 #' @param unshrunk_predictive_formula_str Predictive terms not to be shrunk
-#'   ('unpredeffect'). E.g., "~ trt:important_subgroup".
+#'   ('unpredeffect'). E.g., "~ trt:important_subgroup" or "~ (trt || important_subgroup)".
+#'   Note: Only one interaction syntax (: or ||) can be used across all predictive formulas.
 #' @param shrunk_prognostic_formula_str Prognostic terms to be shrunk
 #'   ('shprogeffect'). E.g., "~ region + center".
 #' @param stratification_formula_str A formula string specifying a stratification
@@ -54,6 +55,8 @@
 #'   sim_data$subgroup <- as.factor(sim_data$subgroup)
 #'
 #'   # 2. Run the full analysis
+#'   # We use \dontrun{} because fitting a model requires Stan compilation
+#'   # which may fail in automated CI/CD environments.
 #'   \dontrun{
 #'   full_fit <- run_brms_analysis(
 #'     data = sim_data,
@@ -105,14 +108,15 @@ run_brms_analysis <- function(data,
   # --- 2. Fit the Bayesian Model ---
   message("\nStep 2: Fitting the brms model...")
 
+  # --- THIS IS THE MODIFIED PART ---
   model_fit <- fit_brms_model(
-    prepared_model = prepared_model,
+    prepared_model = prepared_model, # Pass the entire list
     predictive_effect_priors = predictive_effect_priors,
     prognostic_effect_priors = prognostic_effect_priors,
     stanvars = stanvars,
     ...
   )
-
+  # --- END OF MODIFICATION ---
 
   # --- 3. Return the Final Model ---
   message("\nAnalysis complete.")
