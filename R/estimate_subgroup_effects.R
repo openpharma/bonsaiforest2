@@ -275,13 +275,19 @@ estimate_subgroup_effects <- function(brms_fit,
   # If trt_var is only fixed effects (Colon model), we SHOULD ignore random effects (re_formula = NA).
 
   has_random_trt <- FALSE
-  re_structure <- brms::ranef(brms_fit, summary = FALSE)
-  for (g_var in names(re_structure)) {
-    re_coefs <- dimnames(re_structure[[g_var]])[[3]]
-    # Robust check matching any coefficient name starting with trt_var
-    if (any(grepl(paste0("^", trt_var), re_coefs))) {
-      has_random_trt <- TRUE
-      break
+  re_structure <- tryCatch(
+    brms::ranef(brms_fit, summary = FALSE),
+    error = function(e) NULL
+  )
+  
+  if (!is.null(re_structure)) {
+    for (g_var in names(re_structure)) {
+      re_coefs <- dimnames(re_structure[[g_var]])[[3]]
+      # Robust check matching any coefficient name starting with trt_var
+      if (any(grepl(paste0("^", trt_var), re_coefs))) {
+        has_random_trt <- TRUE
+        break
+      }
     }
   }
 
