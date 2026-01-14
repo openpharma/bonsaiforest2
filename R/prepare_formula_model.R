@@ -1,6 +1,6 @@
 #' Prepare a Multi-Part brms Formula and Corresponding Data
 #'
-#' This function serves as a pre-processor for building complex Bayesian
+#' This function serves as a powerful pre-processor for building complex Bayesian
 #' models with the `brms` package. It automates the construction of a multi-part,
 #' non-linear formula by classifying covariates into four distinct categories:
 #' unshrunk prognostic, shrunk prognostic, unshrunk predictive, and shrunk predictive.
@@ -16,11 +16,12 @@
 #'     `shprogeffect`, `unpredeffect`, `shpredeffect`), which are combined
 #'     in a non-linear model. This allows for assigning different priors to each
 #'     component.
-#'   \item \strong{Automated Interaction Handling:} Predictive terms (e.g.,
-#'     `~ trt:subgroup`) are automatically handled using R's contrast coding.
-#'     All variables involved in interactions are converted to factors with
-#'     treatment contrasts (reference coding), enabling proper model fitting and
-#'     prediction on new data without manual dummy variable creation.
+#'   \item \strong{Automated Interaction Handling:} Predictive terms support two syntaxes:
+#'     interaction notation (e.g., `~ trt:subgroup`) or random effects notation (e.g.,
+#'     `~ (trt || subgroup)`). Note: only one syntax form (`:` or `||`) may be used
+#'     across all predictive formula strings. All variables involved in interactions are
+#'     converted to factors with treatment contrasts (reference coding), enabling proper
+#'     model fitting and prediction on new data without manual dummy variable creation.
 #'   \item \strong{Hierarchical Integrity:} When a predictive term like
 #'     `trt:subgroup` is specified, the function automatically ensures that the
 #'     corresponding prognostic (main) effect `subgroup` is included in the model,
@@ -31,16 +32,7 @@
 #'     in multiple categories.
 #' }
 #'
-#' @note \strong{Why Non-Linear?}
-#' Although the model components themselves are linear (additive), this function uses
-#' `brms`'s non-linear syntax (`nl = TRUE`) to wrap them into separate parameter
-#' groups (`nlpar`). This architectural choice allows you to apply different
-#' regularization (different priors) to specific parts of the equation without
-#' the components mixing into a single coefficient pool. For example,
-#' applying a sparse horseshoe prior to exploratory subgroups while keeping
-#' established clinical risk factors unregularized..
-#'
-#' @section Survival Model Details:
+#' @section Survival Model Details (Robust Spline Knot Calculation):
 #' For survival models (`response_type = "survival"`), the function explicitly models
 #' the baseline hazard using B-splines via `brms::bhaz()`. It implements a highly
 #' robust method for calculating spline knots to ensure stability:
@@ -82,11 +74,14 @@
 #'   "outcome ~ trt", for count models "n_events + offset(log(days)) ~ trt" or for
 #'   survival models "Surv(time,status) ~ trt".
 #' @param shrunk_predictive_formula_str Predictive terms to be shrunk ('shpredeffect').
-#'   These are typically interactions with the treatment variable.
+#'   These are typically interactions with the treatment variable. Can use either
+#'   interaction notation (e.g., "~ trt:subgroup") or random effects notation (e.g.,
+#'   "~ (trt || subgroup)"). Only one syntax form may be used across all formulas.
 #' @param unshrunk_prognostic_formula_str Prognostic terms not to be shrunk
 #'   ('unprogeffect'). These are main effects assumed to be important.
 #' @param unshrunk_predictive_formula_str Predictive terms not to be shrunk
-#'   ('unpredeffect').
+#'   ('unpredeffect'). Can use either interaction notation or random effects notation,
+#'   but only one syntax form across all formulas.
 #' @param shrunk_prognostic_formula_str Prognostic terms to be shrunk
 #'   ('shprogeffect'). These are main effects where regularization is desired.
 #' @param response_type The type of outcome variable. One of "binary", "count",
@@ -120,7 +115,7 @@
 #'   sim_data$region <- as.factor(sim_data$region)
 #'   sim_data$subgroup <- as.factor(sim_data$subgroup)
 #'
-#'   # 2. Run the function
+#'   # 2a. Example with colon interaction syntax
 #'   prepared_model <- prepare_formula_model(
 #'     data = sim_data,
 #'     response_formula_str = "Surv(time, status) ~ trt",
@@ -130,6 +125,17 @@
 #'     response_type = "survival",
 #'     stratification_formula_str = "~ region"
 #'   )
+#'
+#'   # 2b. Alternatively, using pipe-pipe (||) syntax
+#'   # prepared_model <- prepare_formula_model(
+#'   #   data = sim_data,
+#'   #   response_formula_str = "Surv(time, status) ~ trt",
+#'   #   shrunk_predictive_formula_str = "~ (trt || subgroup)",
+#'   #   unshrunk_prognostic_formula_str = "~ age",
+#'   #   shrunk_prognostic_formula_str = "~ region",
+#'   #   response_type = "survival",
+#'   #   stratification_formula_str = "~ region"
+#'   # )
 #'
 #'   # 3. View the results
 #'   print(prepared_model$formula)
@@ -156,13 +162,17 @@ prepare_formula_model <- function(data,
   checkmate::assert_string(shrunk_prognostic_formula_str, null.ok = TRUE, pattern = "^~")
   checkmate::assert_string(stratification_formula_str, null.ok = TRUE, pattern = "^~")
 
-  # Check valid response type
+  # This replaces match.arg()
   response_type <- checkmate::assert_choice(response_type,
                                             choices = c("binary", "count", "continuous", "survival")
   )
 
-  # Use helper function to get treatment and outcome variables (+ offset if exists)
-  # and set treatment contrast to treatment
+  # --- Validate that only one syntax form (: or ||) is used across all predictive formulas ---
+  .validate_predictive_syntax(
+    shrunk_predictive_formula_str,
+    unshrunk_predictive_formula_str
+  )
+
   initial_parts <- .parse_initial_formula(data, response_formula_str)
   processed_data <- initial_parts$data
   response_term <- initial_parts$response_term
@@ -192,11 +202,10 @@ prepare_formula_model <- function(data,
     shrunk_prognostic_str = shrunk_prognostic_formula_str,
     unshrunk_predictive_str = unshrunk_predictive_formula_str,
     shrunk_predictive_str = shrunk_predictive_formula_str,
-    trt_var = trt_var,
-    data = processed_data
+    trt_var = trt_var
   )
 
-  # 4. Process Predictive Terms
+  # 4. Process Predictive Terms (Now using the NEW .process_predictive_terms)
   # Reconstruct full formula strings from the lists
   shrunk_pred_str_full <- if (!is.null(term_lists$shrunk_pred) && length(term_lists$shrunk_pred) > 0) {
     paste("~", paste(term_lists$shrunk_pred, collapse = " + "))
@@ -206,7 +215,7 @@ prepare_formula_model <- function(data,
     paste("~", paste(term_lists$unshrunk_pred, collapse = " + "))
   } else NULL
 
-  # Call the processing function
+  # Call the UPDATED processing function
   shrunk_pred_out <- .process_predictive_terms(
     shrunk_pred_str_full,
     processed_data,
@@ -245,112 +254,114 @@ prepare_formula_model <- function(data,
   return(list(formula = final_formula_obj, data = processed_data,response_type=response_type ))
 }
 
-#' Add Missing Main Effects
+
+#' Validate Predictive Syntax Consistency
 #'
-#' Ensures that any variable used in an interaction has its main effect
-#' present in the prognostic terms (i.e., respects model hierarchy).
+#' Ensures that across all predictive formula strings, only one interaction syntax
+#' form (`:` or `||`) is used, not a mix of both.
 #'
-#' @param prognostic_terms A character vector of all prognostic terms already
-#'   defined (both shrunk and unshrunk).
-#' @param needed_terms A character vector of main effects required by
-#'   interaction terms (from `.process_predictive_terms`).
-#' @param target_term_list A character vector of terms (e.g., unshrunk prognostic)
-#'   to which any missing main effects will be added.
+#' @param shrunk_pred_str A formula string or NULL.
+#' @param unshrunk_pred_str A formula string or NULL.
 #'
-#' @return The updated `target_term_list` (character vector) with missing
-#'   prognostic terms appended.
+#' @return Invisibly returns NULL. Throws error if both syntaxes are detected.
 #' @noRd
 #'
-.add_missing_prognostic_effects <- function(prognostic_terms, needed_terms, target_term_list) {
-  # --- Assertions ---
-  checkmate::assert_character(prognostic_terms, null.ok = TRUE)
-  checkmate::assert_character(needed_terms, null.ok = TRUE)
-  checkmate::assert_character(target_term_list, null.ok = TRUE)
+.validate_predictive_syntax <- function(shrunk_pred_str, unshrunk_pred_str) {
+  # Combine all formulas to check
+  all_formulas <- paste(shrunk_pred_str, unshrunk_pred_str, collapse = " ")
 
-  for (needed in needed_terms) {
-    if (!needed %in% prognostic_terms) {
-      message("Auto-adding missing prognostic effect for interaction: ", needed)
-      target_term_list <- c(target_term_list, needed)
-    }
+  has_colon <- stringr::str_detect(all_formulas, ":")
+  has_pipe_pipe <- stringr::str_detect(all_formulas, "\\|\\|")
+
+  if (has_colon && has_pipe_pipe) {
+    stop(
+      "Cannot mix interaction syntaxes in predictive formulas. Use EITHER:\n",
+      "  1. Interaction notation (e.g., '~ trt:subgroup')\n",
+      "  2. Random effects notation (e.g., '~ (trt || subgroup)')\n",
+      "but not both in the same model specification."
+    )
   }
-  return(target_term_list)
+
+  invisible(NULL)
 }
 
-#' Assemble the Final brms Formula
+
+#' Parse Predictive Terms with Support for Both Syntaxes
 #'
-#' Takes all the processed formula components and assembles the final
-#' multi-part `brms` formula object. It automatically strips the `offset()`
-#' wrapper from the offset term to ensure compatibility with brms non-linear syntax.
+#' Internal helper to extract the term type (`:` or `||`) from predictive formulas.
 #'
-#' @param response_term The main response part of the formula, e.g., "outcome" or "time | cens(...)".
-#' @param offset_term The offset part of the formula, e.g., "offset(log(days))", or NULL.
-#' @param response_type The type of outcome, e.g., "survival", "continuous".
-#' @param unshrunk_prog_terms A character vector of unshrunk prognostic terms.
-#' @param shrunk_prog_terms A character vector of shrunk prognostic terms.
-#' @param unshrunk_pred_formula A formula string (from `.process_predictive_terms`)
-#'   for unshrunk predictive terms.
-#' @param shrunk_pred_formula A formula string (from `.process_predictive_terms`)
-#'   for shrunk predictive terms.
-#' @param sub_formulas A list of any existing sub-formulas (like for sigma or shape)
-#'   to be combined.
-#'
-#' @return A `brms::bf` object, ready for `brms::brm()`.
+#' @param formula_str A formula string or NULL.
+#' @return A character scalar: "colon", "pipe", or NA_character_ if no interactions.
 #' @noRd
 #'
-.assemble_brms_formula <- function(response_term, offset_term, response_type, unshrunk_prog_terms,
-                                   shrunk_prog_terms, unshrunk_pred_formula,
-                                   shrunk_pred_formula, sub_formulas = list()) {
-  # Assertions
-  checkmate::assert_string(response_term)
-  checkmate::assert_string(offset_term, null.ok = TRUE)
-  checkmate::assert_string(response_type)
-  checkmate::assert_character(unshrunk_prog_terms, null.ok = TRUE)
-  checkmate::assert_character(shrunk_prog_terms, null.ok = TRUE)
-  checkmate::assert_string(unshrunk_pred_formula, null.ok = TRUE)
-  checkmate::assert_string(shrunk_pred_formula, null.ok = TRUE)
-  checkmate::assert_list(sub_formulas)
-
-  # Define intercept rules based on response type
-  has_intercept <- response_type != "survival"
-
-  placeholders <- c()
-  .create_sub_formula <- function(name, terms, intercept = FALSE) {
-    if (length(terms) > 0 || intercept) {
-      placeholders <<- c(placeholders, name)
-      rhs <- paste(terms, collapse = " + ")
-      formula_str <- if (nchar(rhs) > 0) paste(name, "~", rhs) else paste(name, "~ 1")
-      if (!intercept) formula_str <- paste0(formula_str, " + 0")
-      sub_formulas[[name]] <<- brms::lf(formula_str)
-    }
+.detect_interaction_syntax <- function(formula_str) {
+  if (is.null(formula_str) || formula_str == "") {
+    return(NA_character_)
   }
 
-  # Create sub-formulas for each component
-  .create_sub_formula("unprogeffect", setdiff(unshrunk_prog_terms, "1"), has_intercept)
-  .create_sub_formula("shprogeffect", setdiff(shrunk_prog_terms, "1"), FALSE)
-  .create_sub_formula("unpredeffect", unshrunk_pred_formula, FALSE)
-  .create_sub_formula("shpredeffect", shrunk_pred_formula, FALSE)
+  has_colon <- stringr::str_detect(formula_str, ":")
+  has_pipe_pipe <- stringr::str_detect(formula_str, "\\|\\|")
 
-  # Create the main formula using placeholders and the full response part
-  main_formula_str <- if (length(placeholders) > 0) {
-    paste(response_term, "~", paste(placeholders, collapse = " + "))
+  if (has_colon) {
+    return("colon")
+  } else if (has_pipe_pipe) {
+    return("pipe")
   } else {
-    paste(response_term, "~", if (has_intercept) "1" else "0")
+    return(NA_character_)
   }
-
-  # Offset handling
-  if (!is.null(offset_term) && nzchar(offset_term)) {
-
-    clean_offset_term <- sub("^offset\\((.*)\\)$", "\\1", offset_term)
-
-    main_formula_str <- paste(main_formula_str, "+", clean_offset_term)
-  }
-
-
-  main_bf_obj <- brms::bf(main_formula_str, nl = TRUE)
-
-  # Combine main formula with all sub-formulas
-  Reduce("+", sub_formulas, init = main_bf_obj)
 }
+
+
+#' Parse Initial Formula and Validate Inputs
+#'
+#'
+#' Handles initial data validation and parsing of the main response formula string,
+#' correctly separating the core response variable from potential offset terms.
+#'
+#' @param data A data.frame.
+#' @param response_formula_str A string like "response ~ treatment" or "response + offset(log(var)) ~ treatment".
+#' @return A list containing the core response part (`response_term`), the offset part (`offset_term`),
+#'   the treatment variable name (`trt_var`), and the processed data.
+#' @noRd
+#'
+.parse_initial_formula <- function(data, response_formula_str) {
+  # --- Assertions ---
+  checkmate::assert_data_frame(data)
+  checkmate::assert_string(response_formula_str, pattern = "~")
+
+  formula_parts <- stringr::str_squish(stringr::str_split(response_formula_str, "~", n = 2)[[1]])
+  lhs_str <- formula_parts[1]
+  trt_var <- formula_parts[2]
+
+  # --- More Assertions (replacing old stop()) ---
+  checkmate::assert_string(trt_var, min.chars = 1)
+  checkmate::assert_subset(trt_var, names(data))
+
+  # Split the left-hand side to find the response and any offset
+  lhs_terms <- stringr::str_squish(stringr::str_split(lhs_str, "\\+")[[1]])
+  is_offset <- stringr::str_starts(lhs_terms, "offset\\(")
+
+  offset_term <- if (any(is_offset)) lhs_terms[is_offset] else NULL
+  response_term <- paste(lhs_terms[!is_offset], collapse = " + ")
+
+  # Keep treatment as factor for contrast-based modeling
+  # This enables proper predictions on new data without manual dummy variable creation
+  if (!is.factor(data[[trt_var]])) {
+    message("Converting treatment variable '", trt_var, "' to factor for contrast coding.")
+    data[[trt_var]] <- as.factor(data[[trt_var]])
+  }
+
+  # Set treatment contrast to treatment coding (reference = first level)
+  contrasts(data[[trt_var]]) <- stats::contr.sum(levels(data[[trt_var]]), contrasts = FALSE )
+
+  return(list(
+    response_term = response_term,
+    offset_term = offset_term,
+    trt_var = trt_var,
+    data = data
+  ))
+}
+
 
 #' Calculate Knots for Baseline Hazard Spline
 #'
@@ -392,36 +403,6 @@ prepare_formula_model <- function(data,
   return(list(boundary_knots = limits_resp, internal_knots = unique(quantiles_resp)))
 }
 
-#' Handle Stratification for Distributional Parameters
-#'
-#' Creates sub-formula `brms::lf()` objects for sigma (continuous) or
-#' shape (count) based on a stratification variable.
-#'
-#' @param response_type The type of outcome, e.g., "continuous" or "count".
-#' @param stratification_formula_str A formula string, e.g., "~ strata_var".
-#' @param data The data.frame, used to check if the stratification variable exists.
-#'
-#' @return A named list of `brms::lf()` objects (e.g., `list(sigma = ...)`).
-#' @noRd
-#'
-.handle_distributional_stratification <- function(response_type, stratification_formula_str, data) {
-  # Assertions
-  checkmate::assert_choice(response_type, choices = c("continuous", "count"))
-  checkmate::assert_string(stratification_formula_str)
-  checkmate::assert_data_frame(data)
-
-  strat_var <- stringr::str_squish(stringr::str_remove(stratification_formula_str, "~"))
-  checkmate::assert_subset(strat_var, names(data))
-  formulas <- list()
-  if (response_type == "continuous") {
-    message("Applying stratification: estimating sigma by '", strat_var, "'.")
-    formulas$sigma <- brms::lf(paste("sigma", stratification_formula_str))
-  } else if (response_type == "count") {
-    message("Applying stratification: estimating shape by '", strat_var, "'.")
-    formulas$shape <- brms::lf(paste("shape", stratification_formula_str))
-  }
-  return(formulas)
-}
 
 #' Handle Survival Response Preparation
 #'
@@ -437,18 +418,16 @@ prepare_formula_model <- function(data,
 #' @noRd
 #'
 .handle_survival_response <- function(response_part, data, stratification_formula_str) {
-  # Assertions
+  # --- Assertions ---
   checkmate::assert_string(response_part, pattern = "^Surv\\(")
   checkmate::assert_data_frame(data)
   checkmate::assert_string(stratification_formula_str, null.ok = TRUE)
 
-  # Changing syntax
   surv_vars <- stringr::str_match(response_part, "Surv\\((.*?),(.*?)\\)")
   time_var <- stringr::str_trim(surv_vars[, 2])
   status_var <- stringr::str_trim(surv_vars[, 3])
   brms_response_part <- paste0(time_var, " | cens(1 - ", status_var, ")")
 
-  # Baseline Hazard Modelling
   message("Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().")
   knots <- .calculate_bhaz_knots(data[[time_var]])
 
@@ -462,7 +441,6 @@ prepare_formula_model <- function(data,
     "intercept = FALSE"
   )
 
-  # Stratification
   if (!is.null(stratification_formula_str)) {
     strat_var <- str_squish(str_remove(stratification_formula_str, "~"))
     checkmate::assert_subset(strat_var, names(data))
@@ -473,67 +451,76 @@ prepare_formula_model <- function(data,
   return(paste(brms_response_part, "+", paste0("bhaz(", bhaz_args, ")")))
 }
 
-#' Parse Initial Formula and Validate Inputs
+
+#' Resolve Term Overlaps and Set Defaults
 #'
-#' Handles initial data validation and parsing of the main response formula string,
-#' correctly separating the core response variable from potential offset terms.
+#' Checks for overlapping terms between shrunk/unshrunk formulas and adds
+#' the treatment variable to prognostic terms if it's missing.
 #'
-#' @param data A data.frame.
-#' @param response_formula_str A string like "response ~ treatment" or "response + offset(log(var)) ~ treatment".
-#' @return A list containing the core response part (`response_term`), the offset part (`offset_term`),
-#'   the treatment variable name (`trt_var`), and the processed data.
+#' @param unshrunk_prognostic_str A formula string, e.g., "~ var1 + var2".
+#' @param shrunk_prognostic_str A formula string, e.g., "~ var3".
+#' @param unshrunk_predictive_str A formula string, e.g., "~ trt:var1".
+#' @param shrunk_predictive_str A formula string, e.g., "~ trt:var4".
+#' @param trt_var The name of the treatment variable (character string).
+#'
+#' @return A list of cleaned-up character vectors for each term type:
+#'   `unshrunk_prog`, `shrunk_prog`, `unshrunk_pred`, `shrunk_pred`.
 #' @noRd
 #'
-.parse_initial_formula <- function(data, response_formula_str) {
-  # Assertions
-  checkmate::assert_data_frame(data)
-  checkmate::assert_string(response_formula_str, pattern = "~")
+.resolve_term_overlaps_and_defaults <- function(unshrunk_prognostic_str, shrunk_prognostic_str,
+                                                unshrunk_predictive_str, shrunk_predictive_str, trt_var) {
 
-  # Separate response formula into outcome and treatment variables
-  formula_parts <- stringr::str_squish(stringr::str_split(response_formula_str, "~", n = 2)[[1]])
-  lhs_str <- formula_parts[1]
-  trt_var <- formula_parts[2]
+  # --- Assertions ---
+  checkmate::assert_string(unshrunk_prognostic_str, null.ok = TRUE)
+  checkmate::assert_string(shrunk_prognostic_str, null.ok = TRUE)
+  checkmate::assert_string(unshrunk_predictive_str, null.ok = TRUE)
+  checkmate::assert_string(shrunk_predictive_str, null.ok = TRUE)
+  checkmate::assert_string(trt_var)
 
-  # Assertation on the name and existence of treatment variable
-  checkmate::assert_string(trt_var, min.chars = 1)
-  checkmate::assert_subset(trt_var, names(data))
+  get_terms <- function(s) if (is.null(s) || s == "") NULL else stringr::str_squish(stringr::str_split(stringr::str_remove(s, "~"), "\\+")[[1]])
 
-  # Split the left-hand side to find the response and any offset
-  lhs_terms <- stringr::str_squish(stringr::str_split(lhs_str, "\\+")[[1]])
-  is_offset <- stringr::str_starts(lhs_terms, "offset\\(")
+  unshrunk_prog <- get_terms(unshrunk_prognostic_str)
+  shrunk_prog <- get_terms(shrunk_prognostic_str)
+  unshrunk_pred <- get_terms(unshrunk_predictive_str)
+  shrunk_pred <- get_terms(shrunk_predictive_str)
 
-  offset_term <- if (any(is_offset)) lhs_terms[is_offset] else NULL
-  response_term <- paste(lhs_terms[!is_offset], collapse = " + ")
-
-  # Keep treatment as factor for contrast-based modeling
-  if (!is.factor(data[[trt_var]])) {
-    message("Converting treatment variable '", trt_var, "' to factor for contrast coding.")
-    data[[trt_var]] <- as.factor(data[[trt_var]])
+  # Add treatment to prognostic if missing
+  if (!(trt_var %in% unshrunk_prog) && !(trt_var %in% shrunk_prog)) {
+    message("Treatment '", trt_var, "' added to unshrunk prognostic terms by default.")
+    unshrunk_prog <- c(unshrunk_prog, trt_var)
   }
 
-  # Set treatment contrast to treatment coding
-  contrasts(data[[trt_var]]) <- stats::contr.sum(levels(data[[trt_var]]), contrasts = FALSE )
+  # Resolve overlaps
+  overlap_prog <- intersect(unshrunk_prog, shrunk_prog)
+  if (length(overlap_prog) > 0) {
+    warning("Prognostic terms in both shrunk/unshrunk. Prioritizing as unshrunk: ", paste(overlap_prog, collapse = ", "))
+    shrunk_prog <- setdiff(shrunk_prog, overlap_prog)
+  }
+  overlap_pred <- intersect(unshrunk_pred, shrunk_pred)
+  if (length(overlap_pred) > 0) {
+    warning("Predictive terms in both shrunk/unshrunk. Prioritizing as shrunk: ", paste(overlap_pred, collapse = ", "))
+    unshrunk_pred <- setdiff(unshrunk_pred, overlap_pred)
+  }
 
   return(list(
-    response_term = response_term,
-    offset_term = offset_term,
-    trt_var = trt_var,
-    data = data
+    unshrunk_prog = unshrunk_prog, shrunk_prog = shrunk_prog,
+    unshrunk_pred = unshrunk_pred, shrunk_pred = shrunk_pred
   ))
 }
 
 
-
-
-
-#' Process Predictive Interaction Terms (Explicit Dummy Creation)
+#' Process Predictive Interaction Terms (Explicit Dummy Creation for brms Non-Linear)
 #'
 #' Creates explicit dummy variables for treatment interactions because brms non-linear
 #' formulas don't respect contrast coding for interactions in the expected way.
 #' This ensures we get ONE parameter per interaction (e.g., `b_trt_regionA`) rather
 #' than parameters for all level combinations.
 #'
-#' @param formula_str A character string formula, e.g., "~ trt:subgroup".
+#' Supports two syntaxes for specifying interactions:
+#' 1. Colon notation: "~ trt:subgroup"
+#' 2. Pipe-pipe notation: "~ (trt || subgroup)"
+#'
+#' @param formula_str A character string formula, e.g., "~ trt:subgroup" or "~ (trt || subgroup)".
 #' @param .data The data.frame to modify.
 #' @param .trt_var The character string name of the treatment variable.
 #'
@@ -543,7 +530,7 @@ prepare_formula_model <- function(data,
 #'   \item{prognostic_effects}{A character vector of main effects needed for hierarchy.}
 #' @noRd
 .process_predictive_terms <- function(formula_str, .data, .trt_var) {
-  # Assertions
+  # --- Assertions ---
   checkmate::assert_string(formula_str, null.ok = TRUE)
   checkmate::assert_data_frame(.data)
   checkmate::assert_string(.trt_var)
@@ -566,6 +553,33 @@ prepare_formula_model <- function(data,
   # Assuming levels are ordered as (control, treatment), e.g., c("0", "1")
   # trt_levels[2] is the "active" treatment level
 
+  # Detect which syntax is being used
+  syntax_type <- .detect_interaction_syntax(formula_str)
+
+  if (is.na(syntax_type)) {
+    # No interaction terms detected
+    return(list(formula_part = NULL, data = .data, prognostic_effects = character(0)))
+  }
+
+  if (syntax_type == "colon") {
+    return(.process_colon_interaction_terms(formula_str, .data, .trt_var, trt_levels))
+  } else if (syntax_type == "pipe") {
+    return(.process_pipe_interaction_terms(formula_str, .data, .trt_var, trt_levels))
+  }
+}
+
+
+#' Process Colon-Based Interactions (trt:subgroup)
+#'
+#' @param formula_str A formula string like "~ trt:subgroup"
+#' @param .data The data.frame to modify.
+#' @param .trt_var The treatment variable name.
+#' @param trt_levels The factor levels of the treatment variable.
+#'
+#' @return A list with formula_part, data, and prognostic_effects.
+#' @noRd
+#'
+.process_colon_interaction_terms <- function(formula_str, .data, .trt_var, trt_levels) {
   # Parse terms to check for validity and create dummies
   terms <- attr(terms(as.formula(formula_str)), "term.labels")
   prognostic_effects_needed <- c()
@@ -624,111 +638,218 @@ prepare_formula_model <- function(data,
 }
 
 
-
-
-#' Resolve Term Overlaps and Set Defaults
+#' Process Pipe-Pipe Interactions (trt || subgroup)
 #'
-#' Checks for overlapping terms between shrunk/unshrunk formulas and adds
-#' the treatment variable to prognostic terms if it's missing.
+#' Converts (trt || subgroup) notation into explicit dummy variables for each
+#' level of the subgroup variable, following the same approach as colon notation.
 #'
-#' @param unshrunk_prognostic_str A formula string, e.g., "~ var1 + var2".
-#' @param shrunk_prognostic_str A formula string, e.g., "~ var3".
-#' @param unshrunk_predictive_str A formula string, e.g., "~ trt:var1".
-#' @param shrunk_predictive_str A formula string, e.g., "~ trt:var4".
-#' @param trt_var The name of the treatment variable (character string).
+#' @param formula_str A formula string like "~ (trt || subgroup)"
+#' @param .data The data.frame to modify.
+#' @param .trt_var The treatment variable name.
+#' @param trt_levels The factor levels of the treatment variable.
 #'
-#' @return A list of cleaned-up character vectors for each term type:
-#'   `unshrunk_prog`, `shrunk_prog`, `unshrunk_pred`, `shrunk_pred`.
+#' @return A list with formula_part, data, and prognostic_effects.
 #' @noRd
 #'
-.resolve_term_overlaps_and_defaults <- function(unshrunk_prognostic_str, shrunk_prognostic_str,
-                                                unshrunk_predictive_str, shrunk_predictive_str, trt_var,
-                                                data) {
+.process_pipe_interaction_terms <- function(formula_str, .data, .trt_var, trt_levels) {
+  # Extract the (trt || subgroup) pattern
+  # Pattern: (var1 || var2) or multiple terms separated by +
+  pattern <- "\\(\\s*([^|]+?)\\s*\\|\\|\\s*([^)]+?)\\s*\\)"
+  matches <- stringr::str_match_all(formula_str, pattern)[[1]]
 
-  # Assertions
-  checkmate::assert_string(unshrunk_prognostic_str, null.ok = TRUE)
-  checkmate::assert_string(shrunk_prognostic_str, null.ok = TRUE)
-  checkmate::assert_string(unshrunk_predictive_str, null.ok = TRUE)
-  checkmate::assert_string(shrunk_predictive_str, null.ok = TRUE)
-  checkmate::assert_string(trt_var)
-  checkmate::assert_data_frame(data)
-
-  .get_terms <- function(s) {
-    if (is.null(s) || s == "") return(NULL)
-    terms <- stringr::str_squish(stringr::str_split(stringr::str_remove(s, "~"), "\\+")[[1]])
-    # Remove empty entries
-    terms <- terms[terms != ""]
-    if (length(terms) == 0) return(NULL)
-    # Strip out intercept indicators and numeric literals (e.g., 1, 0)
-    terms <- terms[!terms %in% c("1", "0")]
-    terms <- terms[!stringr::str_detect(terms, "^[0-9]+$")]
-    # Remove any offset() tokens if present here (offsets handled elsewhere)
-    terms <- terms[!stringr::str_detect(terms, "^offset\\(")]
-    if (length(terms) == 0) return(NULL)
-    terms
+  if (nrow(matches) == 0) {
+    warning("No (trt || subgroup) patterns found in formula: ", formula_str)
+    return(list(formula_part = NULL, data = .data, prognostic_effects = character(0)))
   }
 
-  unshrunk_prog <- .get_terms(unshrunk_prognostic_str)
-  shrunk_prog <- .get_terms(shrunk_prognostic_str)
-  unshrunk_pred <- .get_terms(unshrunk_predictive_str)
-  shrunk_pred <- .get_terms(shrunk_predictive_str)
+  prognostic_effects_needed <- c()
+  new_dummy_terms <- c()
 
-  # Validate that prognostic terms exist in the data
-  prog_terms_all <- unique(c(unshrunk_prog, shrunk_prog))
-  prog_terms_all <- prog_terms_all[!is.null(prog_terms_all) & prog_terms_all != ""]
-  if (length(prog_terms_all) > 0) {
-    missing_prog <- setdiff(prog_terms_all, names(data))
-    if (length(missing_prog) > 0) {
-      stop("Prognostic variable(s) not found in data: ", paste(missing_prog, collapse = ", "))
+  for (i in seq_len(nrow(matches))) {
+    var1 <- stringr::str_squish(matches[i, 2])
+    var2 <- stringr::str_squish(matches[i, 3])
+
+    # Ensure trt_var is in the interaction
+    if (!.trt_var %in% c(var1, var2)) {
+      warning(paste("Skipping (", var1, "||", var2, "): must include treatment variable", .trt_var))
+      next
+    }
+
+    # Identify which is the subgroup variable
+    subgroup_var <- if (var1 == .trt_var) var2 else var1
+
+    prognostic_effects_needed <- c(prognostic_effects_needed, subgroup_var)
+
+    # Ensure the subgroup variable is a factor
+    if (!is.factor(.data[[subgroup_var]])) {
+      message(paste("Converting", subgroup_var, "to factor for interaction terms."))
+      .data[[subgroup_var]] <- as.factor(.data[[subgroup_var]])
+    }
+
+    # Set contrasts for the main effect (for prognostic terms)
+    contrasts(.data[[subgroup_var]]) <- stats::contr.treatment(levels(.data[[subgroup_var]]))
+
+    # Create explicit dummy interaction variables for EACH level of subgroup
+    subgroup_levels <- levels(.data[[subgroup_var]])
+
+    for (level in subgroup_levels) {
+      # Create interaction dummy: 1 if (trt == treatment_level AND subgroup == level), else 0
+      dummy_name <- make.names(paste0(.trt_var, "_", subgroup_var, level), unique = FALSE)
+      .data[[dummy_name]] <- as.numeric(
+        .data[[.trt_var]] == trt_levels[2] & .data[[subgroup_var]] == level
+      )
+      new_dummy_terms <- c(new_dummy_terms, dummy_name)
     }
   }
 
-  # Validate predictive terms reference existing variables (other than treatment)
-  pred_terms_all <- unique(c(unshrunk_pred, shrunk_pred))
-  pred_terms_all <- pred_terms_all[!is.null(pred_terms_all) & pred_terms_all != ""]
-  if (length(pred_terms_all) > 0) {
-    for (pt in pred_terms_all) {
-      if (stringr::str_detect(pt, ":")) {
-        vars <- stringr::str_squish(stringr::str_split(pt, ":")[[1]])
-        other_vars <- setdiff(vars, trt_var)
-        if (length(other_vars) < 1) {
-          stop("Predictive term must include treatment and at least one other variable: ", pt)
-        }
-        missing_pred <- setdiff(other_vars, names(data))
-        if (length(missing_pred) > 0) {
-          stop("Predictive variable(s) not found in data: ", paste(missing_pred, collapse = ", "))
-        }
-      } else {
-        # No colon: ensure the term exists
-        if (!pt %in% names(data)) {
-          stop("Predictive variable not found in data: ", pt)
-        }
-      }
-    }
-  }
-
-  # Add treatment to prognostic if missing
-  if (!(trt_var %in% unshrunk_prog) && !(trt_var %in% shrunk_prog)) {
-    message("Treatment '", trt_var, "' added to unshrunk prognostic terms by default.")
-    unshrunk_prog <- c(unshrunk_prog, trt_var)
-  }
-
-  # Resolve overlaps
-  overlap_prog <- intersect(unshrunk_prog, shrunk_prog)
-  if (length(overlap_prog) > 0) {
-    warning("Prognostic terms in both shrunk/unshrunk. Prioritizing as unshrunk: ", paste(overlap_prog, collapse = ", "))
-    shrunk_prog <- setdiff(shrunk_prog, overlap_prog)
-  }
-  overlap_pred <- intersect(unshrunk_pred, shrunk_pred)
-  if (length(overlap_pred) > 0) {
-    warning("Predictive terms in both shrunk/unshrunk. Prioritizing as shrunk: ", paste(overlap_pred, collapse = ", "))
-    unshrunk_pred <- setdiff(unshrunk_pred, overlap_pred)
+  # Create formula string with the new dummy variable names
+  clean_formula <- if (length(new_dummy_terms) > 0) {
+    paste(new_dummy_terms, collapse = " + ")
+  } else {
+    NULL
   }
 
   return(list(
-    unshrunk_prog = unshrunk_prog, shrunk_prog = shrunk_prog,
-    unshrunk_pred = unshrunk_pred, shrunk_pred = shrunk_pred
+    formula_part = clean_formula,
+    data = .data,
+    prognostic_effects = unique(prognostic_effects_needed)
   ))
 }
 
+#' Add Missing Main Effects
+#'
+#' Ensures that any variable used in an interaction has its main effect
+#' present in the prognostic terms (i.e., respects model hierarchy).
+#'
+#' @param prognostic_terms A character vector of all prognostic terms already
+#'   defined (both shrunk and unshrunk).
+#' @param needed_terms A character vector of main effects required by
+#'   interaction terms (from `.process_predictive_terms`).
+#' @param target_term_list A character vector of terms (e.g., unshrunk prognostic)
+#'   to which any missing main effects will be added.
+#'
+#' @return The updated `target_term_list` (character vector) with missing
+#'   prognostic terms appended.
+#' @noRd
+#'
+.add_missing_prognostic_effects <- function(prognostic_terms, needed_terms, target_term_list) {
+  # --- Assertions ---
+  checkmate::assert_character(prognostic_terms, null.ok = TRUE)
+  checkmate::assert_character(needed_terms, null.ok = TRUE)
+  checkmate::assert_character(target_term_list, null.ok = TRUE)
 
+  for (needed in needed_terms) {
+    if (!needed %in% prognostic_terms) {
+      message("Auto-adding missing prognostic effect for interaction: ", needed)
+      target_term_list <- c(target_term_list, needed)
+    }
+  }
+  return(target_term_list)
+}
+
+#' Handle Stratification for Distributional Parameters
+#'
+#' Creates sub-formula `brms::lf()` objects for sigma (continuous) or
+#' shape (count) based on a stratification variable.
+#'
+#' @param response_type The type of outcome, e.g., "continuous" or "count".
+#' @param stratification_formula_str A formula string, e.g., "~ strata_var".
+#' @param data The data.frame, used to check if the stratification variable exists.
+#'
+#' @return A named list of `brms::lf()` objects (e.g., `list(sigma = ...)`).
+#' @noRd
+#'
+.handle_distributional_stratification <- function(response_type, stratification_formula_str, data) {
+  # --- Assertions ---
+  checkmate::assert_choice(response_type, choices = c("continuous", "count"))
+  checkmate::assert_string(stratification_formula_str)
+  checkmate::assert_data_frame(data)
+
+  strat_var <- stringr::str_squish(stringr::str_remove(stratification_formula_str, "~"))
+  checkmate::assert_subset(strat_var, names(data))
+  formulas <- list()
+  if (response_type == "continuous") {
+    message("Applying stratification: estimating sigma by '", strat_var, "'.")
+    formulas$sigma <- brms::lf(paste("sigma", stratification_formula_str))
+  } else if (response_type == "count") {
+    message("Applying stratification: estimating shape by '", strat_var, "'.")
+    formulas$shape <- brms::lf(paste("shape", stratification_formula_str))
+  }
+  return(formulas)
+}
+
+#' Assemble the Final brms Formula
+#'
+#' Takes all the processed formula components and assembles the final
+#' multi-part `brms` formula object. It automatically strips the `offset()`
+#' wrapper from the offset term to ensure compatibility with brms non-linear syntax.
+#'
+#' @param response_term The main response part of the formula, e.g., "outcome" or "time | cens(...)".
+#' @param offset_term The offset part of the formula, e.g., "offset(log(days))", or NULL.
+#' @param response_type The type of outcome, e.g., "survival", "continuous".
+#' @param unshrunk_prog_terms A character vector of unshrunk prognostic terms.
+#' @param shrunk_prog_terms A character vector of shrunk prognostic terms.
+#' @param unshrunk_pred_formula A formula string (from `.process_predictive_terms`)
+#'   for unshrunk predictive terms.
+#' @param shrunk_pred_formula A formula string (from `.process_predictive_terms`)
+#'   for shrunk predictive terms.
+#' @param sub_formulas A list of any existing sub-formulas (like for sigma or shape)
+#'   to be combined.
+#'
+#' @return A `brms::bf` object, ready for `brms::brm()`.
+#' @noRd
+#'
+.assemble_brms_formula <- function(response_term, offset_term, response_type, unshrunk_prog_terms,
+                                   shrunk_prog_terms, unshrunk_pred_formula,
+                                   shrunk_pred_formula, sub_formulas = list()) {
+  # --- Assertions ---
+  checkmate::assert_string(response_term)
+  checkmate::assert_string(offset_term, null.ok = TRUE)
+  checkmate::assert_string(response_type)
+  checkmate::assert_character(unshrunk_prog_terms, null.ok = TRUE)
+  checkmate::assert_character(shrunk_prog_terms, null.ok = TRUE)
+  checkmate::assert_string(unshrunk_pred_formula, null.ok = TRUE)
+  checkmate::assert_string(shrunk_pred_formula, null.ok = TRUE)
+  checkmate::assert_list(sub_formulas)
+
+  # Define intercept rules based on response type
+  has_intercept <- response_type != "survival"
+
+  placeholders <- c()
+  .create_sub_formula <- function(name, terms, intercept = FALSE) {
+    if (length(terms) > 0 || intercept) {
+      placeholders <<- c(placeholders, name)
+      rhs <- paste(terms, collapse = " + ")
+      formula_str <- if (nchar(rhs) > 0) paste(name, "~", rhs) else paste(name, "~ 1")
+      if (!intercept) formula_str <- paste0(formula_str, " + 0")
+      sub_formulas[[name]] <<- brms::lf(formula_str)
+    }
+  }
+
+  # Create sub-formulas for each component
+  .create_sub_formula("unprogeffect", setdiff(unshrunk_prog_terms, "1"), has_intercept)
+  .create_sub_formula("shprogeffect", setdiff(shrunk_prog_terms, "1"), FALSE)
+  .create_sub_formula("unpredeffect", unshrunk_pred_formula, FALSE)
+  .create_sub_formula("shpredeffect", shrunk_pred_formula, FALSE)
+
+  # Create the main formula using placeholders and the full response part
+  main_formula_str <- if (length(placeholders) > 0) {
+    paste(response_term, "~", paste(placeholders, collapse = " + "))
+  } else {
+    paste(response_term, "~", if (has_intercept) "1" else "0")
+  }
+
+  # Offset handling
+  if (!is.null(offset_term) && nzchar(offset_term)) {
+
+    clean_offset_term <- sub("^offset\\((.*)\\)$", "\\1", offset_term)
+
+    main_formula_str <- paste(main_formula_str, "+", clean_offset_term)
+  }
+
+
+  main_bf_obj <- brms::bf(main_formula_str, nl = TRUE)
+
+  # Combine main formula with all sub-formulas
+  Reduce("+", sub_formulas, init = main_bf_obj)
+}
