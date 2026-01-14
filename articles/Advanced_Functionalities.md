@@ -76,7 +76,7 @@ count_model_fit <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.5 seconds.
+#> Chain 1 finished in 2.7 seconds.
 #> Warning: 1 of 100 (1.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
@@ -335,7 +335,7 @@ fit_ex5 <- fit_brms_model(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.8 seconds.
+#> Chain 1 finished in 2.9 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 ```
@@ -424,10 +424,11 @@ strat_continuous_summary <- summary_subgroup_effects(
   response_type = "continuous" # Auto-detects age_group interaction
 )
 #> --- Calculating specific subgroup effects... ---
-#> Step 1: Creating counterfactual datasets...
-#> `subgroup_vars` set to 'auto'. Detecting from model data...
+#> Step 1: Identifying subgroups and creating counterfactuals...
+#> `subgroup_vars` set to 'auto'. Detecting from model...
 #> ...detected subgroup variable(s): age_group
 #> Step 2: Generating posterior predictions...
+#> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
 #> ... (predicting expected outcomes)...
 #> Step 3: Calculating marginal effects...
 #> ... processing age_group
@@ -508,7 +509,7 @@ fit_surv_stratified <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 7.6 seconds.
+#> Chain 1 finished in 7.7 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 
@@ -523,11 +524,12 @@ strat_surv_summary <- summary_subgroup_effects(
   response_type = "survival" # Auto-detects biomarker interaction
 )
 #> --- Calculating specific subgroup effects... ---
-#> Step 1: Creating counterfactual datasets...
-#> `subgroup_vars` set to 'auto'. Detecting from model data...
+#> Step 1: Identifying subgroups and creating counterfactuals...
+#> `subgroup_vars` set to 'auto'. Detecting from model...
 #> ...detected subgroup variable(s): biomarker
 #> Step 2: Generating posterior predictions...
-#> ... (reconstructing baseline hazard and obtaining linear predictors)...
+#> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
+#> ... (reconstructing baseline hazard and getting linear predictors)...
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Step 3: Calculating marginal effects...

@@ -181,7 +181,7 @@
 <span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.4 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.3 seconds.</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">continuous_model_fit</span><span class="op">)</span></span>
 <span><span class="co">#&gt;  Family: gaussian </span></span>
@@ -243,10 +243,11 @@
 <span>  <span class="co"># subgroup_vars = "auto" is the default and finds all interactions</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; --- Calculating specific subgroup effects... ---</span></span>
-<span><span class="co">#&gt; Step 1: Creating counterfactual datasets...</span></span>
-<span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model data...</span></span>
+<span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
+<span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model...</span></span>
 <span><span class="co">#&gt; ...detected subgroup variable(s): region, comorbidity</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
+<span><span class="co">#&gt; ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.</span></span>
 <span><span class="co">#&gt; ... (predicting expected outcomes)...</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
 <span><span class="co">#&gt; ... processing region</span></span>
