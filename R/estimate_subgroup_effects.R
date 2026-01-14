@@ -153,24 +153,30 @@ estimate_subgroup_effects <- function(brms_fit,
     # -----------------------------------------------------
     # brms::ranef() returns a list where names are the grouping factors
     # We check if the random effects for a group include the treatment slope
-    re_structure <- brms::ranef(brms_fit, summary = FALSE)
-    # re_structure is a list of arrays. Names of list are grouping vars (e.g. "subgroup")
+    # Only attempt this if the model actually has random effects
+    re_structure <- tryCatch(
+      brms::ranef(brms_fit, summary = FALSE),
+      error = function(e) NULL
+    )
+    
+    if (!is.null(re_structure)) {
+      # re_structure is a list of arrays. Names of list are grouping vars (e.g. "subgroup")
+      grouping_factors <- names(re_structure)
 
-    grouping_factors <- names(re_structure)
+      for (g_var in grouping_factors) {
+        # We only care if this grouping factor is in our data (it should be)
+        if (g_var %in% names(original_data)) {
+           # Check if 'trt' is a slope for this group
+           # The dimnames of the array usually contain the coef names
+           # e.g., dimnames(re_structure$subgroup)[[3]] might contain "trt1"
+           re_coefs <- dimnames(re_structure[[g_var]])[[3]] # The 3rd dim is the parameter name
 
-    for (g_var in grouping_factors) {
-      # We only care if this grouping factor is in our data (it should be)
-      if (g_var %in% names(original_data)) {
-         # Check if 'trt' is a slope for this group
-         # The dimnames of the array usually contain the coef names
-         # e.g., dimnames(re_structure$subgroup)[[3]] might contain "trt1"
-         re_coefs <- dimnames(re_structure[[g_var]])[[3]] # The 3rd dim is the parameter name
-
-         # Robust check: Does any coefficient name START with the treatment variable?
-         # This handles trt1, trt_1, trt_control, etc. across different coding schemes
-         if (any(grepl(paste0("^", trt_var), re_coefs))) {
-            detected_vars <- c(detected_vars, g_var)
-         }
+           # Robust check: Does any coefficient name START with the treatment variable?
+           # This handles trt1, trt_1, trt_control, etc. across different coding schemes
+           if (any(grepl(paste0("^", trt_var), re_coefs))) {
+              detected_vars <- c(detected_vars, g_var)
+           }
+        }
       }
     }
 
@@ -269,13 +275,19 @@ estimate_subgroup_effects <- function(brms_fit,
   # If trt_var is only fixed effects (Colon model), we SHOULD ignore random effects (re_formula = NA).
 
   has_random_trt <- FALSE
-  re_structure <- brms::ranef(brms_fit, summary = FALSE)
-  for (g_var in names(re_structure)) {
-    re_coefs <- dimnames(re_structure[[g_var]])[[3]]
-    # Robust check matching any coefficient name starting with trt_var
-    if (any(grepl(paste0("^", trt_var), re_coefs))) {
-      has_random_trt <- TRUE
-      break
+  re_structure <- tryCatch(
+    brms::ranef(brms_fit, summary = FALSE),
+    error = function(e) NULL
+  )
+  
+  if (!is.null(re_structure)) {
+    for (g_var in names(re_structure)) {
+      re_coefs <- dimnames(re_structure[[g_var]])[[3]]
+      # Robust check matching any coefficient name starting with trt_var
+      if (any(grepl(paste0("^", trt_var), re_coefs))) {
+        has_random_trt <- TRUE
+        break
+      }
     }
   }
 
