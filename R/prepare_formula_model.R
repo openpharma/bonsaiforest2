@@ -848,9 +848,16 @@ prepare_formula_model <- function(data,
       placeholders <<- c(placeholders, name)
       rhs <- paste(terms, collapse = " + ")
       formula_str <- if (nchar(rhs) > 0) paste(name, "~", rhs) else paste(name, "~ 1")
+      
+      # Track intercepts and add +0 to suppress if needed
       if (intercept) {
         intercept_formulas <<- c(intercept_formulas, name)
+        # Intercept will be included by default (no +0 needed)
+      } else {
+        # Suppress intercept with +0
+        formula_str <- paste0(formula_str, " + 0")
       }
+      
       sub_formulas[[name]] <<- brms::lf(formula_str)
     }
   }
