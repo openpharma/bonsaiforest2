@@ -824,63 +824,28 @@ prepare_formula_model <- function(data,
   checkmate::assert_string(shrunk_pred_formula, null.ok = TRUE)
   checkmate::assert_list(sub_formulas)
 
-  # Check for intercept in unshrunk prognostic terms
-  user_has_intercept <- "1" %in% unshrunk_prog_terms
-  default_intercept <- response_type != "survival"
-  
-  # Issue message if user specification differs from default
-  if (!user_has_intercept && default_intercept) {
-    message("Note: No intercept ('1') found in unshrunk prognostic terms for ", response_type, " model. ",
-            "An intercept is typically recommended for ", response_type, " models.")
-  } else if (user_has_intercept && !default_intercept) {
-    message("Note: Intercept ('1') specified for ", response_type, " model. ",
-            "Survival models typically don't include an intercept in the linear predictor.")
-  }
-  
-  # Use user's specification if provided, otherwise use default
-  has_intercept <- if (user_has_intercept) TRUE else default_intercept
-
   placeholders <- c()
-  intercept_formulas <- c()  # Track which formulas have intercepts
   
-  .create_sub_formula <- function(name, terms, intercept = FALSE) {
-    if (length(terms) > 0 || intercept) {
+  .create_sub_formula <- function(name, terms) {
+    if (length(terms) > 0) {
       placeholders <<- c(placeholders, name)
       rhs <- paste(terms, collapse = " + ")
-      formula_str <- if (nchar(rhs) > 0) paste(name, "~", rhs) else paste(name, "~ 1")
-      
-      # Track which formulas get intercepts
-      if (intercept) {
-        intercept_formulas <<- c(intercept_formulas, name)
-      } else {
-        # Suppress default intercept with +0
-        formula_str <- paste0(formula_str, " + 0")
-      }
-      
+      formula_str <- paste(name, "~", rhs)
       sub_formulas[[name]] <<- brms::lf(formula_str)
     }
   }
 
   # Create sub-formulas for each component
-  .create_sub_formula("unprogeffect", setdiff(unshrunk_prog_terms, "1"), has_intercept)
-  .create_sub_formula("shprogeffect", setdiff(shrunk_prog_terms, "1"), FALSE)
-  .create_sub_formula("unpredeffect", unshrunk_pred_formula, FALSE)
-  .create_sub_formula("shpredeffect", shrunk_pred_formula, FALSE)
-  
-  # Check if user accidentally created multiple intercepts
-  # This happens if they manually add "1" to multiple formula components
-  if (length(intercept_formulas) > 1) {
-    message("Note: Multiple intercepts detected across sub-formulas (", 
-            paste(intercept_formulas, collapse = ", "), 
-            "). This may cause identifiability issues. ",
-            "Typically, only one formula component should contain an intercept.")
-  }
+  .create_sub_formula("unprogeffect", unshrunk_prog_terms)
+  .create_sub_formula("shprogeffect", shrunk_prog_terms)
+  .create_sub_formula("unpredeffect", unshrunk_pred_formula)
+  .create_sub_formula("shpredeffect", shrunk_pred_formula)
 
   # Create the main formula using placeholders and the full response part
   main_formula_str <- if (length(placeholders) > 0) {
     paste(response_term, "~", paste(placeholders, collapse = " + "))
   } else {
-    paste(response_term, "~", if (has_intercept) "1" else "0")
+    paste(response_term, "~ 1")
   }
 
   # Offset handling
