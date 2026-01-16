@@ -849,12 +849,11 @@ prepare_formula_model <- function(data,
       rhs <- paste(terms, collapse = " + ")
       formula_str <- if (nchar(rhs) > 0) paste(name, "~", rhs) else paste(name, "~ 1")
       
-      # Track intercepts and add +0 to suppress if needed
+      # Track which formulas get intercepts
       if (intercept) {
         intercept_formulas <<- c(intercept_formulas, name)
-        # Intercept will be included by default (no +0 needed)
       } else {
-        # Suppress intercept with +0
+        # Suppress default intercept with +0
         formula_str <- paste0(formula_str, " + 0")
       }
       
@@ -868,11 +867,12 @@ prepare_formula_model <- function(data,
   .create_sub_formula("unpredeffect", unshrunk_pred_formula, FALSE)
   .create_sub_formula("shpredeffect", shrunk_pred_formula, FALSE)
   
-  # Check if intercepts are in multiple formulas
+  # Check if user accidentally created multiple intercepts
+  # This happens if they manually add "1" to multiple formula components
   if (length(intercept_formulas) > 1) {
-    message("Note: Intercept detected in multiple sub-formulas: ", 
+    message("Note: Multiple intercepts detected across sub-formulas (", 
             paste(intercept_formulas, collapse = ", "), 
-            ". This may lead to identifiability issues. ",
+            "). This may cause identifiability issues. ",
             "Typically, only one formula component should contain an intercept.")
   }
 
