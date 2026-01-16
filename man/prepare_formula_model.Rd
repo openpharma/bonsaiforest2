@@ -6,42 +6,42 @@
 \usage{
 prepare_formula_model(
   data,
-  response_formula_str,
-  shrunk_predictive_formula_str = NULL,
-  unshrunk_prognostic_formula_str = NULL,
-  unshrunk_predictive_formula_str = NULL,
-  shrunk_prognostic_formula_str = NULL,
+  response_formula,
+  shrunk_predictive_formula = NULL,
+  unshrunk_prognostic_formula = NULL,
+  unshrunk_predictive_formula = NULL,
+  shrunk_prognostic_formula = NULL,
   response_type = c("binary", "count", "continuous", "survival"),
-  stratification_formula_str = NULL
+  stratification_formula = NULL
 )
 }
 \arguments{
 \item{data}{A data.frame containing all the necessary variables.}
 
-\item{response_formula_str}{A character string for the response part, e.g.,
-"outcome ~ trt", for count models "n_events + offset(log(days)) ~ trt" or for
-survival models "Surv(time,status) ~ trt".}
+\item{response_formula}{A formula for the response part, e.g.,
+outcome ~ trt, for count models n_events + offset(log(days)) ~ trt or for
+survival models Surv(time,status) ~ trt.}
 
-\item{shrunk_predictive_formula_str}{Predictive terms to be shrunk ('shpredeffect').
+\item{shrunk_predictive_formula}{Predictive terms to be shrunk ('shpredeffect').
 These are typically interactions with the treatment variable. Can use either
-interaction notation (e.g., "~ trt:subgroup") or random effects notation (e.g.,
-"~ (trt || subgroup)"). Only one syntax form may be used across all formulas.}
+interaction notation (e.g., ~ trt:subgroup) or random effects notation (e.g.,
+~ (trt || subgroup)). Only one syntax form may be used across all formulas.}
 
-\item{unshrunk_prognostic_formula_str}{Prognostic terms not to be shrunk
+\item{unshrunk_prognostic_formula}{Prognostic terms not to be shrunk
 ('unprogeffect'). These are main effects assumed to be important.}
 
-\item{unshrunk_predictive_formula_str}{Predictive terms not to be shrunk
+\item{unshrunk_predictive_formula}{Predictive terms not to be shrunk
 ('unpredeffect'). Can use either interaction notation or random effects notation,
 but only one syntax form across all formulas.}
 
-\item{shrunk_prognostic_formula_str}{Prognostic terms to be shrunk
+\item{shrunk_prognostic_formula}{Prognostic terms to be shrunk
 ('shprogeffect'). These are main effects where regularization is desired.}
 
 \item{response_type}{The type of outcome variable. One of "binary", "count",
 "continuous", or "survival".}
 
-\item{stratification_formula_str}{A formula string specifying the stratification
-variable, e.g., "~ strata_var".}
+\item{stratification_formula}{A formula specifying the stratification
+variable, e.g., ~ strata_var.}
 }
 \value{
 A list with three elements: `formula` (a `brmsformula` object),
@@ -147,23 +147,23 @@ if (require("brms") && require("survival")) {
   # 2a. Example with colon interaction syntax
   prepared_model <- prepare_formula_model(
     data = sim_data,
-    response_formula_str = "Surv(time, status) ~ trt",
-    shrunk_predictive_formula_str = "~ trt:subgroup",
-    unshrunk_prognostic_formula_str = "~ age",
-    shrunk_prognostic_formula_str = "~ region",
+    response_formula = Surv(time, status) ~ trt,
+    shrunk_predictive_formula = ~ trt:subgroup,
+    unshrunk_prognostic_formula = ~ age,
+    shrunk_prognostic_formula = ~ region,
     response_type = "survival",
-    stratification_formula_str = "~ region"
+    stratification_formula = ~ region
   )
 
   # 2b. Alternatively, using pipe-pipe (||) syntax
   # prepared_model <- prepare_formula_model(
   #   data = sim_data,
-  #   response_formula_str = "Surv(time, status) ~ trt",
-  #   shrunk_predictive_formula_str = "~ (trt || subgroup)",
-  #   unshrunk_prognostic_formula_str = "~ age",
-  #   shrunk_prognostic_formula_str = "~ region",
+  #   response_formula = Surv(time, status) ~ trt,
+  #   shrunk_predictive_formula = ~ (trt || subgroup),
+  #   unshrunk_prognostic_formula = ~ age,
+  #   shrunk_prognostic_formula = ~ region,
   #   response_type = "survival",
-  #   stratification_formula_str = "~ region"
+  #   stratification_formula = ~ region
   # )
 
   # 3. View the results

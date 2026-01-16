@@ -70,24 +70,24 @@
 #' }
 #'
 #' @param data A data.frame containing all the necessary variables.
-#' @param response_formula_str A character string for the response part, e.g.,
-#'   "outcome ~ trt", for count models "n_events + offset(log(days)) ~ trt" or for
-#'   survival models "Surv(time,status) ~ trt".
-#' @param shrunk_predictive_formula_str Predictive terms to be shrunk ('shpredeffect').
+#' @param response_formula A formula for the response part, e.g.,
+#'   outcome ~ trt, for count models n_events + offset(log(days)) ~ trt or for
+#'   survival models Surv(time,status) ~ trt.
+#' @param shrunk_predictive_formula Predictive terms to be shrunk ('shpredeffect').
 #'   These are typically interactions with the treatment variable. Can use either
-#'   interaction notation (e.g., "~ trt:subgroup") or random effects notation (e.g.,
-#'   "~ (trt || subgroup)"). Only one syntax form may be used across all formulas.
-#' @param unshrunk_prognostic_formula_str Prognostic terms not to be shrunk
+#'   interaction notation (e.g., ~ trt:subgroup) or random effects notation (e.g.,
+#'   ~ (trt || subgroup)). Only one syntax form may be used across all formulas.
+#' @param unshrunk_prognostic_formula Prognostic terms not to be shrunk
 #'   ('unprogeffect'). These are main effects assumed to be important.
-#' @param unshrunk_predictive_formula_str Predictive terms not to be shrunk
+#' @param unshrunk_predictive_formula Predictive terms not to be shrunk
 #'   ('unpredeffect'). Can use either interaction notation or random effects notation,
 #'   but only one syntax form across all formulas.
-#' @param shrunk_prognostic_formula_str Prognostic terms to be shrunk
+#' @param shrunk_prognostic_formula Prognostic terms to be shrunk
 #'   ('shprogeffect'). These are main effects where regularization is desired.
 #' @param response_type The type of outcome variable. One of "binary", "count",
 #'   "continuous", or "survival".
-#' @param stratification_formula_str A formula string specifying the stratification
-#'   variable, e.g., "~ strata_var".
+#' @param stratification_formula A formula specifying the stratification
+#'   variable, e.g., ~ strata_var.
 #'
 #' @return A list with three elements: `formula` (a `brmsformula` object),
 #'   `data` (the modified data.frame), and `response_type` (the
@@ -118,23 +118,23 @@
 #'   # 2a. Example with colon interaction syntax
 #'   prepared_model <- prepare_formula_model(
 #'     data = sim_data,
-#'     response_formula_str = "Surv(time, status) ~ trt",
-#'     shrunk_predictive_formula_str = "~ trt:subgroup",
-#'     unshrunk_prognostic_formula_str = "~ age",
-#'     shrunk_prognostic_formula_str = "~ region",
+#'     response_formula = Surv(time, status) ~ trt,
+#'     shrunk_predictive_formula = ~ trt:subgroup,
+#'     unshrunk_prognostic_formula = ~ age,
+#'     shrunk_prognostic_formula = ~ region,
 #'     response_type = "survival",
-#'     stratification_formula_str = "~ region"
+#'     stratification_formula = ~ region
 #'   )
 #'
 #'   # 2b. Alternatively, using pipe-pipe (||) syntax
 #'   # prepared_model <- prepare_formula_model(
 #'   #   data = sim_data,
-#'   #   response_formula_str = "Surv(time, status) ~ trt",
-#'   #   shrunk_predictive_formula_str = "~ (trt || subgroup)",
-#'   #   unshrunk_prognostic_formula_str = "~ age",
-#'   #   shrunk_prognostic_formula_str = "~ region",
+#'   #   response_formula = Surv(time, status) ~ trt,
+#'   #   shrunk_predictive_formula = ~ (trt || subgroup),
+#'   #   unshrunk_prognostic_formula = ~ age,
+#'   #   shrunk_prognostic_formula = ~ region,
 #'   #   response_type = "survival",
-#'   #   stratification_formula_str = "~ region"
+#'   #   stratification_formula = ~ region
 #'   # )
 #'
 #'   # 3. View the results
@@ -143,24 +143,35 @@
 #' }
 #'
 prepare_formula_model <- function(data,
-                                  response_formula_str,
-                                  shrunk_predictive_formula_str = NULL,
-                                  unshrunk_prognostic_formula_str = NULL,
-                                  unshrunk_predictive_formula_str = NULL,
-                                  shrunk_prognostic_formula_str = NULL,
+                                  response_formula,
+                                  shrunk_predictive_formula = NULL,
+                                  unshrunk_prognostic_formula = NULL,
+                                  unshrunk_predictive_formula = NULL,
+                                  shrunk_prognostic_formula = NULL,
                                   response_type = c("binary", "count", "continuous", "survival"),
-                                  stratification_formula_str = NULL) {
+                                  stratification_formula = NULL) {
 
   # --- 1. Argument Validation and Initial Parsing ---
   checkmate::assert_data_frame(data, min.rows = 1, min.cols = 2)
+  
+  # Helper function to convert formula to string
+  .formula_to_string <- function(f) {
+    if (is.null(f)) return(NULL)
+    if (is.character(f)) return(f)  # Support legacy string input
+    if (inherits(f, "formula")) return(deparse(f, width.cutoff = 500L))
+    stop("Formula must be a formula object or character string")
+  }
+  
+  # Convert all formulas to strings for internal processing
+  response_formula_str <- .formula_to_string(response_formula)
+  shrunk_predictive_formula_str <- .formula_to_string(shrunk_predictive_formula)
+  unshrunk_prognostic_formula_str <- .formula_to_string(unshrunk_prognostic_formula)
+  unshrunk_predictive_formula_str <- .formula_to_string(unshrunk_predictive_formula)
+  shrunk_prognostic_formula_str <- .formula_to_string(shrunk_prognostic_formula)
+  stratification_formula_str <- .formula_to_string(stratification_formula)
+  
+  # Validate response formula
   checkmate::assert_string(response_formula_str, min.chars = 3, pattern = "~")
-
-  # Check optional formula strings. They must be NULL or a string starting with "~"
-  checkmate::assert_string(shrunk_predictive_formula_str, null.ok = TRUE, pattern = "^~")
-  checkmate::assert_string(unshrunk_prognostic_formula_str, null.ok = TRUE, pattern = "^~")
-  checkmate::assert_string(unshrunk_predictive_formula_str, null.ok = TRUE, pattern = "^~")
-  checkmate::assert_string(shrunk_prognostic_formula_str, null.ok = TRUE, pattern = "^~")
-  checkmate::assert_string(stratification_formula_str, null.ok = TRUE, pattern = "^~")
 
   # This replaces match.arg()
   response_type <- checkmate::assert_choice(response_type,

@@ -6,13 +6,13 @@
 \usage{
 run_brms_analysis(
   data,
-  response_formula_str,
-  response_type,
-  shrunk_predictive_formula_str = NULL,
-  unshrunk_prognostic_formula_str = NULL,
-  unshrunk_predictive_formula_str = NULL,
-  shrunk_prognostic_formula_str = NULL,
-  stratification_formula_str = NULL,
+  response_formula,
+  response_type = c("binary", "count", "continuous", "survival"),
+  shrunk_predictive_formula = NULL,
+  unshrunk_prognostic_formula = NULL,
+  unshrunk_predictive_formula = NULL,
+  shrunk_prognostic_formula = NULL,
+  stratification_formula = NULL,
   predictive_effect_priors = list(),
   prognostic_effect_priors = list(),
   stanvars = NULL,
@@ -22,27 +22,27 @@ run_brms_analysis(
 \arguments{
 \item{data}{A data.frame containing all the necessary variables.}
 
-\item{response_formula_str}{A character string for the response part, e.g.,
-"outcome ~ trt" or "Surv(time, status) ~ trt".}
+\item{response_formula}{A formula for the response part, e.g.,
+outcome ~ trt or Surv(time, status) ~ trt.}
 
 \item{response_type}{The type of outcome variable. One of "binary", "count",
 "continuous", or "survival".}
 
-\item{shrunk_predictive_formula_str}{Predictive terms to be shrunk ('shpredeffect').
-E.g., "~ trt:subgroup1" or "~ (trt || subgroup1)".}
+\item{shrunk_predictive_formula}{Predictive terms to be shrunk ('shpredeffect').
+E.g., ~ trt:subgroup1 or ~ (trt || subgroup1).}
 
-\item{unshrunk_prognostic_formula_str}{Prognostic terms not to be shrunk
-('unprogeffect'). E.g., "~ age + sex".}
+\item{unshrunk_prognostic_formula}{Prognostic terms not to be shrunk
+('unprogeffect'). E.g., ~ age + sex.}
 
-\item{unshrunk_predictive_formula_str}{Predictive terms not to be shrunk
-('unpredeffect'). E.g., "~ trt:important_subgroup" or "~ (trt || important_subgroup)".
+\item{unshrunk_predictive_formula}{Predictive terms not to be shrunk
+('unpredeffect'). E.g., ~ trt:important_subgroup or ~ (trt || important_subgroup).
 Note: Only one interaction syntax (: or ||) can be used across all predictive formulas.}
 
-\item{shrunk_prognostic_formula_str}{Prognostic terms to be shrunk
-('shprogeffect'). E.g., "~ region + center".}
+\item{shrunk_prognostic_formula}{Prognostic terms to be shrunk
+('shprogeffect'). E.g., ~ region + center.}
 
-\item{stratification_formula_str}{A formula string specifying a stratification
-variable, e.g., "~ strata_var".}
+\item{stratification_formula}{A formula specifying a stratification
+variable, e.g., ~ strata_var.}
 
 \item{predictive_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
 containing the priors for predictive effects. Can be strings or `brmsprior` objects.
@@ -93,12 +93,12 @@ if (require("brms") && require("survival")) {
   \dontrun{
   full_fit <- run_brms_analysis(
     data = sim_data,
-    response_formula_str = "Surv(time, status) ~ trt",
+    response_formula = Surv(time, status) ~ trt,
     response_type = "survival",
-    shrunk_predictive_formula_str = "~ trt:subgroup",
-    unshrunk_prognostic_formula_str = "~ age",
-    shrunk_prognostic_formula_str = "~ region",
-    stratification_formula_str = "~ region",
+    shrunk_predictive_formula = ~ trt:subgroup,
+    unshrunk_prognostic_formula = ~ age,
+    shrunk_prognostic_formula = ~ region,
+    stratification_formula = ~ region,
     prognostic_effect_priors = list(
       shrunk = "normal(0, 1)",
       unshrunk = "normal(0, 5)"

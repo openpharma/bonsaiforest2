@@ -48,12 +48,12 @@
 #'   # 2. Prepare the formula and data using colon syntax
 #'   prepared_model <- prepare_formula_model(
 #'     data = sim_data,
-#'     response_formula_str = "Surv(time, status) ~ trt",
-#'     shrunk_predictive_formula_str = "~ trt:subgroup",
-#'     unshrunk_prognostic_formula_str = "~ age",
-#'     shrunk_prognostic_formula_str = "~ region",
+#'     response_formula = Surv(time, status) ~ trt,
+#'     shrunk_predictive_formula = ~ trt:subgroup,
+#'     unshrunk_prognostic_formula = ~ age,
+#'     shrunk_prognostic_formula = ~ region,
 #'     response_type = "survival",
-#'     stratification_formula_str = "~ region"
+#'     stratification_formula = ~ region
 #'   )
 #'
 #'   # 3. Fit the model
