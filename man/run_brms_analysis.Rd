@@ -29,13 +29,14 @@ run_brms_analysis(
 "continuous", or "survival".}
 
 \item{shrunk_predictive_formula_str}{Predictive terms to be shrunk ('shpredeffect').
-E.g., "~ trt:subgroup1".}
+E.g., "~ trt:subgroup1" or "~ (trt || subgroup1)".}
 
 \item{unshrunk_prognostic_formula_str}{Prognostic terms not to be shrunk
 ('unprogeffect'). E.g., "~ age + sex".}
 
 \item{unshrunk_predictive_formula_str}{Predictive terms not to be shrunk
-('unpredeffect'). E.g., "~ trt:important_subgroup".}
+('unpredeffect'). E.g., "~ trt:important_subgroup" or "~ (trt || important_subgroup)".
+Note: Only one interaction syntax (: or ||) can be used across all predictive formulas.}
 
 \item{shrunk_prognostic_formula_str}{Prognostic terms to be shrunk
 ('shprogeffect'). E.g., "~ region + center".}

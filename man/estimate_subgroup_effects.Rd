@@ -17,18 +17,14 @@ estimate_subgroup_effects(
 \item{brms_fit}{A fitted `brmsfit` object from `fit_brms_model()` or
 `run_brms_analysis()`.}
 
-\item{original_data}{A `data.frame` containing the data. While this parameter
-is called "original_data" for backward compatibility, the function internally
-uses the processed data from `brms_fit$data` to ensure consistency with the
-model's factor coding and contrasts. This parameter is mainly used for
-validation purposes.}
+\item{original_data}{A `data.frame` containing the data. Used for validation
+and structure, while internal predictions use the model's processed data.}
 
 \item{trt_var}{A character string specifying the name of the treatment variable.}
 
-\item{subgroup_vars}{A character vector of subgroup variable names found in
-`original_data`. If set to `"auto"` (the default), the function
-attempts to automatically identify subgroup variables from the model's
-formula.}
+\item{subgroup_vars}{A character vector of subgroup variable names.
+If "auto", detects both fixed interaction terms (Colon syntax) and
+random effect grouping factors (Pipe syntax).}
 
 \item{response_type}{The type of outcome variable. One of "binary", "count",
 "continuous", or "survival".}

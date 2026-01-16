@@ -23,13 +23,16 @@ prepare_formula_model(
 survival models "Surv(time,status) ~ trt".}
 
 \item{shrunk_predictive_formula_str}{Predictive terms to be shrunk ('shpredeffect').
-These are typically interactions with the treatment variable.}
+These are typically interactions with the treatment variable. Can use either
+interaction notation (e.g., "~ trt:subgroup") or random effects notation (e.g.,
+"~ (trt || subgroup)"). Only one syntax form may be used across all formulas.}
 
 \item{unshrunk_prognostic_formula_str}{Prognostic terms not to be shrunk
 ('unprogeffect'). These are main effects assumed to be important.}
 
 \item{unshrunk_predictive_formula_str}{Predictive terms not to be shrunk
-('unpredeffect').}
+('unpredeffect'). Can use either interaction notation or random effects notation,
+but only one syntax form across all formulas.}
 
 \item{shrunk_prognostic_formula_str}{Prognostic terms to be shrunk
 ('shprogeffect'). These are main effects where regularization is desired.}
@@ -64,11 +67,12 @@ data using R's contrast coding system for proper factor handling and interaction
     `shprogeffect`, `unpredeffect`, `shpredeffect`), which are combined
     in a non-linear model. This allows for assigning different priors to each
     component.
-  \item \strong{Automated Interaction Handling:} Predictive terms (e.g.,
-    `~ trt:subgroup`) are automatically handled using R's contrast coding.
-    All variables involved in interactions are converted to factors with
-    treatment contrasts (reference coding), enabling proper model fitting and
-    prediction on new data without manual dummy variable creation.
+  \item \strong{Automated Interaction Handling:} Predictive terms support two syntaxes:
+    interaction notation (e.g., `~ trt:subgroup`) or random effects notation (e.g.,
+    `~ (trt || subgroup)`). Note: only one syntax form (`:` or `||`) may be used
+    across all predictive formula strings. All variables involved in interactions are
+    converted to factors with treatment contrasts (reference coding), enabling proper
+    model fitting and prediction on new data without manual dummy variable creation.
   \item \strong{Hierarchical Integrity:} When a predictive term like
     `trt:subgroup` is specified, the function automatically ensures that the
     corresponding prognostic (main) effect `subgroup` is included in the model,
@@ -140,7 +144,7 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2. Run the function
+  # 2a. Example with colon interaction syntax
   prepared_model <- prepare_formula_model(
     data = sim_data,
     response_formula_str = "Surv(time, status) ~ trt",
@@ -150,6 +154,17 @@ if (require("brms") && require("survival")) {
     response_type = "survival",
     stratification_formula_str = "~ region"
   )
+
+  # 2b. Alternatively, using pipe-pipe (||) syntax
+  # prepared_model <- prepare_formula_model(
+  #   data = sim_data,
+  #   response_formula_str = "Surv(time, status) ~ trt",
+  #   shrunk_predictive_formula_str = "~ (trt || subgroup)",
+  #   unshrunk_prognostic_formula_str = "~ age",
+  #   shrunk_prognostic_formula_str = "~ region",
+  #   response_type = "survival",
+  #   stratification_formula_str = "~ region"
+  # )
 
   # 3. View the results
   print(prepared_model$formula)

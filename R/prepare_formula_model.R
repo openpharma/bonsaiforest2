@@ -484,10 +484,10 @@ prepare_formula_model <- function(data,
   unshrunk_pred <- get_terms(unshrunk_predictive_str)
   shrunk_pred <- get_terms(shrunk_predictive_str)
 
-  # Add treatment to prognostic if missing
+  # Check if treatment is in prognostic terms (but don't enforce)
   if (!(trt_var %in% unshrunk_prog) && !(trt_var %in% shrunk_prog)) {
-    message("Treatment '", trt_var, "' added to unshrunk prognostic terms by default.")
-    unshrunk_prog <- c(unshrunk_prog, trt_var)
+    message("Note: Treatment '", trt_var, "' is not included in prognostic terms. ",
+            "Consider adding it if a main treatment effect is expected.")
   }
 
   # Resolve overlaps
@@ -740,8 +740,9 @@ prepare_formula_model <- function(data,
 
   for (needed in needed_terms) {
     if (!needed %in% prognostic_terms) {
-      message("Auto-adding missing prognostic effect for interaction: ", needed)
-      target_term_list <- c(target_term_list, needed)
+      message("Note: Marginality principle not followed - interaction term '", needed, 
+              "' is used without its main effect. ",
+              "Consider adding '", needed, "' to prognostic terms for proper model hierarchy.")
     }
   }
   return(target_term_list)
@@ -812,8 +813,21 @@ prepare_formula_model <- function(data,
   checkmate::assert_string(shrunk_pred_formula, null.ok = TRUE)
   checkmate::assert_list(sub_formulas)
 
-  # Define intercept rules based on response type
-  has_intercept <- response_type != "survival"
+  # Check for intercept in unshrunk prognostic terms
+  user_has_intercept <- "1" %in% unshrunk_prog_terms
+  default_intercept <- response_type != "survival"
+  
+  # Issue message if user specification differs from default
+  if (!user_has_intercept && default_intercept) {
+    message("Note: No intercept ('1') found in unshrunk prognostic terms for ", response_type, " model. ",
+            "An intercept is typically recommended for ", response_type, " models.")
+  } else if (user_has_intercept && !default_intercept) {
+    message("Note: Intercept ('1') specified for ", response_type, " model. ",
+            "Survival models typically don't include an intercept in the linear predictor.")
+  }
+  
+  # Use user's specification if provided, otherwise use default
+  has_intercept <- if (user_has_intercept) TRUE else default_intercept
 
   placeholders <- c()
   .create_sub_formula <- function(name, terms, intercept = FALSE) {

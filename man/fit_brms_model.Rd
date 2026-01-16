@@ -62,7 +62,7 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2. Prepare the formula and data
+  # 2. Prepare the formula and data using colon syntax
   prepared_model <- prepare_formula_model(
     data = sim_data,
     response_formula_str = "Surv(time, status) ~ trt",
