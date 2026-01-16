@@ -841,12 +841,16 @@ prepare_formula_model <- function(data,
   has_intercept <- if (user_has_intercept) TRUE else default_intercept
 
   placeholders <- c()
+  intercept_formulas <- c()  # Track which formulas have intercepts
+  
   .create_sub_formula <- function(name, terms, intercept = FALSE) {
     if (length(terms) > 0 || intercept) {
       placeholders <<- c(placeholders, name)
       rhs <- paste(terms, collapse = " + ")
       formula_str <- if (nchar(rhs) > 0) paste(name, "~", rhs) else paste(name, "~ 1")
-      if (!intercept) formula_str <- paste0(formula_str, " + 0")
+      if (intercept) {
+        intercept_formulas <<- c(intercept_formulas, name)
+      }
       sub_formulas[[name]] <<- brms::lf(formula_str)
     }
   }
@@ -856,6 +860,14 @@ prepare_formula_model <- function(data,
   .create_sub_formula("shprogeffect", setdiff(shrunk_prog_terms, "1"), FALSE)
   .create_sub_formula("unpredeffect", unshrunk_pred_formula, FALSE)
   .create_sub_formula("shpredeffect", shrunk_pred_formula, FALSE)
+  
+  # Check if intercepts are in multiple formulas
+  if (length(intercept_formulas) > 1) {
+    message("Note: Intercept detected in multiple sub-formulas: ", 
+            paste(intercept_formulas, collapse = ", "), 
+            ". This may lead to identifiability issues. ",
+            "Typically, only one formula component should contain an intercept.")
+  }
 
   # Create the main formula using placeholders and the full response part
   main_formula_str <- if (length(placeholders) > 0) {
