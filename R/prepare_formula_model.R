@@ -158,7 +158,7 @@ prepare_formula_model <- function(data,
   .formula_to_string <- function(f) {
     if (is.null(f)) return(NULL)
     if (is.character(f)) return(f)  # Support legacy string input
-    if (inherits(f, "formula")) return(deparse(f, width.cutoff = 500L))
+    if (inherits(f, "formula")) return(paste(deparse(f, width.cutoff = 500L), collapse = " "))
     stop("Formula must be a formula object or character string")
   }
   
