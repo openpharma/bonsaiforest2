@@ -363,7 +363,8 @@ prepare_formula_model <- function(data,
   }
 
   # Set treatment contrast to treatment coding (reference = first level)
-  contrasts(data[[trt_var]]) <- stats::contr.sum(levels(data[[trt_var]]), contrasts = FALSE )
+  # This creates only trt1 interactions (treatment vs control), not trt0
+  contrasts(data[[trt_var]]) <- stats::contr.treatment(levels(data[[trt_var]]))
 
   return(list(
     response_term = response_term,
