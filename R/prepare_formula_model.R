@@ -520,12 +520,10 @@ prepare_formula_model <- function(data,
 }
 
 
-#' Process Predictive Interaction Terms (Explicit Dummy Creation for brms Non-Linear)
+#' Process Predictive Interaction Terms (Using Contrast Coding)
 #'
-#' Creates explicit dummy variables for treatment interactions because brms non-linear
-#' formulas don't respect contrast coding for interactions in the expected way.
-#' This ensures we get ONE parameter per interaction (e.g., `b_trt_regionA`) rather
-#' than parameters for all level combinations.
+#' Handles predictive interaction terms by ensuring proper contrast coding on factors.
+#' No longer creates explicit dummy variables - uses R's contrast system instead.
 #'
 #' Supports two syntaxes for specifying interactions:
 #' 1. Colon notation: "~ trt:subgroup"
@@ -536,8 +534,8 @@ prepare_formula_model <- function(data,
 #' @param .trt_var The character string name of the treatment variable.
 #'
 #' @return A list containing:
-#'   \item{formula_part}{The formula string with explicit dummy variable names.}
-#'   \item{data}{The data.frame with new interaction dummy columns added.}
+#'   \item{formula_part}{The formula string with interaction terms.}
+#'   \item{data}{The data.frame with proper contrast coding applied.}
 #'   \item{prognostic_effects}{A character vector of main effects needed for hierarchy.}
 #' @noRd
 .process_predictive_terms <- function(formula_str, .data, .trt_var) {
@@ -550,19 +548,16 @@ prepare_formula_model <- function(data,
     return(list(formula_part = NULL, data = .data, prognostic_effects = character(0)))
   }
 
-  # Ensure treatment is a factor (should already be from .parse_initial_formula)
+  # Ensure treatment is a factor
   if (!is.factor(.data[[.trt_var]])) {
     .data[[.trt_var]] <- as.factor(.data[[.trt_var]])
   }
 
-  # Get treatment levels
+  # Get treatment levels and ensure binary
   trt_levels <- levels(.data[[.trt_var]])
   if (length(trt_levels) != 2) {
     stop("Treatment variable must have exactly 2 levels for interaction terms")
   }
-
-  # Assuming levels are ordered as (control, treatment), e.g., c("0", "1")
-  # trt_levels[2] is the "active" treatment level
 
   # Detect which syntax is being used
   syntax_type <- .detect_interaction_syntax(formula_str)
@@ -573,28 +568,27 @@ prepare_formula_model <- function(data,
   }
 
   if (syntax_type == "colon") {
-    return(.process_colon_interaction_terms(formula_str, .data, .trt_var, trt_levels))
+    return(.process_colon_interaction_terms(formula_str, .data, .trt_var))
   } else if (syntax_type == "pipe") {
-    return(.process_pipe_interaction_terms(formula_str, .data, .trt_var, trt_levels))
+    return(.process_pipe_interaction_terms(formula_str, .data, .trt_var))
   }
 }
 
 
-#' Process Colon-Based Interactions (trt:subgroup)
+#' Process Colon-Based Interactions (trt:subgroup) with Contrasts
 #'
 #' @param formula_str A formula string like "~ trt:subgroup"
 #' @param .data The data.frame to modify.
 #' @param .trt_var The treatment variable name.
-#' @param trt_levels The factor levels of the treatment variable.
 #'
 #' @return A list with formula_part, data, and prognostic_effects.
 #' @noRd
 #'
-.process_colon_interaction_terms <- function(formula_str, .data, .trt_var, trt_levels) {
-  # Parse terms to check for validity and create dummies
+.process_colon_interaction_terms <- function(formula_str, .data, .trt_var) {
+  # Parse terms
   terms <- attr(terms(as.formula(formula_str)), "term.labels")
   prognostic_effects_needed <- c()
-  new_dummy_terms <- c()
+  interaction_terms <- c()
 
   for (term in terms) {
     # We expect interactions like trt:subgroup
@@ -616,27 +610,17 @@ prepare_formula_model <- function(data,
         .data[[subgroup_var]] <- as.factor(.data[[subgroup_var]])
       }
 
-      # Also set contrasts for the main effect (for prognostic terms)
+      # Set contrasts for proper coding
       contrasts(.data[[subgroup_var]]) <- stats::contr.treatment(levels(.data[[subgroup_var]]))
-
-      # Create explicit dummy interaction variables for EACH level of subgroup
-      subgroup_levels <- levels(.data[[subgroup_var]])
-
-      for (level in subgroup_levels) {
-        # Create interaction dummy: 1 if (trt == treatment_level AND subgroup == level), else 0
-        # Use make.names to ensure valid R variable names (handles special chars like - in "2-5y")
-        dummy_name <- make.names(paste0(.trt_var, "_", subgroup_var, level), unique = FALSE)
-        .data[[dummy_name]] <- as.numeric(
-          .data[[.trt_var]] == trt_levels[2] & .data[[subgroup_var]] == level
-        )
-        new_dummy_terms <- c(new_dummy_terms, dummy_name)
-      }
+      
+      # Keep the interaction term as-is
+      interaction_terms <- c(interaction_terms, term)
     }
   }
 
-  # Create formula string with the new dummy variable names
-  clean_formula <- if (length(new_dummy_terms) > 0) {
-    paste(new_dummy_terms, collapse = " + ")
+  # Create formula string
+  clean_formula <- if (length(interaction_terms) > 0) {
+    paste(interaction_terms, collapse = " + ")
   } else {
     NULL
   }
@@ -649,22 +633,19 @@ prepare_formula_model <- function(data,
 }
 
 
-#' Process Pipe-Pipe Interactions (trt || subgroup)
+#' Process Pipe-Pipe Interactions (trt || subgroup) with Contrasts
 #'
-#' Converts (trt || subgroup) notation into explicit dummy variables for each
-#' level of the subgroup variable, following the same approach as colon notation.
+#' Converts (trt || subgroup) notation into colon notation and processes it.
 #'
 #' @param formula_str A formula string like "~ (trt || subgroup)"
 #' @param .data The data.frame to modify.
 #' @param .trt_var The treatment variable name.
-#' @param trt_levels The factor levels of the treatment variable.
 #'
 #' @return A list with formula_part, data, and prognostic_effects.
 #' @noRd
 #'
-.process_pipe_interaction_terms <- function(formula_str, .data, .trt_var, trt_levels) {
+.process_pipe_interaction_terms <- function(formula_str, .data, .trt_var) {
   # Extract the (trt || subgroup) pattern
-  # Pattern: (var1 || var2) or multiple terms separated by +
   pattern <- "\\(\\s*([^|]+?)\\s*\\|\\|\\s*([^)]+?)\\s*\\)"
   matches <- stringr::str_match_all(formula_str, pattern)[[1]]
 
@@ -674,7 +655,7 @@ prepare_formula_model <- function(data,
   }
 
   prognostic_effects_needed <- c()
-  new_dummy_terms <- c()
+  interaction_terms <- c()
 
   for (i in seq_len(nrow(matches))) {
     var1 <- stringr::str_squish(matches[i, 2])
@@ -697,25 +678,16 @@ prepare_formula_model <- function(data,
       .data[[subgroup_var]] <- as.factor(.data[[subgroup_var]])
     }
 
-    # Set contrasts for the main effect (for prognostic terms)
+    # Set contrasts for proper coding
     contrasts(.data[[subgroup_var]]) <- stats::contr.treatment(levels(.data[[subgroup_var]]))
-
-    # Create explicit dummy interaction variables for EACH level of subgroup
-    subgroup_levels <- levels(.data[[subgroup_var]])
-
-    for (level in subgroup_levels) {
-      # Create interaction dummy: 1 if (trt == treatment_level AND subgroup == level), else 0
-      dummy_name <- make.names(paste0(.trt_var, "_", subgroup_var, level), unique = FALSE)
-      .data[[dummy_name]] <- as.numeric(
-        .data[[.trt_var]] == trt_levels[2] & .data[[subgroup_var]] == level
-      )
-      new_dummy_terms <- c(new_dummy_terms, dummy_name)
-    }
+    
+    # Create colon notation
+    interaction_terms <- c(interaction_terms, paste(.trt_var, subgroup_var, sep = ":"))
   }
 
-  # Create formula string with the new dummy variable names
-  clean_formula <- if (length(new_dummy_terms) > 0) {
-    paste(new_dummy_terms, collapse = " + ")
+  # Create formula string
+  clean_formula <- if (length(interaction_terms) > 0) {
+    paste(interaction_terms, collapse = " + ")
   } else {
     NULL
   }
