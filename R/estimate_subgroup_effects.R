@@ -133,9 +133,72 @@ estimate_subgroup_effects <- function(brms_fit,
 
     # A. Detect FIXED interactions (Colon syntax)
     # -------------------------------------------
+    # ONLY detect interactions that include the treatment variable
+    # Pattern: trt:varname or varname:trt
+    fixef_matrix <- brms::fixef(brms_fit)
+    all_coefs <- rownames(fixef_matrix)
+    
+    message("All coefficient names:")
+    message(paste(all_coefs, collapse = "\n"))
+    
+    # Look for patterns like "effectname_trt:biomarkerHigh" 
+    # We want interactions WITH treatment variable
+    interaction_pattern <- paste0(trt_var, ":")
+    message(sprintf("Looking for treatment interactions with pattern: '%s'", interaction_pattern))
+    interaction_coefs <- grep(interaction_pattern, all_coefs, value = TRUE, fixed = TRUE)
+    
+    # Also check for reverse order: "var:trt" 
+    reverse_pattern <- paste0(":", trt_var)
+    reverse_coefs <- grep(reverse_pattern, all_coefs, value = TRUE, fixed = TRUE)
+    interaction_coefs <- unique(c(interaction_coefs, reverse_coefs))
+    
+    message(sprintf("Found %d treatment interaction coefficients", length(interaction_coefs)))
+    if (length(interaction_coefs) > 0) {
+      message("Treatment interaction coefficients found:")
+      message(paste(interaction_coefs, collapse = "\n"))
+    }
+    
+    if (length(interaction_coefs) > 0) {
+      # Extract the variable names from the interaction terms
+      # Pattern: "effectname_trt:varnameLevel" or "effectname_varname:trt"
+      for (coef in interaction_coefs) {
+        # Try splitting by "trt:" first
+        parts <- strsplit(coef, paste0(trt_var, ":"), fixed = TRUE)[[1]]
+        if (length(parts) >= 2) {
+          # The second part is "varnameLevel", e.g., "biomarkerHigh"
+          varname_with_level <- parts[2]
+        } else {
+          # Try splitting by ":trt" (reverse order)
+          parts <- strsplit(coef, paste0(":", trt_var), fixed = TRUE)[[1]]
+          if (length(parts) >= 2) {
+            # Extract variable name before ":trt"
+            # Need to get the last part after the last "_"
+            before_trt <- parts[1]
+            varname_with_level <- sub("^.*_", "", before_trt)
+          } else {
+            next
+          }
+        }
+        
+        # Check which factor variable in the data this corresponds to
+        # by seeing if the string starts with the variable name
+        for (var_name in names(original_data)) {
+          if (is.factor(original_data[[var_name]]) && var_name != trt_var) {
+            # Check if varname_with_level starts with var_name
+            if (startsWith(varname_with_level, var_name)) {
+              detected_vars <- c(detected_vars, var_name)
+              message(sprintf("Detected subgroup variable '%s' from coefficient '%s'", var_name, coef))
+              break
+            }
+          }
+        }
+      }
+    }
+    
+    # Also check for legacy dummy column approach (backward compatibility)
     dummy_pattern <- paste0("^", trt_var, "_")
     interaction_cols <- grep(dummy_pattern, names(original_data), value = TRUE)
-
+    
     if (length(interaction_cols) > 0) {
       for (var_name in names(original_data)) {
         if (is.factor(original_data[[var_name]]) && var_name != trt_var) {
@@ -151,33 +214,37 @@ estimate_subgroup_effects <- function(brms_fit,
 
     # B. Detect RANDOM effects grouping factors (Pipe syntax)
     # -----------------------------------------------------
-    # brms::ranef() returns a list where names are the grouping factors
-    # We check if the random effects for a group include the treatment slope
-    # Only attempt this if the model actually has random effects
-    re_structure <- tryCatch(
-      brms::ranef(brms_fit, summary = FALSE),
-      error = function(e) NULL
+    # Check Stan parameter names for random effects like: r_biomarker__shpredeffect[High,trt]
+    # This pattern indicates treatment slopes varying by biomarker levels
+    all_params <- tryCatch(
+      brms::variables(brms_fit),
+      error = function(e) character(0)
     )
     
-    if (!is.null(re_structure)) {
-      # re_structure is a list of arrays. Names of list are grouping vars (e.g. "subgroup")
-      grouping_factors <- names(re_structure)
-
-      for (g_var in grouping_factors) {
-        # We only care if this grouping factor is in our data (it should be)
-        if (g_var %in% names(original_data)) {
-           # Check if 'trt' is a slope for this group
-           # The dimnames of the array usually contain the coef names
-           # e.g., dimnames(re_structure$subgroup)[[3]] might contain "trt1"
-           re_coefs <- dimnames(re_structure[[g_var]])[[3]] # The 3rd dim is the parameter name
-
-           # Robust check: Does any coefficient name START with the treatment variable?
-           # This handles trt1, trt_1, trt_control, etc. across different coding schemes
-           if (any(grepl(paste0("^", trt_var), re_coefs))) {
-              detected_vars <- c(detected_vars, g_var)
-           }
+    if (length(all_params) > 0) {
+      # Look for random effects parameters with treatment
+      # Pattern: r_GROUPVAR__TERM[LEVEL,TRT]
+      # Example: r_biomarker__shpredeffect[High,trt]
+      re_pattern <- sprintf("^r_([^_]+)__[^\\[]+\\[[^,]+,%s\\]", trt_var)
+      re_params <- grep(re_pattern, all_params, value = TRUE)
+      
+      if (length(re_params) > 0) {
+        message(sprintf("Found %d random effect parameters with treatment slopes:", length(re_params)))
+        message(paste("  ", head(re_params, 3), collapse = "\n"))
+        if (length(re_params) > 3) message(sprintf("  ... and %d more", length(re_params) - 3))
+        
+        # Extract grouping variable names
+        for (param in re_params) {
+          # Extract the grouping variable name from r_GROUPVAR__...
+          grouping_var <- sub("^r_([^_]+)__.*", "\\1", param)
+          if (grouping_var %in% names(original_data)) {
+            detected_vars <- c(detected_vars, grouping_var)
+            message(sprintf("Detected subgroup variable '%s' from random effects (treatment slopes)", grouping_var))
+          }
         }
       }
+    } else {
+      message("Could not retrieve model variables")
     }
 
     detected_vars <- unique(detected_vars)
@@ -206,56 +273,83 @@ estimate_subgroup_effects <- function(brms_fit,
 }
 
 #' Create Counterfactual Datasets
-#' Unchanged, but commented to explain why it works for Pipe syntax.
+#' UPDATED: Now handles numeric treatment variable (0/1) instead of factor.
 #' @noRd
 .create_counterfactual_datasets <- function(model_data, trt_var) {
   checkmate::assert_data_frame(model_data)
 
-  if (!is.factor(model_data[[trt_var]])) model_data[[trt_var]] <- as.factor(model_data[[trt_var]])
-  trt_levels <- levels(model_data[[trt_var]])
-  trt_contrasts <- contrasts(model_data[[trt_var]])
-
-  ref_level <- trt_levels[1]
-  alt_level <- trt_levels[2]
-
-  # 1. Identify Fixed Interaction Dummies (Colon syntax)
-  interaction_dummy_pattern <- paste0("^", trt_var, "_")
-  interaction_cols <- grep(interaction_dummy_pattern, names(model_data), value = TRUE)
+  # Check if treatment is numeric (new behavior) or factor (legacy)
+  is_numeric_trt <- is.numeric(model_data[[trt_var]])
+  
+  if (is_numeric_trt) {
+    # NEW: Treatment is numeric (0/1)
+    # Validate that treatment is binary 0/1
+    trt_vals <- unique(model_data[[trt_var]])
+    if (!all(trt_vals %in% c(0, 1))) {
+      stop("Treatment variable '", trt_var, "' must be binary (0/1) when numeric.")
+    }
+    
+    control_val <- 0
+    treatment_val <- 1
+    
+  } else {
+    # LEGACY: Treatment is factor (for backward compatibility)
+    if (!is.factor(model_data[[trt_var]])) model_data[[trt_var]] <- as.factor(model_data[[trt_var]])
+    trt_levels <- levels(model_data[[trt_var]])
+    trt_contrasts <- contrasts(model_data[[trt_var]])
+    
+    ref_level <- trt_levels[1]
+    alt_level <- trt_levels[2]
+  }
 
   # 2. Create Control Data
   data_control <- model_data
-  data_control[[trt_var]] <- factor(rep(ref_level, nrow(model_data)), levels = trt_levels)
-  contrasts(data_control[[trt_var]]) <- trt_contrasts
-
-  # For Colon syntax: Zero out dummies
-  # For Pipe syntax: interaction_cols is empty, loop does nothing. Correct.
-  for (col in interaction_cols) data_control[[col]] <- 0
-
+  
   # 3. Create Treatment Data
   data_treatment <- model_data
-  data_treatment[[trt_var]] <- factor(rep(alt_level, nrow(model_data)), levels = trt_levels)
-  contrasts(data_treatment[[trt_var]]) <- trt_contrasts
-
-  # For Colon syntax: Recreate dummies based on subgroup membership
-  # For Pipe syntax: We do NOTHING. brms will see 'trt' = 1 and 'subgroup' = 'S1'
-  # and automatically look up the random slope for S1.
-  for (col in interaction_cols) {
-    matched <- FALSE
-    for (var_name in names(model_data)) {
-      if (is.factor(model_data[[var_name]]) && var_name != trt_var) {
-        var_levels <- levels(model_data[[var_name]])
-        for (level in var_levels) {
-          expected_dummy_name <- make.names(paste0(trt_var, "_", var_name, level), unique = FALSE)
-          if (col == expected_dummy_name) {
-            data_treatment[[col]] <- as.numeric(model_data[[var_name]] == level)
-            matched <- TRUE
-            break
+  
+  if (is_numeric_trt) {
+    # NEW: For numeric treatment, interactions are handled automatically by R/brms
+    # When we have trt:sex where trt is 0/1 and sex is a factor with contrasts,
+    # R automatically computes trt * sexM, trt * sexF, etc.
+    # We just need to set trt to 0 or 1, and keep all other variables as-is
+    data_control[[trt_var]] <- rep(control_val, nrow(model_data))
+    data_treatment[[trt_var]] <- rep(treatment_val, nrow(model_data))
+    
+  } else {
+    # LEGACY: Factor treatment with explicit interaction dummy columns
+    data_control[[trt_var]] <- factor(rep(ref_level, nrow(model_data)), levels = trt_levels)
+    contrasts(data_control[[trt_var]]) <- trt_contrasts
+    
+    data_treatment[[trt_var]] <- factor(rep(alt_level, nrow(model_data)), levels = trt_levels)
+    contrasts(data_treatment[[trt_var]]) <- trt_contrasts
+    
+    # 1. Identify Fixed Interaction Dummies (Colon syntax with factor treatment)
+    interaction_dummy_pattern <- paste0("^", trt_var, "_")
+    interaction_cols <- grep(interaction_dummy_pattern, names(model_data), value = TRUE)
+    
+    # For Colon syntax: Zero out dummies in control
+    for (col in interaction_cols) data_control[[col]] <- 0
+    
+    # For Colon syntax: Recreate dummies based on subgroup membership in treatment
+    for (col in interaction_cols) {
+      matched <- FALSE
+      for (var_name in names(model_data)) {
+        if (is.factor(model_data[[var_name]]) && var_name != trt_var) {
+          var_levels <- levels(model_data[[var_name]])
+          for (level in var_levels) {
+            expected_dummy_name <- make.names(paste0(trt_var, "_", var_name, level), unique = FALSE)
+            if (col == expected_dummy_name) {
+              data_treatment[[col]] <- as.numeric(model_data[[var_name]] == level)
+              matched <- TRUE
+              break
+            }
           }
+          if (matched) break
         }
-        if (matched) break
       }
+      if (!matched) data_treatment[[col]] <- 0
     }
-    if (!matched) data_treatment[[col]] <- 0
   }
 
   return(list(control = data_control, treatment = data_treatment))
@@ -275,19 +369,22 @@ estimate_subgroup_effects <- function(brms_fit,
   # If trt_var is only fixed effects (Colon model), we SHOULD ignore random effects (re_formula = NA).
 
   has_random_trt <- FALSE
-  re_structure <- tryCatch(
-    brms::ranef(brms_fit, summary = FALSE),
-    error = function(e) NULL
+  
+  # Check Stan parameter names for random effects with treatment
+  # Pattern: r_GROUPVAR__TERM[LEVEL,TRT]
+  all_params <- tryCatch(
+    brms::variables(brms_fit),
+    error = function(e) character(0)
   )
   
-  if (!is.null(re_structure)) {
-    for (g_var in names(re_structure)) {
-      re_coefs <- dimnames(re_structure[[g_var]])[[3]]
-      # Robust check matching any coefficient name starting with trt_var
-      if (any(grepl(paste0("^", trt_var), re_coefs))) {
-        has_random_trt <- TRUE
-        break
-      }
+  if (length(all_params) > 0) {
+    # Look for random effects parameters with treatment slopes
+    re_pattern <- sprintf("^r_[^_]+__[^\\[]+\\[[^,]+,%s\\]", trt_var)
+    re_params <- grep(re_pattern, all_params, value = TRUE)
+    
+    if (length(re_params) > 0) {
+      has_random_trt <- TRUE
+      message(sprintf("... found %d random treatment slope parameters", length(re_params)))
     }
   }
 
@@ -308,10 +405,13 @@ estimate_subgroup_effects <- function(brms_fit,
   if (response_type == "survival") {
     message("... (reconstructing baseline hazard and getting linear predictors)...")
 
+    # For random effects, must use allow_new_levels = FALSE to use fitted random effects
     linpred_combined <- if (is.null(ndraws)) {
-      brms::posterior_linpred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula)
+      brms::posterior_linpred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula,
+                             allow_new_levels = FALSE)
     } else {
-      brms::posterior_linpred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, ndraws = ndraws)
+      brms::posterior_linpred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, 
+                             ndraws = ndraws, allow_new_levels = FALSE)
     }
 
     n_control <- nrow(data_control)
@@ -333,10 +433,13 @@ estimate_subgroup_effects <- function(brms_fit,
   } else {
     message("... (predicting expected outcomes)...")
 
+    # For random effects, must use allow_new_levels = FALSE to use fitted random effects
     pred_combined <- if (is.null(ndraws)) {
-      brms::posterior_epred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula)
+      brms::posterior_epred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, 
+                           allow_new_levels = FALSE)
     } else {
-      brms::posterior_epred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, ndraws = ndraws)
+      brms::posterior_epred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, 
+                           ndraws = ndraws, allow_new_levels = FALSE)
     }
 
     n_control <- nrow(data_control)

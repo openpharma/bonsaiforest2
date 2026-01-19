@@ -51,11 +51,33 @@
 #'
 #' @section Data Transformation:
 #' It is critical to note that this function returns a modified `data.frame`.
-#' The treatment variable and any variables involved in interactions are converted
-#' to factors with treatment contrasts (reference coding). This contrast-based
-#' approach enables proper model fitting and easy prediction on new data, as the
-#' same contrasts are automatically applied. The returned `data` object should be
-#' used in the subsequent call to `brms::brm()`, not the original data.
+#' \itemize{
+#'   \item \strong{Treatment variable:} Converted to numeric binary (0/1) to avoid
+#'     multi-level factor interactions. The first level (alphabetically or numerically)
+#'     becomes 0, the second becomes 1.
+#'   \item \strong{Factor covariates:} Variables involved in prognostic terms receive
+#'     appropriate contrast coding:
+#'     \itemize{
+#'       \item Shrunken terms: One-hot encoding (all factor levels represented).
+#'         Used with `~ 0` to remove the intercept for proper regularization.
+#'       \item Unshrunken terms: Dummy encoding (reference level dropped).
+#'         Used with an intercept term.
+#'     }
+#' }
+#' If you have pre-specified contrasts for factor variables (via `contrasts()` function),
+#' they will be preserved. Otherwise, appropriate defaults are applied.
+#' The returned `data` object should be used in subsequent calls to `brms::brm()`,
+#' not the original data.
+#'
+#' @section Contrast Coding Recommendations:
+#' \itemize{
+#'   \item For \strong{shrunken prognostic/predictive} terms: Use `~ 0 + var` to remove
+#'     the intercept and apply regularization to all factor levels equally.
+#'   \item For \strong{unshrunken prognostic} terms: Standard formula `~ var` with intercept
+#'     is appropriate (one reference level will be dropped).
+#'   \item To specify custom contrasts: Set them in your data before calling this function
+#'     using `contrasts(data$var) <- <your_contrast_matrix>`. They will be preserved.
+#' }
 #'
 #' @section Stratification:
 #' The `stratification_formula_str` argument allows for estimating certain parameters
@@ -153,7 +175,7 @@ prepare_formula_model <- function(data,
 
   # --- 1. Argument Validation and Initial Parsing ---
   checkmate::assert_data_frame(data, min.rows = 1, min.cols = 2)
-  
+
   # Helper function to convert formula to string
   .formula_to_string <- function(f) {
     if (is.null(f)) return(NULL)
@@ -161,7 +183,7 @@ prepare_formula_model <- function(data,
     if (inherits(f, "formula")) return(paste(deparse(f, width.cutoff = 500L), collapse = " "))
     stop("Formula must be a formula object or character string")
   }
-  
+
   # Convert all formulas to strings for internal processing
   response_formula_str <- .formula_to_string(response_formula)
   shrunk_predictive_formula_str <- .formula_to_string(shrunk_predictive_formula)
@@ -169,7 +191,7 @@ prepare_formula_model <- function(data,
   unshrunk_predictive_formula_str <- .formula_to_string(unshrunk_predictive_formula)
   shrunk_prognostic_formula_str <- .formula_to_string(shrunk_prognostic_formula)
   stratification_formula_str <- .formula_to_string(stratification_formula)
-  
+
   # Validate response formula
   checkmate::assert_string(response_formula_str, min.chars = 3, pattern = "~")
 
@@ -190,6 +212,15 @@ prepare_formula_model <- function(data,
   offset_term <- initial_parts$offset_term
   trt_var <- initial_parts$trt_var
   sub_formulas <- list()
+
+  # Track which factor variables had user-specified contrasts BEFORE we modify anything
+  # This allows us to preserve truly user-specified contrasts while updating our own
+  user_contrast_vars <- character(0)
+  for (var_name in names(processed_data)) {
+    if (is.factor(processed_data[[var_name]]) && !is.null(attr(processed_data[[var_name]], "contrasts"))) {
+      user_contrast_vars <- c(user_contrast_vars, var_name)
+    }
+  }
 
   # --- 2. Handle Response-Type Specific Logic ---
   if (response_type == "survival") {
@@ -230,14 +261,16 @@ prepare_formula_model <- function(data,
   shrunk_pred_out <- .process_predictive_terms(
     shrunk_pred_str_full,
     processed_data,
-    trt_var
+    trt_var,
+    user_contrast_vars
   )
   processed_data <- shrunk_pred_out$data
 
   unshrunk_pred_out <- .process_predictive_terms(
     unshrunk_pred_str_full,
     processed_data,
-    trt_var
+    trt_var,
+    user_contrast_vars
   )
   processed_data <- unshrunk_pred_out$data
 
@@ -246,6 +279,23 @@ prepare_formula_model <- function(data,
     prognostic_terms = c(term_lists$unshrunk_prog, term_lists$shrunk_prog),
     needed_terms = unique(c(shrunk_pred_out$prognostic_effects, unshrunk_pred_out$prognostic_effects)),
     target_term_list = term_lists$unshrunk_prog
+  )
+
+  # --- 5b. Apply Contrasts to Prognostic Terms ---
+  # Apply appropriate contrasts based on whether terms are shrunken or not
+  # This respects user-specified contrasts and only sets defaults where missing
+  processed_data <- .apply_prognostic_contrasts(
+    data = processed_data,
+    terms = term_lists$unshrunk_prog,
+    is_shrunken = FALSE,  # Unshrunken = dummy encoding
+    user_contrast_vars = user_contrast_vars
+  )
+
+  processed_data <- .apply_prognostic_contrasts(
+    data = processed_data,
+    terms = term_lists$shrunk_prog,
+    is_shrunken = TRUE,  # Shrunken = one-hot encoding
+    user_contrast_vars = user_contrast_vars
   )
 
   # --- 6. Assemble the Final Formula ---
@@ -258,13 +308,73 @@ prepare_formula_model <- function(data,
     shrunk_prog_terms = term_lists$shrunk_prog,
     unshrunk_pred_formula = unshrunk_pred_out$formula_part,
     shrunk_pred_formula = shrunk_pred_out$formula_part,
-    sub_formulas = sub_formulas
+    sub_formulas = sub_formulas,
+    shrunk_prog_no_int = term_lists$shrunk_prog_no_int,
+    unshrunk_pred_no_int = term_lists$unshrunk_pred_no_int,
+    shrunk_pred_no_int = term_lists$shrunk_pred_no_int
   )
 
   # --- 7. Return Final List ---
   return(list(formula = final_formula_obj, data = processed_data,response_type=response_type ))
 }
 
+
+#' Set Contrasts for Factor Variable Based on Shrinkage Type
+#'
+#' Sets appropriate contrast encoding for factor variables:
+#' - Shrunken terms: one-hot encoding (contr.sum) - all levels represented, no intercept
+#' - Unshrunken terms: dummy encoding (contr.treatment) - reference level dropped, with intercept
+#'
+#' Only applies contrasts if they haven't been manually set by the user.
+#'
+#' @param data The data.frame containing the variable
+#' @param var_name Character string, the name of the factor variable
+#' @param is_shrunken Logical, TRUE for shrunken terms (one-hot), FALSE for unshrunken (dummy)
+#' @param user_contrast_vars Character vector of variables that had user-specified contrasts
+#'
+#' @return The modified data.frame
+#' @noRd
+#'
+.set_factor_contrasts <- function(data, var_name, is_shrunken, user_contrast_vars = character(0)) {
+  checkmate::assert_data_frame(data)
+  checkmate::assert_string(var_name)
+  checkmate::assert_logical(is_shrunken, len = 1)
+  checkmate::assert_character(user_contrast_vars)
+
+  # Skip contrast setting for numeric variables (e.g., binary 0/1 treatment)
+  if (is.numeric(data[[var_name]])) {
+    message("Skipping contrast setting for numeric variable '", var_name, "'")
+    return(data)
+  }
+  
+  # Ensure variable is a factor
+  if (!is.factor(data[[var_name]])) {
+    message("Converting '", var_name, "' to factor for proper contrast coding.")
+    data[[var_name]] <- as.factor(data[[var_name]])
+  }
+
+  # Check if this variable had user-specified contrasts in the original data
+  is_user_specified <- var_name %in% user_contrast_vars
+
+  # Always preserve user-specified contrasts
+  if (is_user_specified) {
+    message("Variable '", var_name, "' has user-specified contrasts. Keeping them.")
+    return(data)
+  }
+
+  # Set appropriate contrasts based on shrinkage type
+  if (is_shrunken) {
+    # One-hot encoding: all levels represented (use with ~ 0 to remove intercept)
+    contrasts(data[[var_name]], nlevels(data[[var_name]])) <- contr.treatment(levels(data[[var_name]]), contrasts = FALSE)
+    message("Applied one-hot encoding to shrunken factor '", var_name, "' (will be used with ~ 0 + ...)")
+  } else {
+    # Dummy encoding: reference level dropped (use with intercept)
+    contrasts(data[[var_name]]) <- contr.treatment(levels(data[[var_name]]))
+    message("Applied dummy encoding (contr.treatment) to unshrunken factor '", var_name, "'")
+  }
+
+  return(data)
+}
 
 #' Validate Predictive Syntax Consistency
 #'
@@ -355,16 +465,34 @@ prepare_formula_model <- function(data,
   offset_term <- if (any(is_offset)) lhs_terms[is_offset] else NULL
   response_term <- paste(lhs_terms[!is_offset], collapse = " + ")
 
-  # Keep treatment as factor for contrast-based modeling
-  # This enables proper predictions on new data without manual dummy variable creation
-  if (!is.factor(data[[trt_var]])) {
-    message("Converting treatment variable '", trt_var, "' to factor for contrast coding.")
-    data[[trt_var]] <- as.factor(data[[trt_var]])
+  # Convert treatment to numeric binary (0/1)
+  # This avoids multiple level factor interactions and simplifies the model
+  trt_values <- unique(data[[trt_var]])
+
+  # Validate that treatment is binary
+  if (length(trt_values) != 2) {
+    stop("Treatment variable '", trt_var, "' must have exactly 2 levels/values. Found: ",
+         length(trt_values), " unique values.")
   }
 
-  # Set treatment contrast to treatment coding (reference = first level)
-  # This creates only trt1 interactions (treatment vs control), not trt0
-  contrasts(data[[trt_var]]) <- stats::contr.treatment(levels(data[[trt_var]]))
+  # Convert to numeric if not already
+  if (!is.numeric(data[[trt_var]])) {
+    # Convert to 0/1, where the first value in sorted order becomes 0
+    sorted_values <- sort(trt_values)
+    data[[trt_var]] <- as.numeric(data[[trt_var]] == sorted_values[2])
+    message("Converting treatment variable '", trt_var, "' to numeric binary (0/1). ",
+            "'", sorted_values[1], "' = 0, '", sorted_values[2], "' = 1")
+  } else {
+    # Ensure it's 0/1 if already numeric
+    if (!all(data[[trt_var]] %in% c(0, 1))) {
+      warning("Treatment variable '", trt_var, "' is numeric but not 0/1. ",
+              "Recoding to 0/1 based on sorted unique values.")
+      sorted_values <- sort(trt_values)
+      data[[trt_var]] <- as.numeric(data[[trt_var]] == sorted_values[2])
+    } else {
+      message("Treatment variable '", trt_var, "' is already numeric binary (0/1).")
+    }
+  }
 
   return(list(
     response_term = response_term,
@@ -489,17 +617,36 @@ prepare_formula_model <- function(data,
   checkmate::assert_string(shrunk_predictive_str, null.ok = TRUE)
   checkmate::assert_string(trt_var)
 
-  get_terms <- function(s) if (is.null(s) || s == "") NULL else stringr::str_squish(stringr::str_split(stringr::str_remove(s, "~"), "\\+")[[1]])
+  # Helper to extract terms and check for intercept removal
+  get_terms <- function(s) {
+    if (is.null(s) || s == "") return(NULL)
+    terms <- stringr::str_squish(stringr::str_split(stringr::str_remove(s, "~"), "\\+")[[1]])
+    # Remove "0" or "-1" from terms (these indicate intercept removal)
+    terms <- terms[!terms %in% c("0", "-1")]
+    return(if (length(terms) == 0) NULL else terms)
+  }
+
+  # Helper to check if formula has explicit intercept removal
+  has_no_intercept <- function(s) {
+    if (is.null(s) || s == "") return(FALSE)
+    rhs <- stringr::str_trim(stringr::str_remove(s, "^~"))
+    stringr::str_detect(rhs, "^(0|\\-1)\\s*\\+")
+  }
 
   unshrunk_prog <- get_terms(unshrunk_prognostic_str)
   shrunk_prog <- get_terms(shrunk_prognostic_str)
   unshrunk_pred <- get_terms(unshrunk_predictive_str)
   shrunk_pred <- get_terms(shrunk_predictive_str)
 
-  # Check if treatment is in prognostic terms (but don't enforce)
+  # Track which formulas had explicit intercept removal
+  shrunk_prog_no_int <- has_no_intercept(shrunk_prognostic_str)
+  unshrunk_pred_no_int <- has_no_intercept(unshrunk_predictive_str)
+  shrunk_pred_no_int <- has_no_intercept(shrunk_predictive_str)
+
+  # Automatically add treatment to unshrunk prognostic if not already present
   if (!(trt_var %in% unshrunk_prog) && !(trt_var %in% shrunk_prog)) {
-    message("Note: Treatment '", trt_var, "' is not included in prognostic terms. ",
-            "Consider adding it if a main treatment effect is expected.")
+    message("Treatment '", trt_var, "' automatically added to unshrunk prognostic terms.")
+    unshrunk_prog <- c(unshrunk_prog, trt_var)
   }
 
   # Resolve overlaps
@@ -516,7 +663,10 @@ prepare_formula_model <- function(data,
 
   return(list(
     unshrunk_prog = unshrunk_prog, shrunk_prog = shrunk_prog,
-    unshrunk_pred = unshrunk_pred, shrunk_pred = shrunk_pred
+    unshrunk_pred = unshrunk_pred, shrunk_pred = shrunk_pred,
+    shrunk_prog_no_int = shrunk_prog_no_int,
+    unshrunk_pred_no_int = unshrunk_pred_no_int,
+    shrunk_pred_no_int = shrunk_pred_no_int
   ))
 }
 
@@ -533,13 +683,14 @@ prepare_formula_model <- function(data,
 #' @param formula_str A character string formula, e.g., "~ trt:subgroup" or "~ (trt || subgroup)".
 #' @param .data The data.frame to modify.
 #' @param .trt_var The character string name of the treatment variable.
+#' @param .user_contrast_vars Character vector of variables with user-specified contrasts.
 #'
 #' @return A list containing:
 #'   \item{formula_part}{The formula string with interaction terms.}
 #'   \item{data}{The data.frame with proper contrast coding applied.}
 #'   \item{prognostic_effects}{A character vector of main effects needed for hierarchy.}
 #' @noRd
-.process_predictive_terms <- function(formula_str, .data, .trt_var) {
+.process_predictive_terms <- function(formula_str, .data, .trt_var, .user_contrast_vars = character(0)) {
   # --- Assertions ---
   checkmate::assert_string(formula_str, null.ok = TRUE)
   checkmate::assert_data_frame(.data)
@@ -549,15 +700,19 @@ prepare_formula_model <- function(data,
     return(list(formula_part = NULL, data = .data, prognostic_effects = character(0)))
   }
 
-  # Ensure treatment is a factor
-  if (!is.factor(.data[[.trt_var]])) {
-    .data[[.trt_var]] <- as.factor(.data[[.trt_var]])
+  # Ensure treatment is numeric binary (should already be from .parse_initial_formula)
+  if (!is.numeric(.data[[.trt_var]])) {
+    trt_values <- unique(.data[[.trt_var]])
+    if (length(trt_values) != 2) {
+      stop("Treatment variable must have exactly 2 levels/values for interaction terms")
+    }
+    sorted_values <- sort(trt_values)
+    .data[[.trt_var]] <- as.numeric(.data[[.trt_var]] == sorted_values[2])
   }
 
-  # Get treatment levels and ensure binary
-  trt_levels <- levels(.data[[.trt_var]])
-  if (length(trt_levels) != 2) {
-    stop("Treatment variable must have exactly 2 levels for interaction terms")
+  # Validate binary
+  if (!all(.data[[.trt_var]] %in% c(0, 1))) {
+    stop("Treatment variable must be binary (0/1) for interaction terms")
   }
 
   # Detect which syntax is being used
@@ -569,9 +724,9 @@ prepare_formula_model <- function(data,
   }
 
   if (syntax_type == "colon") {
-    return(.process_colon_interaction_terms(formula_str, .data, .trt_var))
+    return(.process_colon_interaction_terms(formula_str, .data, .trt_var, .user_contrast_vars))
   } else if (syntax_type == "pipe") {
-    return(.process_pipe_interaction_terms(formula_str, .data, .trt_var))
+    return(.process_pipe_interaction_terms(formula_str, .data, .trt_var, .user_contrast_vars))
   }
 }
 
@@ -581,39 +736,47 @@ prepare_formula_model <- function(data,
 #' @param formula_str A formula string like "~ trt:subgroup"
 #' @param .data The data.frame to modify.
 #' @param .trt_var The treatment variable name.
+#' @param .user_contrast_vars Character vector of variables with user-specified contrasts.
 #'
 #' @return A list with formula_part, data, and prognostic_effects.
 #' @noRd
 #'
-.process_colon_interaction_terms <- function(formula_str, .data, .trt_var) {
+.process_colon_interaction_terms <- function(formula_str, .data, .trt_var, .user_contrast_vars = character(0)) {
   # Parse terms
   terms <- attr(terms(as.formula(formula_str)), "term.labels")
   prognostic_effects_needed <- c()
   interaction_terms <- c()
 
   for (term in terms) {
-    # We expect interactions like trt:subgroup
+    # Process interaction terms (e.g., var1:var2)
     if (stringr::str_detect(term, ":")) {
       vars <- stringr::str_squish(stringr::str_split(term, ":")[[1]])
-      subgroup_var <- setdiff(vars, .trt_var)
-
-      # Validity check: Interaction must include treatment and one other variable
-      if (length(subgroup_var) != 1) {
-        warning(paste("Skipping complex or non-treatment interaction term:", term))
-        next
-      }
-
-      prognostic_effects_needed <- c(prognostic_effects_needed, subgroup_var)
-
-      # Ensure the subgroup variable is a factor
-      if (!is.factor(.data[[subgroup_var]])) {
-        message(paste("Converting", subgroup_var, "to factor for interaction terms."))
-        .data[[subgroup_var]] <- as.factor(.data[[subgroup_var]])
-      }
-
-      # Set contrasts for proper coding
-      contrasts(.data[[subgroup_var]]) <- stats::contr.treatment(levels(.data[[subgroup_var]]))
       
+      # All variables in the interaction (except treatment) need prognostic effects
+      other_vars <- setdiff(vars, .trt_var)
+      prognostic_effects_needed <- c(prognostic_effects_needed, other_vars)
+
+      # Ensure factor variables have appropriate contrasts
+      for (var in vars) {
+        # Skip numeric variables (e.g., binary 0/1 treatment)
+        if (var %in% names(.data) && is.numeric(.data[[var]])) {
+          next
+        }
+        
+        if (var %in% names(.data) && !is.factor(.data[[var]])) {
+          message(paste("Converting", var, "to factor for interaction terms."))
+          .data[[var]] <- as.factor(.data[[var]])
+        }
+        
+        # Set contrasts if not user-specified
+        if (var %in% names(.data) && is.factor(.data[[var]])) {
+          is_user_specified <- var %in% .user_contrast_vars
+          if (!is_user_specified) {
+            contrasts(.data[[var]]) <- stats::contr.treatment(levels(.data[[var]]))
+          }
+        }
+      }
+
       # Keep the interaction term as-is
       interaction_terms <- c(interaction_terms, term)
     }
@@ -634,24 +797,26 @@ prepare_formula_model <- function(data,
 }
 
 
-#' Process Pipe-Pipe Interactions (trt || subgroup) with Contrasts
+#' Process Pipe-Pipe Interactions (trt || subgroup) - Random Effects Syntax
 #'
-#' Converts (trt || subgroup) notation into colon notation and processes it.
+#' Preserves pipe-pipe notation for random effects modeling in brms.
+#' Does NOT convert to colon syntax - these are different model structures.
 #'
 #' @param formula_str A formula string like "~ (trt || subgroup)"
 #' @param .data The data.frame to modify.
 #' @param .trt_var The treatment variable name.
+#' @param .user_contrast_vars Character vector of variables with user-specified contrasts.
 #'
 #' @return A list with formula_part, data, and prognostic_effects.
 #' @noRd
 #'
-.process_pipe_interaction_terms <- function(formula_str, .data, .trt_var) {
-  # Extract the (trt || subgroup) pattern
+.process_pipe_interaction_terms <- function(formula_str, .data, .trt_var, .user_contrast_vars = character(0)) {
+  # Extract the (var1 || var2) pattern
   pattern <- "\\(\\s*([^|]+?)\\s*\\|\\|\\s*([^)]+?)\\s*\\)"
   matches <- stringr::str_match_all(formula_str, pattern)[[1]]
 
   if (nrow(matches) == 0) {
-    warning("No (trt || subgroup) patterns found in formula: ", formula_str)
+    warning("No (var1 || var2) patterns found in formula: ", formula_str)
     return(list(formula_part = NULL, data = .data, prognostic_effects = character(0)))
   }
 
@@ -661,32 +826,45 @@ prepare_formula_model <- function(data,
   for (i in seq_len(nrow(matches))) {
     var1 <- stringr::str_squish(matches[i, 2])
     var2 <- stringr::str_squish(matches[i, 3])
-
-    # Ensure trt_var is in the interaction
-    if (!.trt_var %in% c(var1, var2)) {
-      warning(paste("Skipping (", var1, "||", var2, "): must include treatment variable", .trt_var))
-      next
-    }
-
-    # Identify which is the subgroup variable
-    subgroup_var <- if (var1 == .trt_var) var2 else var1
-
-    prognostic_effects_needed <- c(prognostic_effects_needed, subgroup_var)
-
-    # Ensure the subgroup variable is a factor
-    if (!is.factor(.data[[subgroup_var]])) {
-      message(paste("Converting", subgroup_var, "to factor for interaction terms."))
-      .data[[subgroup_var]] <- as.factor(.data[[subgroup_var]])
-    }
-
-    # Set contrasts for proper coding
-    contrasts(.data[[subgroup_var]]) <- stats::contr.treatment(levels(.data[[subgroup_var]]))
     
-    # Create colon notation
-    interaction_terms <- c(interaction_terms, paste(.trt_var, subgroup_var, sep = ":"))
+    # Strip any leading "0 +" or "-1 +" from variable names to get clean names
+    var1_clean <- stringr::str_remove(var1, "^(0|\\-1)\\s*\\+\\s*")
+    var2_clean <- stringr::str_remove(var2, "^(0|\\-1)\\s*\\+\\s*")
+    var1_clean <- stringr::str_squish(var1_clean)
+    var2_clean <- stringr::str_squish(var2_clean)
+
+    # All variables (except treatment) are potential grouping factors
+    all_vars <- c(var1_clean, var2_clean)
+    grouping_vars <- setdiff(all_vars, .trt_var)
+    prognostic_effects_needed <- c(prognostic_effects_needed, grouping_vars)
+
+    # Ensure grouping variables are factors
+    for (var in grouping_vars) {
+      # Skip numeric variables (e.g., binary 0/1 treatment)
+      if (var %in% names(.data) && is.numeric(.data[[var]])) {
+        next
+      }
+      
+      if (var %in% names(.data) && !is.factor(.data[[var]])) {
+        message(paste("Converting", var, "to factor for random effects grouping."))
+        .data[[var]] <- as.factor(.data[[var]])
+      }
+      
+      # For random effects, contrasts don't matter as much, but set treatment contrasts for consistency
+      if (var %in% names(.data) && is.factor(.data[[var]])) {
+        is_user_specified <- var %in% .user_contrast_vars
+        if (!is_user_specified) {
+          contrasts(.data[[var]]) <- stats::contr.treatment(levels(.data[[var]]))
+        }
+      }
+    }
+
+    # PRESERVE pipe-pipe notation - this creates random effects in brms
+    # Use the ORIGINAL var1 and var2 (with any 0+ or -1+ prefix)
+    interaction_terms <- c(interaction_terms, paste0("(", var1, " || ", var2, ")"))
   }
 
-  # Create formula string
+  # Create formula string with pipe-pipe syntax preserved
   clean_formula <- if (length(interaction_terms) > 0) {
     paste(interaction_terms, collapse = " + ")
   } else {
@@ -698,6 +876,37 @@ prepare_formula_model <- function(data,
     data = .data,
     prognostic_effects = unique(prognostic_effects_needed)
   ))
+}
+
+#' Apply Contrasts to Prognostic Terms
+#'
+#' Applies appropriate contrasts to all factor variables in prognostic formulas.
+#' Shrunken terms get one-hot encoding, unshrunken get dummy encoding.
+#' Respects user-specified contrasts.
+#'
+#' @param data The data.frame
+#' @param terms Character vector of variable names
+#' @param is_shrunken Logical, whether these are shrunken terms
+#' @param user_contrast_vars Character vector of variables with user-specified contrasts
+#'
+#' @return The modified data.frame
+#' @noRd
+#'
+.apply_prognostic_contrasts <- function(data, terms, is_shrunken, user_contrast_vars = character(0)) {
+  if (is.null(terms) || length(terms) == 0) {
+    return(data)
+  }
+
+  for (term in terms) {
+    # Skip if not in data or not a factor
+    if (!term %in% names(data)) next
+    if (!is.factor(data[[term]])) next
+
+    # Apply appropriate contrasts
+    data <- .set_factor_contrasts(data, term, is_shrunken, user_contrast_vars)
+  }
+
+  return(data)
 }
 
 #' Add Missing Main Effects
@@ -724,7 +933,7 @@ prepare_formula_model <- function(data,
 
   for (needed in needed_terms) {
     if (!needed %in% prognostic_terms) {
-      message("Note: Marginality principle not followed - interaction term '", needed, 
+      message("Note: Marginality principle not followed - interaction term '", needed,
               "' is used without its main effect. ",
               "Consider adding '", needed, "' to prognostic terms for proper model hierarchy.")
     }
@@ -763,6 +972,27 @@ prepare_formula_model <- function(data,
   return(formulas)
 }
 
+#' Check if Formula String Has Intercept
+#'
+#' A formula has an intercept unless it explicitly removes it with "~ 0 +" or "~ -1 +".
+#'
+#' @param formula_str A formula string or NULL
+#' @return TRUE if formula has intercept, FALSE otherwise
+#' @noRd
+#'
+.has_intercept <- function(formula_str) {
+  if (is.null(formula_str) || formula_str == "") return(FALSE)
+
+  # Extract RHS by splitting on ~ and taking the last part
+  parts <- stringr::str_split(formula_str, "~")[[1]]
+  if (length(parts) < 2) return(FALSE)
+
+  rhs <- stringr::str_trim(parts[length(parts)])
+  has_removal <- stringr::str_detect(rhs, "^(0|\\-1)\\s*\\+")
+
+  return(!has_removal)
+}
+
 #' Assemble the Final brms Formula
 #'
 #' Takes all the processed formula components and assembles the final
@@ -780,13 +1010,19 @@ prepare_formula_model <- function(data,
 #'   for shrunk predictive terms.
 #' @param sub_formulas A list of any existing sub-formulas (like for sigma or shape)
 #'   to be combined.
+#' @param shrunk_prog_no_int Logical, whether shrunk prognostic had explicit intercept removal
+#' @param unshrunk_pred_no_int Logical, whether unshrunk predictive had explicit intercept removal
+#' @param shrunk_pred_no_int Logical, whether shrunk predictive had explicit intercept removal
 #'
 #' @return A `brms::bf` object, ready for `brms::brm()`.
 #' @noRd
 #'
 .assemble_brms_formula <- function(response_term, offset_term, response_type, unshrunk_prog_terms,
                                    shrunk_prog_terms, unshrunk_pred_formula,
-                                   shrunk_pred_formula, sub_formulas = list()) {
+                                   shrunk_pred_formula, sub_formulas = list(),
+                                   shrunk_prog_no_int = FALSE,
+                                   unshrunk_pred_no_int = FALSE,
+                                   shrunk_pred_no_int = FALSE) {
   # --- Assertions ---
   checkmate::assert_string(response_term)
   checkmate::assert_string(offset_term, null.ok = TRUE)
@@ -798,21 +1034,37 @@ prepare_formula_model <- function(data,
   checkmate::assert_list(sub_formulas)
 
   placeholders <- c()
-  
-  .create_sub_formula <- function(name, terms) {
+
+  .create_sub_formula <- function(name, terms, remove_intercept = FALSE) {
     if (length(terms) > 0) {
       placeholders <<- c(placeholders, name)
       rhs <- paste(terms, collapse = " + ")
+
+      # Add intercept removal if specified by user
+      if (remove_intercept) {
+        rhs <- paste("0 +", rhs)
+      }
+
       formula_str <- paste(name, "~", rhs)
+
+      # Warn if certain formulas have intercepts when they shouldn't
+      if (name %in% c("shprogeffect", "shpredeffect", "unpredeffect")) {
+        if (.has_intercept(formula_str)) {
+          warning("Formula '", name, "' contains an intercept. ",
+                  "For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' ",
+                  "to your input formula.", call. = FALSE)
+        }
+      }
+
       sub_formulas[[name]] <<- brms::lf(formula_str)
     }
   }
 
-  # Create sub-formulas for each component
-  .create_sub_formula("unprogeffect", unshrunk_prog_terms)
-  .create_sub_formula("shprogeffect", shrunk_prog_terms)
-  .create_sub_formula("unpredeffect", unshrunk_pred_formula)
-  .create_sub_formula("shpredeffect", shrunk_pred_formula)
+  # Create sub-formulas for each component (use formulas as provided by user)
+  .create_sub_formula("unprogeffect", unshrunk_prog_terms, remove_intercept = FALSE)
+  .create_sub_formula("shprogeffect", shrunk_prog_terms, remove_intercept = shrunk_prog_no_int)
+  .create_sub_formula("unpredeffect", unshrunk_pred_formula, remove_intercept = unshrunk_pred_no_int)
+  .create_sub_formula("shpredeffect", shrunk_pred_formula, remove_intercept = shrunk_pred_no_int)
 
   # Create the main formula using placeholders and the full response part
   main_formula_str <- if (length(placeholders) > 0) {
