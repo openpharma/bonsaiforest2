@@ -19,8 +19,15 @@ The core features described in this document are:
 1.  **Flexible Model Specification:** A unified framework to distinguish
     between:
     - **Prognostic** (main) vs. **Predictive** (interaction) effects.
-    - **Shrunk** vs. **Unshrunk** coefficients, allowing exploratory
-      terms to be penalized while pre-specified terms are not.
+    - **Shrunk** vs. **Unshrunk** coefficients. Users can specify
+      unshrunk terms (with weakly informative priors), and optionally
+      add shrunk prognostic effects and/or shrunk predictive effects
+      (with strong regularization priors) as needed for their analysis.
+    - **Customizable Priors:** Users can specify custom priors for
+      individual coefficients or coefficient groups when domain
+      expertise is available. If no custom priors are specified, the
+      package applies automatic, well-calibrated default priors based on
+      established best practices.
 2.  **Advanced Shrinkage Priors:** Supports state-of-the-art shrinkage
     priors, including the **Regularized Horseshoe** ([Piironen and
     Vehtari 2017](#ref-piironen2017sparsity); [Wolbers et al.
@@ -31,6 +38,11 @@ The core features described in this document are:
     (G-computation)** to derive interpretable *marginal* subgroup
     treatment effects, which average over the covariate distributions
     within each subgroup ([Wolbers et al. 2025](#ref-wolbers2025using)).
+    This is implemented through:
+    - [`estimate_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/estimate_subgroup_effects.md)
+      for the computational G-computation workflow.
+    - [`summary_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/summary_subgroup_effects.md)
+      for user-friendly effect summaries.
 
 This document is structured as follows: [Section 2](#sec-intro) provides
 a conceptual introduction to subgroup analysis challenges and the
@@ -919,48 +931,160 @@ distribution of the marginal effect.
 ## 4 Mapping of Statistical Methods to `bonsaiforest2` Functions
 
 This section connects the statistical methodology (Section 3) to the
-core package functions.
+package functions. The package provides a three-level architecture:
+high-level user interface functions, modular worker functions for
+advanced control, and internal helpers.
+
+### 4.1 High-Level User Interface
+
+These are the main functions users typically call in their analysis
+workflow:
 
 - **[`run_brms_analysis()`](https://openpharma.github.io/bonsaiforest2/reference/run_brms_analysis.md)**
 
-  - **Maps to:** Sections 3.2 (Global Model), 3.3 (Endpoints), 3.4
-    (Priors), 3.5 (Estimation).
-  - **Action:** This function is the primary model-fitting engine.
-    - It constructs the design matrices \\\mathbf{X_n}, \mathbf{X_p},
-      \mathbf{Z_n}, \mathbf{Z_p}, \mathbf{U}\\ based on the formula
-      string arguments (e.g., `unshrunk_prognostic_formula_str`,
-      `shrunk_predictive_formula_str`).
-    - It assigns the specified priors (e.g.,
-      `predictive_effect_priors = list(shrunk = "horseshoe(par_ratio = 0.1)")`).
-    - It builds and passes the full `brmsformula` and data to
+  - **Maps to:** Sections 3.2 (Models), 3.3 (Endpoints), 3.4 (Priors),
+    3.5 (Estimation).
+  - **Action:** Main entry point that orchestrates the complete modeling
+    workflow.
+    - Internally calls
+      [`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md)
+      to construct the three-component `brmsformula` structure and
+      validate inputs.
+    - Then calls
+      [`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md)
+      to run MCMC sampling via
       [`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html)
-      to run the Stan MCMC sampler.
-    - It handles stratification via the `stratification_formula_str`
-      argument, which adds terms like `bhaz(country)` or
-      `sigma ~ country` to the `brmsformula`.
+      and Stan.
+    - Stores essential metadata (treatment variable, response type,
+      original data) as attributes on the fitted model object for
+      downstream analysis.
+    - Handles all formula components: `unshrunktermeffect` (unshrunk
+      terms), `shprogeffect` (shrunk prognostic), and `shpredeffect`
+      (shrunk predictive).
+    - Returns a `brmsfit` object with enriched attributes.
 
 - **[`summary_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/summary_subgroup_effects.md)**
 
   - **Maps to:** Section 3.6 (Standardization / G-computation).
-  - **Action:** This function implements the full G-computation
-    procedure.
-    - It takes the fitted `brms_fit` object (containing posterior
-      samples) and the `original_data`.
-    - It automatically detects the subgroups specified in the model (or
-      uses the `subgroup_vars` argument).
-    - It iterates through each posterior sample, generates
-      counterfactual predictions, averages within subgroups, and
-      calculates the marginal effect measure (e.g., AHR, OR) based on
-      the `response_type`.
-    - It returns a `subgroup_summary` object containing the posterior
-      distributions of the marginal effects.
+  - **Action:** User-facing wrapper for marginal effect summarization.
+    - Internally calls
+      [`estimate_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/estimate_subgroup_effects.md)
+      to perform the G-computation procedure.
+    - Automatically extracts treatment variable, response type, and data
+      from model attributes (set by
+      [`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md)).
+    - Auto-detects subgroups from all formula components by searching
+      for treatment interactions in `unshrunktermeffect`,
+      `shprogeffect`, and `shpredeffect`.
+    - Returns a `subgroup_summary` S3 object containing estimates,
+      credible intervals, and metadata.
 
 - **[`plot()`](https://rdrr.io/r/graphics/plot.default.html)**
 
   - **Maps to:** Final visualization of Section 3.6 results.
-  - **Action:** This is a method for `subgroup_summary` objects. It
-    takes the summarized posterior distributions (median and 95% CrI)
-    for the overall and subgroup effects and generates a forest plot.
+  - **Action:** S3 method for `subgroup_summary` objects. Generates
+    publication-ready forest plots from marginal effect estimates with
+    median and 95% credible intervals.
+
+### 4.2 Advanced/Modular Interface
+
+For users requiring fine-grained control over the modeling process, the
+package exposes intermediate worker functions:
+
+- **[`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md)**
+
+  - **Parameters:**
+    - `data`: Dataset containing all variables
+    - `response_formula`: Response specification (e.g., `outcome ~ trt`
+      or `Surv(time, status) ~ trt`)
+    - `unshrunk_terms_formula`: Unshrunk terms specification (may
+      include main effects and treatment interactions)
+    - `shrunk_prognostic_formula`: Prognostic main effects to be
+      regularized (optional)
+    - `shrunk_predictive_formula`: Treatment interactions to be
+      regularized (optional)
+    - `response_type`: One of `"binary"`, `"count"`, `"continuous"`, or
+      `"survival"`
+    - `stratification_formula`: Stratification variable (optional)
+  - **Action:** Constructs and validates the three-component
+    `brmsformula` structure:
+    - `unshrunktermeffect`: Unshrunk terms with weakly informative
+      priors (intercept, main treatment effect, pre-specified
+      covariates). Specified via `unshrunk_terms_formula`.
+    - `shprogeffect`: Shrunk prognostic effects with strong
+      regularization priors. Specified via `shrunk_prognostic_formula`.
+    - `shpredeffect`: Shrunk predictive effects (treatment interactions)
+      with strong regularization priors. Specified via
+      `shrunk_predictive_formula`.
+  - Supports flexible interaction syntax: colon notation
+    (`trt:subgroup`), star notation (`trt*subgroup`), or random effects
+    notation (`(trt || subgroup)`), which can be mixed in the same
+    model.
+  - Validates model hierarchy: checks if predictive terms have
+    corresponding prognostic main effects, issuing warnings if
+    violations are detected (star notation automatically includes main
+    effects and is excluded from this check).
+  - Applies automatic contrast coding: one-hot encoding for shrunk terms
+    (all levels represented for exchangeability) and dummy encoding for
+    unshrunk terms (reference level dropped).
+  - Constructs design matrices \\\mathbf{X_n}, \mathbf{X_p},
+    \mathbf{Z_n}, \mathbf{Z_p}, \mathbf{U}\\ from formula
+    specifications.
+  - Returns a list containing the complete `brmsformula`, transformed
+    data with proper contrasts, response type, treatment variable name,
+    Stan parameter names, and metadata.
+
+- **[`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md)**
+
+  - **Action:** Executes the MCMC sampling and model fitting.
+    - Takes output from
+      [`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md)
+      or manually specified formula components.
+    - Assigns priors to each formula component based on user
+      specifications or defaults.
+    - Calls
+      [`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html)
+      to compile Stan code and run MCMC chains.
+    - Handles endpoint-specific configurations (Section 3.3): likelihood
+      functions, link functions, and stratification.
+    - Attaches essential metadata as attributes to the fitted model for
+      use by
+      [`estimate_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/estimate_subgroup_effects.md).
+
+- **[`estimate_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/estimate_subgroup_effects.md)**
+
+  - **Action:** Implements the complete G-computation procedure
+    described in Section 3.8:
+    1.  For each MCMC draw, creates counterfactual datasets (all
+        patients as treated vs. control).
+    2.  Generates posterior predictions using
+        [`brms::posterior_epred()`](https://mc-stan.org/rstantools/reference/posterior_epred.html)
+        or `brms::posterior_survfit()`.
+    3.  Averages predictions within each subgroup to obtain marginal
+        expected outcomes.
+    4.  Computes endpoint-specific effect measures:
+        - Continuous: Mean difference (\\\hat{\mu}\_{l,1} -
+          \hat{\mu}\_{l,0}\\)
+        - Binary: Odds ratio
+        - Count: Rate ratio
+        - Survival: Average hazard ratio (AHR)
+  - Auto-detects subgroups by parsing all formula components for
+    treatment interactions (both colon `:` syntax and pipe `||` syntax
+    for random effects).
+  - Returns raw posterior draws and summary statistics (median, credible
+    intervals).
+
+### 4.3 Internal Helper Functions
+
+These functions support the main workflow but are not typically called
+directly by users:
+
+- **`.prepare_subgroup_vars()`**: Detects subgroup variables from model
+  formula by identifying treatment interaction terms.
+- **`.create_counterfactual_data()`**: Generates counterfactual datasets
+  for G-computation.
+- **`.compute_effect_measure()`**: Calculates appropriate effect measure
+  based on response type.
 
 ## References
 

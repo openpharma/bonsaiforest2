@@ -78,192 +78,342 @@
 <li>
 <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> - Creates a forest plot from the summary object.</li>
 </ol>
-<p>This example makes use of Bayesian modeling, which requires the installation of the
-<a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a> package and a working Stan installation (e.g., via
-<a href="https://mc-stan.org/cmdstanr/" class="external-link"><code>cmdstanr</code></a>).</p>
-<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"brms"</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"cmdstanr"</span><span class="op">)</span></span>
-<span><span class="fu">cmdstanr</span><span class="fu">::</span><span class="fu"><a href="https://mc-stan.org/cmdstanr/reference/install_cmdstan.html" class="external-link">install_cmdstan</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>The package enables the implementation of both a <strong>global modeling approach</strong> <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>, that estimates all main (prognostic) and interaction (predictive) effects in a single model, and a <strong>One-Variable-At-a-Time (OVAT)</strong> approach <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span>, that estimates the interaction effects using a different model for each subgrouping variable.</p>
+<p>This vignette demonstrates how to use the package to fit and compare these different modeling formulas. You’ll learn how to:</p>
+<ul>
+<li>Fit OVAT models (one model per subgroup variable)</li>
+<li>Fit a global model (all subgroup variables in one model)</li>
+<li>Generate summaries of subgroup treatment effects</li>
+<li>Visualize and compare results from different model specifications</li>
+</ul>
+<p>This example makes use of Bayesian modeling, which requires the installation of the <a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a> package and a working Stan installation (e.g., via <a href="https://mc-stan.org/cmdstanr/" class="external-link"><code>cmdstanr</code></a>).</p>
 </div>
 <div class="section level2" number="2">
 <h2 id="the-data">
 <span class="header-section-number">2</span> The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
 </h2>
 <p>We will use a simulated example dataset representing a clinical trial for blood pressure. The relevant endpoint is the change in Systolic Blood Pressure (SBP) from baseline (<code>sbp_change</code>).</p>
-<p>We consider an <strong>analysis model</strong> where we want to find the treatment effect (<code>trt</code>) on <code>sbp_change</code>. The model will adjust for <code>baseline_sbp</code> as a <strong>prognostic</strong> variable (predictor of the outcome) and explore <code>region</code> and <code>comorbidity</code> as <strong>predictive</strong> variables (potential treatment effect modifiers).</p>
+<p>We consider a model where we want to find the treatment effect (<code>trt</code>) on <code>sbp_change</code>. The model will adjust for <code>baseline_sbp</code> as a <strong>prognostic</strong> variable (predictor of the outcome) and explore <strong>multiple subgroup variables</strong> as <strong>predictive</strong> variables (potential treatment effect modifiers):</p>
+<ul>
+<li>
+<code>region</code>: Geographic region (USA, EU, APAC)</li>
+<li>
+<code>comorbidity</code>: Presence of comorbidities (Yes, No)</li>
+<li>
+<code>age_group</code>: Age category (&lt; 50, 50-65, &gt; 65)</li>
+<li>
+<code>sex</code>: Biological sex (M, F)</li>
+<li>
+<code>diabetes</code>: Diabetes status (Yes, No)</li>
+</ul>
 <p>First, let’s load the libraries and create the data.</p>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load the main package</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Load other required packages</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Create the example data</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Create the example data with multiple subgroup variables</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
-<span><span class="va">n_patients</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
+<span><span class="va">n_patients</span> <span class="op">&lt;-</span> <span class="fl">300</span></span>
+<span></span>
 <span><span class="va">continuous_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n_patients</span>,</span>
 <span>  sbp_change <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, mean <span class="op">=</span> <span class="op">-</span><span class="fl">5</span>, sd <span class="op">=</span> <span class="fl">10</span><span class="op">)</span>,</span>
 <span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
 <span>  baseline_sbp <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, mean <span class="op">=</span> <span class="fl">140</span>, sd <span class="op">=</span> <span class="fl">15</span><span class="op">)</span>,</span>
 <span>  region <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"USA"</span>, <span class="st">"EU"</span>, <span class="st">"APAC"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  comorbidity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Yes"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, prob <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.4</span>, <span class="fl">0.6</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span>  comorbidity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Yes"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, prob <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.4</span>, <span class="fl">0.6</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  age_group <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"&lt;50"</span>, <span class="st">"50-65"</span>, <span class="st">"&gt;65"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, prob <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.3</span>, <span class="fl">0.4</span>, <span class="fl">0.3</span><span class="op">)</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  sex <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"M"</span>, <span class="st">"F"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  diabetes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Yes"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, prob <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.3</span>, <span class="fl">0.7</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># `bonsaiforest2` expects the treatment variable to be a factor</span></span>
 <span><span class="va">continuous_data</span><span class="op">$</span><span class="va">trt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">continuous_data</span><span class="op">$</span><span class="va">trt</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">continuous_data</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   id sbp_change trt baseline_sbp region comorbidity</span></span>
-<span><span class="co">#&gt; 1  1 -10.604756   0     129.2714    USA          No</span></span>
-<span><span class="co">#&gt; 2  2  -7.301775   0     128.7097     EU         Yes</span></span>
-<span><span class="co">#&gt; 3  3  10.587083   0     125.9219   APAC         Yes</span></span>
-<span><span class="co">#&gt; 4  4  -4.294916   0     124.2123     EU          No</span></span>
-<span><span class="co">#&gt; 5  5  -3.707123   0     133.4426   APAC         Yes</span></span>
-<span><span class="co">#&gt; 6  6  12.150650   0     144.9677    USA          No</span></span></code></pre></div>
+<span><span class="co">#&gt;   id sbp_change trt baseline_sbp region comorbidity age_group sex diabetes</span></span>
+<span><span class="co">#&gt; 1  1 -10.604756   1     161.4560   APAC          No     50-65   M      Yes</span></span>
+<span><span class="co">#&gt; 2  2  -7.301775   1     155.6994     EU          No       &lt;50   F       No</span></span>
+<span><span class="co">#&gt; 3  3  10.587083   1     146.5293     EU          No       &lt;50   F       No</span></span>
+<span><span class="co">#&gt; 4  4  -4.294916   0     150.7277     EU          No       &lt;50   F       No</span></span>
+<span><span class="co">#&gt; 5  5  -3.707123   0     153.7576   APAC         Yes     50-65   M       No</span></span>
+<span><span class="co">#&gt; 6  6  12.150650   0     100.0862     EU          No     50-65   F      Yes</span></span></code></pre></div>
 </div>
 <div class="section level2" number="3">
-<h2 id="run_brms_analysis">
-<span class="header-section-number">3</span> <code>run_brms_analysis()</code><a class="anchor" aria-label="anchor" href="#run_brms_analysis"></a>
+<h2 id="ovat-one-variable-at-a-time">
+<span class="header-section-number">3</span> OVAT: One Variable At a Time<a class="anchor" aria-label="anchor" href="#ovat-one-variable-at-a-time"></a>
 </h2>
-<p>The <code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> function is the first step. It builds the model formula and fits the <code>brms</code> model, applying shrinkage priors to exploratory terms.</p>
-<p><strong>Key Arguments:</strong></p>
-<ul>
-<li>
-<code>data</code>: Your input <code>data.frame</code>.</li>
-<li>
-<code>response_formula_str</code>: Defines the outcome and main treatment effect (e.g., <code>"outcome ~ trt"</code>).</li>
-<li>
-<code>response_type</code>: <code>"continuous"</code>, <code>"binary"</code>, <code>"count"</code>, or <code>"survival"</code>.</li>
-<li>
-<code>shrunk_predictive_formula_str</code>: Treatment interactions to estimate with shrinkage (e.g., <code>"~ region:trt + sex:trt"</code>).</li>
-<li>
-<code>unshrunk_prognostic_formula_str</code>: Main effects (not treatment interactions) to estimate without strong shrinkage (e.g., <code>"~ age"</code>).</li>
-<li>
-<code>shrunk_prognostic_formula_str</code>: Main effects to estimate with shrinkage.</li>
-<li>
-<code>unshrunk_predictive_formula_str</code>: Treatment interactions to estimate without strong shrinkage (e.g., <code>"~ prespecified_marker:trt"</code>).</li>
-<li>
-<code>prognostic_effect_priors</code>, <code>predictive_effect_priors</code>: Lists specifying priors for shrunk/unshrunk terms.</li>
-<li>
-<code>stanvars</code>: Optional object from <code><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">brms::stanvar()</a></code> for custom Stan code (e.g., for hierarchical priors).</li>
-<li>
-<code>...</code>: Other arguments passed directly to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> (like <code>chains</code>, <code>iter</code>, <code>cores</code>).</li>
-</ul>
-<p>For this example, we will:</p>
-<ul>
-<li>Define the response as <code>sbp_change ~ trt</code>.</li>
-<li>Adjust for <code>baseline_sbp</code> as an <strong>unshrunk prognostic</strong> variable.</li>
-<li>Explore <code>region</code> and <code>comorbidity</code> as <strong>shrunk predictive</strong> variables. We also include <code>~ 1</code> in the shrunk predictive formula to apply shrinkage to the overall treatment effect (intercept of the interactions).</li>
-</ul>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># iter and chains are set low for a quick example.</span></span>
-<span><span class="co"># For a real analysis, use more iterations (e.g., iter = 2000).</span></span>
-<span><span class="va">continuous_model_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<p>This section demonstrates how to fit separate models, each examining one subgroup variable at a time. We’ll fit a model for each of our 5 subgroup variables.</p>
+<div class="section level3" number="3.1">
+<h3 id="ovat-region-only">
+<span class="header-section-number">3.1</span> OVAT: Region Only<a class="anchor" aria-label="anchor" href="#ovat-region-only"></a>
+</h3>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Write the sigma specified in the trial protocol</span></span>
+<span><span class="va">sigma_ref</span> <span class="op">&lt;-</span> <span class="fl">2</span></span>
+<span></span>
+<span><span class="co"># Fit model with only region as subgroup variable</span></span>
+<span><span class="va">ovat_region</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
-<span>  response_formula_str <span class="op">=</span> <span class="st">"sbp_change ~ trt"</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
-<span>  unshrunk_prognostic_formula_str <span class="op">=</span> <span class="st">"~ baseline_sbp"</span>,</span>
-<span>  <span class="co"># Shrink intercept (1), region interaction, and comorbidity interaction</span></span>
-<span>  shrunk_predictive_formula_str <span class="op">=</span> <span class="st">"~ 1 + region:trt + comorbidity:trt"</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span> <span class="co"># Use cmdstanr if available</span></span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span><span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">region</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
+<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
+<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
+<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || region)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.3 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.1 seconds.</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">continuous_model_fit</span><span class="op">)</span></span>
-<span><span class="co">#&gt;  Family: gaussian </span></span>
-<span><span class="co">#&gt;   Links: mu = identity </span></span>
-<span><span class="co">#&gt; Formula: sbp_change ~ unprogeffect + shpredeffect </span></span>
-<span><span class="co">#&gt;          unprogeffect ~ baseline_sbp + trt + region + comorbidity</span></span>
-<span><span class="co">#&gt;          shpredeffect ~ trt_regionAPAC + trt_regionEU + trt_regionUSA + trt_comorbidityNo + trt_comorbidityYes + 0</span></span>
-<span><span class="co">#&gt;    Data: data (Number of observations: 200) </span></span>
-<span><span class="co">#&gt;   Draws: 1 chains, each with iter = 200; warmup = 100; thin = 1;</span></span>
-<span><span class="co">#&gt;          total post-warmup draws = 100</span></span>
+<span><span class="va">summary_ovat_region</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_region</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3" number="3.2">
+<h3 id="ovat-comorbidity-only">
+<span class="header-section-number">3.2</span> OVAT: Comorbidity Only<a class="anchor" aria-label="anchor" href="#ovat-comorbidity-only"></a>
+</h3>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ovat_comorbidity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">comorbidity</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
+<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
+<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || comorbidity)</span></span>
+<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Regression Coefficients:</span></span>
-<span><span class="co">#&gt;                                 Estimate Est.Error l-95% CI u-95% CI Rhat</span></span>
-<span><span class="co">#&gt; unprogeffect_Intercept              1.41      4.83    -7.09    12.29 1.50</span></span>
-<span><span class="co">#&gt; unprogeffect_baseline_sbp          -0.04      0.04    -0.11     0.03 1.29</span></span>
-<span><span class="co">#&gt; unprogeffect_trt0                  -1.20      2.55    -6.11     4.20 1.00</span></span>
-<span><span class="co">#&gt; unprogeffect_regionEU              -1.08      1.99    -5.42     2.79 1.00</span></span>
-<span><span class="co">#&gt; unprogeffect_regionUSA             -1.74      1.97    -5.50     2.19 1.01</span></span>
-<span><span class="co">#&gt; unprogeffect_comorbidityYes         1.26      1.79    -1.83     4.64 1.06</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_regionAPAC        -0.57      1.68    -3.93     3.26 1.02</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_regionEU           0.38      1.93    -3.03     4.64 1.03</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_regionUSA          0.55      1.45    -1.73     3.63 0.99</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_comorbidityNo      0.85      1.74    -1.47     5.28 1.01</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_comorbidityYes    -0.23      1.71    -3.57     3.07 0.99</span></span>
-<span><span class="co">#&gt;                                 Bulk_ESS Tail_ESS</span></span>
-<span><span class="co">#&gt; unprogeffect_Intercept                 2       32</span></span>
-<span><span class="co">#&gt; unprogeffect_baseline_sbp              4       22</span></span>
-<span><span class="co">#&gt; unprogeffect_trt0                     48       55</span></span>
-<span><span class="co">#&gt; unprogeffect_regionEU                 49       71</span></span>
-<span><span class="co">#&gt; unprogeffect_regionUSA                76       78</span></span>
-<span><span class="co">#&gt; unprogeffect_comorbidityYes          104       52</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_regionAPAC           68       52</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_regionEU             74       60</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_regionUSA            68       81</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_comorbidityNo        63       78</span></span>
-<span><span class="co">#&gt; shpredeffect_trt_comorbidityYes       98       45</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.1 seconds.</span></span>
+<span></span>
+<span><span class="va">summary_ovat_comorbidity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_comorbidity</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3" number="3.3">
+<h3 id="ovat-age-group-only">
+<span class="header-section-number">3.3</span> OVAT: Age Group Only<a class="anchor" aria-label="anchor" href="#ovat-age-group-only"></a>
+</h3>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ovat_age</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">age_group</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
+<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
+<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || age_group)</span></span>
+<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Further Distributional Parameters:</span></span>
-<span><span class="co">#&gt;       Estimate Est.Error l-95% CI u-95% CI Rhat Bulk_ESS Tail_ESS</span></span>
-<span><span class="co">#&gt; sigma     9.46      0.49     8.56    10.38 1.06      102       59</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.9 seconds.</span></span>
+<span></span>
+<span><span class="va">summary_ovat_age</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_age</span>, subgroup_vars <span class="op">=</span> <span class="st">"age_group"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3" number="3.4">
+<h3 id="ovat-sex-only">
+<span class="header-section-number">3.4</span> OVAT: Sex Only<a class="anchor" aria-label="anchor" href="#ovat-sex-only"></a>
+</h3>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ovat_sex</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">sex</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
+<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
+<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || sex)</span></span>
+<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Draws were sampled using sample(hmc). For each parameter, Bulk_ESS</span></span>
-<span><span class="co">#&gt; and Tail_ESS are effective sample size measures, and Rhat is the potential</span></span>
-<span><span class="co">#&gt; scale reduction factor on split chains (at convergence, Rhat = 1).</span></span></code></pre></div>
+<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
+<span></span>
+<span><span class="va">summary_ovat_sex</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_sex</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3" number="3.5">
+<h3 id="ovat-diabetes-only">
+<span class="header-section-number">3.5</span> OVAT: Diabetes Only<a class="anchor" aria-label="anchor" href="#ovat-diabetes-only"></a>
+</h3>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ovat_diabetes</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">diabetes</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
+<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
+<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || diabetes)</span></span>
+<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
+<span></span>
+<span><span class="va">summary_ovat_diabetes</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_diabetes</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level3" number="3.6">
+<h3 id="ovat-visualizing-all-models">
+<span class="header-section-number">3.6</span> OVAT: Visualizing All Models<a class="anchor" aria-label="anchor" href="#ovat-visualizing-all-models"></a>
+</h3>
+<p>You can combine and visualize results from multiple models using <code><a href="../reference/combine_summaries.html">combine_summaries()</a></code>:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Combine all OVAT models</span></span>
+<span><span class="va">combined_ovat</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/combine_summaries.html">combine_summaries</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  <span class="st">"Region"</span> <span class="op">=</span> <span class="va">summary_ovat_region</span>,</span>
+<span>  <span class="st">"Comorbidity"</span> <span class="op">=</span> <span class="va">summary_ovat_comorbidity</span>,</span>
+<span>  <span class="st">"Age Group"</span> <span class="op">=</span> <span class="va">summary_ovat_age</span>,</span>
+<span>  <span class="st">"Sex"</span> <span class="op">=</span> <span class="va">summary_ovat_sex</span>,</span>
+<span>  <span class="st">"Diabetes"</span> <span class="op">=</span> <span class="va">summary_ovat_diabetes</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">combined_ovat</span>, title <span class="op">=</span> <span class="st">"OVAT: All Subgroup Variables"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Preparing data for plotting...</span></span>
+<span><span class="co">#&gt; Generating plot...</span></span>
+<span><span class="co">#&gt; Done.</span></span></code></pre></div>
+<p><img src="Quickstart_files/figure-html/compare-all-ovat-1.png"><!-- --></p>
+</div>
 </div>
 <div class="section level2" number="4">
-<h2 id="summary_subgroup_effects">
-<span class="header-section-number">4</span> <code>summary_subgroup_effects()</code><a class="anchor" aria-label="anchor" href="#summary_subgroup_effects"></a>
+<h2 id="global-modeling-approach">
+<span class="header-section-number">4</span> Global Modeling Approach<a class="anchor" aria-label="anchor" href="#global-modeling-approach"></a>
 </h2>
-<p>The next step is to use the fitted model to generate interpretable subgroup effects. This is done with <code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code>.</p>
-<p>This function uses <strong>G-computation</strong> to estimate the <em>marginal</em> treatment effect for each subgroup (e.g., “what is the average effect for all patients in the ‘EU’ region?”), averaging over all other covariates like <code>baseline_sbp</code> and <code>comorbidity</code>.</p>
-<p>Its main inputs are the <code>brms_fit</code> object from the previous step and the <code>original_data</code>.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">continuous_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span></span>
-<span>  brms_fit <span class="op">=</span> <span class="va">continuous_model_fit</span>,</span>
-<span>  original_data <span class="op">=</span> <span class="va">continuous_data</span>, <span class="co"># Pass the original data</span></span>
-<span>  trt_var <span class="op">=</span> <span class="st">"trt"</span>,</span>
-<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>     <span class="co"># Must match fitting</span></span>
-<span>  <span class="co"># subgroup_vars = "auto" is the default and finds all interactions</span></span>
+<p>This section demonstrates how to fit a single model that includes all subgroup variables simultaneously.</p>
+<div class="section level3" number="4.1">
+<h3 id="global-model-all-subgroups">
+<span class="header-section-number">4.1</span> Global Model: All Subgroups<a class="anchor" aria-label="anchor" href="#global-model-all-subgroups"></a>
+</h3>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Fit a single model with ALL subgroup variables</span></span>
+<span><span class="va">global_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span><span class="op">+</span><span class="va">region</span> <span class="op">+</span><span class="va">comorbidity</span> <span class="op">+</span> <span class="va">age_group</span> <span class="op">+</span> <span class="va">sex</span> <span class="op">+</span><span class="va">diabetes</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">region</span><span class="op">+</span><span class="va">trt</span><span class="op">:</span><span class="va">comorbidity</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">age_group</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">sex</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">diabetes</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(1)"</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
+<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
+<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + region + comorbidity + age_group + sex + diabetes + trt</span></span>
+<span><span class="co">#&gt; shpredeffect ~ 0 + trt:region + trt:comorbidity + trt:age_group + trt:sex + trt:diabetes</span></span>
+<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span></code></pre></div>
+</div>
+<div class="section level3" number="4.2">
+<h3 id="global-model-summary-of-subgroup-effects">
+<span class="header-section-number">4.2</span> Global Model: Summary of Subgroup Effects<a class="anchor" aria-label="anchor" href="#global-model-summary-of-subgroup-effects"></a>
+</h3>
+<p>Use <code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> to generate marginal treatment effects for each subgroup. The function automatically extracts all necessary parameters from the fitted model:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">global_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span></span>
+<span>  brms_fit <span class="op">=</span> <span class="va">global_model</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Using trt_var from model attributes: trt</span></span>
+<span><span class="co">#&gt; Using response_type from model attributes: continuous</span></span>
 <span><span class="co">#&gt; --- Calculating specific subgroup effects... ---</span></span>
+<span><span class="co">#&gt; Using data from model attributes</span></span>
 <span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
 <span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model...</span></span>
-<span><span class="co">#&gt; ...detected subgroup variable(s): region, comorbidity</span></span>
+<span><span class="co">#&gt; Model data has 300 rows and 9 columns</span></span>
+<span><span class="co">#&gt; Column names: id, sbp_change, trt, baseline_sbp, region, comorbidity, age_group, sex, diabetes</span></span>
+<span><span class="co">#&gt; Treatment variable: 'trt'</span></span>
+<span><span class="co">#&gt; All coefficient names:</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_Intercept</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_baseline_sbp</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_regionEU</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_regionUSA</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_comorbidityYes</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_age_group&gt;65</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_age_group50M65</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_sexM</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_diabetesYes</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_trt</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionAPAC</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionEU</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionUSA</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:comorbidityYes</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group&gt;65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group50M65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:sexM</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:diabetesYes</span></span>
+<span><span class="co">#&gt; Looking for treatment interactions with pattern: 'trt:'</span></span>
+<span><span class="co">#&gt; Found 8 treatment interaction coefficients</span></span>
+<span><span class="co">#&gt; Treatment interaction coefficients found:</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionAPAC</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionEU</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionUSA</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:comorbidityYes</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group&gt;65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group50M65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:sexM</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:diabetesYes</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionAPAC'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionEU'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionUSA'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'comorbidity' from coefficient 'shpredeffect_trt:comorbidityYes'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group&gt;65'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group50M65'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'sex' from coefficient 'shpredeffect_trt:sexM'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'diabetes' from coefficient 'shpredeffect_trt:diabetesYes'</span></span>
+<span><span class="co">#&gt; Checking for random effects parameters...</span></span>
+<span><span class="co">#&gt; Retrieved 31 total parameters from model</span></span>
+<span><span class="co">#&gt; Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'</span></span>
+<span><span class="co">#&gt; Found 0 matching random effect parameters</span></span>
+<span><span class="co">#&gt; No random effect parameters matching the pattern were found</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): region, comorbidity, age_group, sex, diabetes</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.</span></span>
 <span><span class="co">#&gt; ... (predicting expected outcomes)...</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
 <span><span class="co">#&gt; ... processing region</span></span>
 <span><span class="co">#&gt; ... processing comorbidity</span></span>
+<span><span class="co">#&gt; ... processing age_group</span></span>
+<span><span class="co">#&gt; ... processing sex</span></span>
+<span><span class="co">#&gt; ... processing diabetes</span></span>
 <span><span class="co">#&gt; Done.</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">continuous_summary</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">global_summary</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $estimates</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 5 × 4</span></span></span>
-<span><span class="co">#&gt;   Subgroup         Median CI_Lower CI_Upper</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> region: APAC       1.16   -<span style="color: #BB0000;">2.46</span>      4.76</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> region: EU         1.81   -<span style="color: #BB0000;">1.38</span>      5.75</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> region: USA        2.38   -<span style="color: #BB0000;">1.05</span>      6.09</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> comorbidity: No    2.00   -<span style="color: #BB0000;">0.525</span>     4.52</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> comorbidity: Yes   1.14   -<span style="color: #BB0000;">2.39</span>      4.61</span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 12 × 4</span></span></span>
+<span><span class="co">#&gt;    Subgroup         Median CI_Lower CI_Upper</span></span>
+<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> region: APAC      1.67    -<span style="color: #BB0000;">1.29</span>      4.92</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> region: EU        0.879   -<span style="color: #BB0000;">2.00</span>      3.85</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> region: USA       0.472   -<span style="color: #BB0000;">2.40</span>      3.17</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> comorbidity: No   0.826   -<span style="color: #BB0000;">1.48</span>      3.01</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> comorbidity: Yes  1.27    -<span style="color: #BB0000;">1.31</span>      3.90</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> age_group: &lt;50    1.22    -<span style="color: #BB0000;">1.26</span>      3.83</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> age_group: &gt;65    1.08    -<span style="color: #BB0000;">1.93</span>      4.11</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> age_group: 50-65  0.841   -<span style="color: #BB0000;">1.87</span>      3.13</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> sex: F            0.384   -<span style="color: #BB0000;">2.26</span>      2.87</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> sex: M            1.61    -<span style="color: #BB0000;">0.924</span>     3.96</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> diabetes: No      0.660   -<span style="color: #BB0000;">1.69</span>      2.75</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> diabetes: Yes     1.74    -<span style="color: #BB0000;">0.977</span>     4.54</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>
@@ -277,69 +427,50 @@
 <span><span class="co">#&gt; attr(,"class")</span></span>
 <span><span class="co">#&gt; [1] "subgroup_summary"</span></span></code></pre></div>
 </div>
-<div class="section level2" number="5">
-<h2 id="plot">
-<span class="header-section-number">5</span> <code>plot()</code><a class="anchor" aria-label="anchor" href="#plot"></a>
-</h2>
-<p>Finally, the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function takes the <code>subgroup_summary</code> object and creates a forest plot for easy interpretation.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Generate and display the plot</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">continuous_summary</span>, title <span class="op">=</span> <span class="st">"Continuous: Subgroup Effects on SBP Change"</span><span class="op">)</span></span>
+<div class="section level3" number="4.3">
+<h3 id="global-model-visualization">
+<span class="header-section-number">4.3</span> Global Model: Visualization<a class="anchor" aria-label="anchor" href="#global-model-visualization"></a>
+</h3>
+<p>Use the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function to create a forest plot from the summary object:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">global_summary</span>, title <span class="op">=</span> <span class="st">"Global Model: All Subgroup Variables"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
 <span><span class="co">#&gt; Done.</span></span></code></pre></div>
-<p><img src="Quickstart_files/figure-html/ex-plot-1.png"><!-- --></p>
-<p>This plot displays the marginal treatment effect (mean difference in <code>sbp_change</code>) for the overall population and for each subgroup level. The estimates are “shrunk” towards the overall effect, providing more stable results than fitting separate models for each subgroup.</p>
+<p><img src="Quickstart_files/figure-html/global-plot-1.png"><!-- --></p>
 </div>
-<div class="section level2" number="6">
-<h2 id="code">
-<span class="header-section-number">6</span> Code<a class="anchor" aria-label="anchor" href="#code"></a>
+</div>
+<div class="section level2" number="5">
+<h2 id="comparing-multiple-models-in-one-plot">
+<span class="header-section-number">5</span> Comparing Multiple Models in One Plot<a class="anchor" aria-label="anchor" href="#comparing-multiple-models-in-one-plot"></a>
 </h2>
-<p>We report below all the code for the main workflow presented in this vignette.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
+<p>The <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function supports comparing multiple models side-by-side. Pass a named list of <code>subgroup_summary</code> objects to create a comparative forest plot.</p>
+<div class="section level3" number="5.1">
+<h3 id="example-comparing-ovat-vs-global-model">
+<span class="header-section-number">5.1</span> Example: Comparing OVAT vs Global Model<a class="anchor" aria-label="anchor" href="#example-comparing-ovat-vs-global-model"></a>
+</h3>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Combine summaries for comparison</span></span>
+<span><span class="va">combined</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/combine_summaries.html">combine_summaries</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  <span class="st">"OVAT"</span> <span class="op">=</span> <span class="va">combined_ovat</span>,</span>
+<span>  <span class="st">"Global Model"</span> <span class="op">=</span> <span class="va">global_summary</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># --- 2. The Data ---</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
-<span><span class="va">n_patients</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
-<span><span class="va">continuous_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n_patients</span>,</span>
-<span>  sbp_change <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, mean <span class="op">=</span> <span class="op">-</span><span class="fl">5</span>, sd <span class="op">=</span> <span class="fl">10</span><span class="op">)</span>,</span>
-<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
-<span>  baseline_sbp <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, mean <span class="op">=</span> <span class="fl">140</span>, sd <span class="op">=</span> <span class="fl">15</span><span class="op">)</span>,</span>
-<span>  region <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"NA"</span>, <span class="st">"EU"</span>, <span class="st">"APAC"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  comorbidity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Yes"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, prob <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.4</span>, <span class="fl">0.6</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">continuous_data</span><span class="op">$</span><span class="va">trt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">continuous_data</span><span class="op">$</span><span class="va">trt</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
-<span></span>
-<span></span>
-<span><span class="co"># --- 3. run_brms_analysis() ---</span></span>
-<span><span class="co"># (Use iter = 2000, chains = 4 for a real analysis)</span></span>
-<span><span class="va">continuous_model_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
-<span>  response_formula_str <span class="op">=</span> <span class="st">"sbp_change ~ trt"</span>,</span>
-<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
-<span>  unshrunk_prognostic_formula_str <span class="op">=</span> <span class="st">"~ baseline_sbp"</span>,</span>
-<span>  shrunk_predictive_formula_str <span class="op">=</span> <span class="st">"~ 1 + region:trt + comorbidity:trt"</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
-<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span></span>
-<span><span class="co"># --- 4. summary_subgroup_effects() ---</span></span>
-<span><span class="va">continuous_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span></span>
-<span>  brms_fit <span class="op">=</span> <span class="va">continuous_model_fit</span>,</span>
-<span>  original_data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
-<span>  trt_var <span class="op">=</span> <span class="st">"trt"</span>,</span>
-<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span></span>
-<span><span class="co"># --- 5. plot() ---</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">continuous_summary</span>, title <span class="op">=</span> <span class="st">"Continuous: Subgroup Effects on SBP Change"</span><span class="op">)</span></span></code></pre></div>
+<span><span class="co"># Plot the comparison</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">combined</span>, title <span class="op">=</span> <span class="st">"Comparing OVAT vs Global Model"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Preparing data for plotting...</span></span>
+<span><span class="co">#&gt; Generating plot...</span></span>
+<span><span class="co">#&gt; Done.</span></span></code></pre></div>
+<p><img src="Quickstart_files/figure-html/compare-models-1.png"><!-- --></p>
+<div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0">
+<div id="ref-wang2024bayesian" class="csl-entry">
+Wang, Yun, Wenda Tu, William Koh, James Travis, Robert Abugov, Kiya Hamilton, Mengjie Zheng, Roberto Crackel, Pablo Bonangelino, and Mark Rothmann. 2024. <span>“<span class="nocase">Bayesian hierarchical models for subgroup analysis</span>.”</span> <em>Pharmaceutical Statistics</em> 23: 1065–83.
+</div>
+<div id="ref-wolbers2025using" class="csl-entry">
+Wolbers, Marcel, Mar Vázquez Rabuñal, Ke Li, Kaspar Rufibach, and Daniel Sabanés Bové. 2025. <span>“<span class="nocase">Using shrinkage methods to estimate treatment effects in overlapping subgroups in randomized clinical trials with a time-to-event endpoint</span>.”</span> <em>Statistical Methods in Medical Research</em>, 1–12.
+</div>
+</div>
+</div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

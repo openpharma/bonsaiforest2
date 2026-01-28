@@ -54,8 +54,11 @@ components of the model.</p>
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">fit_brms_model</span><span class="op">(</span></span>
 <span>  <span class="va">prepared_model</span>,</span>
-<span>  predictive_effect_priors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  prognostic_effect_priors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  intercept_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  unshrunk_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
@@ -66,42 +69,106 @@ components of the model.</p>
 
 
 <dl><dt id="arg-prepared-model">prepared_model<a class="anchor" aria-label="anchor" href="#arg-prepared-model"></a></dt>
-<dd><p>A list object returned from `prepare_formula_model()`.
-It must contain the elements `formula`, `data`, and `response_type`.</p></dd>
+<dd><p>`list`. Object returned from `prepare_formula_model()` containing
+elements `formula` (`brmsformula`), `data` (`data.frame`), `response_type` (`character`),
+and `trt_var` (`character`). The `trt_var` element is stored as an attribute on the
+fitted model for downstream functions.</p></dd>
 
 
-<dt id="arg-predictive-effect-priors">predictive_effect_priors<a class="anchor" aria-label="anchor" href="#arg-predictive-effect-priors"></a></dt>
-<dd><p>A named list with elements `shrunk` and/or `unshrunk`
-containing the priors for predictive effects.</p></dd>
+<dt id="arg-sigma-ref">sigma_ref<a class="anchor" aria-label="anchor" href="#arg-sigma-ref"></a></dt>
+<dd><p>`numeric(1)`. Reference scale for prior specification (REQUIRED).
+Recommended: (1) Standard deviation from trial protocol (preferred), or
+(2) `sd(outcome_variable)` if protocol value unavailable (fallback).
+For binary/survival outcomes, typically use 1. Can be referenced in prior strings
+(e.g., `"normal(0, 2.5 * sigma_ref)"`).</p></dd>
 
 
-<dt id="arg-prognostic-effect-priors">prognostic_effect_priors<a class="anchor" aria-label="anchor" href="#arg-prognostic-effect-priors"></a></dt>
-<dd><p>A named list with elements `shrunk`, `unshrunk`,
-and/or `intercept` containing the priors for prognostic effects.</p></dd>
+<dt id="arg-intercept-prior">intercept_prior<a class="anchor" aria-label="anchor" href="#arg-intercept-prior"></a></dt>
+<dd><p>`character(1)` or `brmsprior` or `NULL`. Prior specification for
+model intercept (e.g., `"normal(0, 10)"`).</p></dd>
+
+
+<dt id="arg-unshrunk-prior">unshrunk_prior<a class="anchor" aria-label="anchor" href="#arg-unshrunk-prior"></a></dt>
+<dd><p>`character(1)` or `brmsprior` or `NULL`. Prior specification for
+unshrunk terms (`unshrunktermeffect` component).</p></dd>
+
+
+<dt id="arg-shrunk-prognostic-prior">shrunk_prognostic_prior<a class="anchor" aria-label="anchor" href="#arg-shrunk-prognostic-prior"></a></dt>
+<dd><p>`character(1)` or `brmsprior` or `NULL`. Prior specification
+for regularized prognostic effects.</p></dd>
+
+
+<dt id="arg-shrunk-predictive-prior">shrunk_predictive_prior<a class="anchor" aria-label="anchor" href="#arg-shrunk-predictive-prior"></a></dt>
+<dd><p>`character(1)` or `brmsprior` or `NULL`. Prior specification
+for regularized predictive effects (treatment interactions).</p></dd>
 
 
 <dt id="arg-stanvars">stanvars<a class="anchor" aria-label="anchor" href="#arg-stanvars"></a></dt>
-<dd><p>An object created by `brms::stanvar()` to add custom Stan code.</p></dd>
+<dd><p>`stanvars` or `NULL`. Custom Stan code created via `brms::stanvar()`.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
-<dd><p>Additional arguments passed directly to `brms::brm()`.</p></dd>
+<dd><p>Additional arguments passed to `brms::brm()` (e.g., `chains`, `iter`, `cores`).</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>A fitted `brmsfit` object.</p>
+    <p>`brmsfit`. Fitted Bayesian model object with attributes:
+  `response_type` (`character`), `model_data` (`data.frame`), and
+  `trt_var` (`character`) for downstream analysis functions.</p>
     </div>
     <div class="section level2">
     <h2 id="prior-specification">Prior Specification<a class="anchor" aria-label="anchor" href="#prior-specification"></a></h2>
 
 
-<p>Priors for prognostic and predictive effects should be provided as named lists.
-This makes the code explicit and prevents errors. For example:
-`prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)", intercept = "normal(0, 10)")`.
-The function accepts prior definitions as character strings (e.g., `"normal(0, 1)"`)
-or as full `brmsprior` objects, which is useful for defining complex
-hierarchical or parameter-specific priors.</p>
+<p>Priors are specified separately for each model component using dedicated parameters.
+This provides explicit control and prevents errors. The function accepts prior
+definitions as character strings (e.g., `"normal(0, 2.5 * sigma_ref)"`) or as
+`brmsprior` objects for complex hierarchical or parameter-specific priors.</p>
+<p>**Available prior parameters:**
+- `intercept_prior`: Prior for the intercept in the unshrunk component
+- `unshrunk_prior`: Prior for all unshrunk terms (main effects you trust)
+- `shrunk_prognostic_prior`: Prior for shrunk prognostic effects (regularized)
+- `shrunk_predictive_prior`: Prior for shrunk predictive effects (regularized)</p>
+<p>**Using sigma_ref in priors:**
+You can reference `sigma_ref` in prior strings, and it will be automatically
+substituted. For example: `"normal(0, 2.5 * sigma_ref)"` becomes
+`"normal(0, 8)"` when sigma_ref = 3.2.</p>
+<p>**Default Priors by Response Type:**</p>
+<p>If you don't specify priors, the function uses sensible defaults:</p>
+<p>*Continuous outcomes:*
+- `intercept_prior`: `normal(outcome_mean, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)`
+- `sigma`: `normal(0, sigma_ref)`</p>
+<p>*Binary outcomes:*
+- `intercept_prior`: `normal(0, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)`</p>
+<p>*Count outcomes:*
+- `intercept_prior`: `normal(0, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)`
+- `shape`: Uses brms default prior for negative binomial shape parameter</p>
+<p>*Survival outcomes:*
+- No intercept (Cox models don't have intercepts)
+- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)`</p>
+<p>**Example:**
+“`
+fit_brms_model(
+  prepared_model = prepared,
+  sigma_ref = 12.5,  # From trial protocol (preferred)
+  # OR sigma_ref = sd(data$outcome),  # If protocol value unavailable
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 0.5 * sigma_ref)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 0.1 * sigma_ref)"
+)
+“`</p>
     </div>
 
     <div class="section level2">
@@ -122,24 +189,30 @@ hierarchical or parameter-specific priors.</p>
 <span class="r-in"><span>  <span class="va">sim_data</span><span class="op">$</span><span class="va">region</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">region</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">sim_data</span><span class="op">$</span><span class="va">subgroup</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">subgroup</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span>  <span class="co"># 2. Prepare the formula and data</span></span></span>
+<span class="r-in"><span>  <span class="co"># 2. Prepare the formula and data using colon syntax</span></span></span>
 <span class="r-in"><span>  <span class="va">prepared_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="prepare_formula_model.html">prepare_formula_model</a></span><span class="op">(</span></span></span>
 <span class="r-in"><span>    data <span class="op">=</span> <span class="va">sim_data</span>,</span></span>
-<span class="r-in"><span>    response_formula_str <span class="op">=</span> <span class="st">"Surv(time, status) ~ trt"</span>,</span></span>
-<span class="r-in"><span>    shrunk_predictive_formula_str <span class="op">=</span> <span class="st">"~ trt:subgroup"</span>,</span></span>
-<span class="r-in"><span>    unshrunk_prognostic_formula_str <span class="op">=</span> <span class="st">"~ age"</span>,</span></span>
-<span class="r-in"><span>    shrunk_prognostic_formula_str <span class="op">=</span> <span class="st">"~ region"</span>,</span></span>
+<span class="r-in"><span>    response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">time</span>, <span class="va">status</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span></span>
+<span class="r-in"><span>    shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="va">trt</span><span class="op">:</span><span class="va">subgroup</span>,</span></span>
+<span class="r-in"><span>    unshrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span>,</span></span>
+<span class="r-in"><span>    shrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="va">region</span>,</span></span>
 <span class="r-in"><span>    response_type <span class="op">=</span> <span class="st">"survival"</span>,</span></span>
-<span class="r-in"><span>    stratification_formula_str <span class="op">=</span> <span class="st">"~ region"</span></span></span>
+<span class="r-in"><span>    stratification_formula <span class="op">=</span> <span class="op">~</span> <span class="va">region</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="co"># 3. Fit the model</span></span></span>
 <span class="r-in"><span>  <span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
+<span class="r-in"><span>  <span class="co"># For survival models, typically use sigma_ref = 1</span></span></span>
+<span class="r-in"><span>  <span class="co"># For continuous outcomes, use protocol sigma (preferred) or sd(outcome) (fallback)</span></span></span>
+<span class="r-in"><span>  <span class="co"># Example: sigma_ref &lt;- 12.5  # from protocol</span></span></span>
+<span class="r-in"><span>  <span class="co"># OR: sigma_ref &lt;- sd(sim_data$outcome)  # if protocol value unavailable</span></span></span>
+<span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu">fit_brms_model</span><span class="op">(</span></span></span>
 <span class="r-in"><span>    prepared_model <span class="op">=</span> <span class="va">prepared_model</span>,</span></span>
-<span class="r-in"><span>    <span class="co"># Note: intercept prior is not needed for survival models</span></span></span>
-<span class="r-in"><span>    prognostic_effect_priors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>shrunk <span class="op">=</span> <span class="st">"horseshoe(1)"</span>, unshrunk <span class="op">=</span> <span class="st">"normal(0, 2)"</span><span class="op">)</span>,</span></span>
-<span class="r-in"><span>    predictive_effect_priors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>shrunk <span class="op">=</span> <span class="st">"horseshoe(1)"</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>    sigma_ref <span class="op">=</span> <span class="fl">1</span>,</span></span>
+<span class="r-in"><span>    unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span></span>
+<span class="r-in"><span>    shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = sigma_ref)"</span>,</span></span>
+<span class="r-in"><span>    shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = sigma_ref)"</span>,</span></span>
 <span class="r-in"><span>    chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">50</span>, warmup <span class="op">=</span> <span class="fl">10</span>, refresh <span class="op">=</span> <span class="fl">0</span> <span class="co"># For a quick example</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
@@ -162,10 +235,7 @@ hierarchical or parameter-specific priors.</p>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> The following object is masked from ‘package:brms’:</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>     kidney</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Applying stratification: estimating separate baseline hazards by 'region'.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Treatment 'trt' added to unshrunk prognostic terms by default.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Auto-adding missing prognostic effect for interaction: subgroup</span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in prepare_formula_model(data = sim_data, response_formula = Surv(time,     status) ~ trt, shrunk_predictive_formula = ~trt:subgroup,     unshrunk_prognostic_formula = ~age, shrunk_prognostic_formula = ~region,     response_type = "survival", stratification_formula = ~region):</span> unused argument (unshrunk_prognostic_formula = ~age)</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -1,23 +1,22 @@
 # Prepare a Multi-Part brms Formula and Corresponding Data
 
-This function serves as a powerful pre-processor for building complex
-Bayesian models with the \`brms\` package. It automates the construction
-of a multi-part, non-linear formula by classifying covariates into four
-distinct categories: unshrunk prognostic, shrunk prognostic, unshrunk
-predictive, and shrunk predictive.
+This function serves as a pre-processor for building complex Bayesian
+models with the \`brms\` package. It automates the construction of a
+multi-part, non-linear formula by classifying covariates into three
+distinct categories: unshrunk terms, shrunk prognostic, and shrunk
+predictive.
 
 ## Usage
 
 ``` r
 prepare_formula_model(
   data,
-  response_formula_str,
-  shrunk_predictive_formula_str = NULL,
-  unshrunk_prognostic_formula_str = NULL,
-  unshrunk_predictive_formula_str = NULL,
-  shrunk_prognostic_formula_str = NULL,
+  response_formula,
+  unshrunk_terms_formula = NULL,
+  shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = NULL,
   response_type = c("binary", "count", "continuous", "survival"),
-  stratification_formula_str = NULL
+  stratification_formula = NULL
 )
 ```
 
@@ -25,48 +24,82 @@ prepare_formula_model(
 
 - data:
 
-  A data.frame containing all the necessary variables.
+  \`data.frame\`. A dataset containing all necessary variables for model
+  fitting.
 
-- response_formula_str:
+- response_formula:
 
-  A character string for the response part, e.g., "outcome ~ trt", for
-  count models "n_events + offset(log(days)) ~ trt" or for survival
-  models "Surv(time,status) ~ trt".
+  \`formula\`. The response specification (e.g., \`outcome ~ trt\` for
+  continuous, \`n_events + offset(log(days)) ~ trt\` for count, or
+  \`Surv(time, status) ~ trt\` for survival models).
 
-- shrunk_predictive_formula_str:
+- unshrunk_terms_formula:
 
-  Predictive terms to be shrunk ('shpredeffect'). These are typically
-  interactions with the treatment variable.
+  \`formula\` or \`NULL\`. Formula specifying unshrunk terms
+  (\`unshrunktermeffect\`). May include main effects and treatment
+  interactions. Supports colon notation (e.g., \`~ age + sex +
+  trt:biomarker\`), star notation (e.g., \`~ age + trt\*biomarker\`), or
+  random effects notation (e.g., \`~ age + (trt \|\| biomarker)\`).
+  Different syntaxes may be combined.
 
-- unshrunk_prognostic_formula_str:
+- shrunk_prognostic_formula:
 
-  Prognostic terms not to be shrunk ('unprogeffect'). These are main
-  effects assumed to be important.
+  \`formula\` or \`NULL\`. Formula specifying prognostic main effects to
+  be regularized (\`shprogeffect\`). These are covariates where
+  shrinkage/regularization is desired.
 
-- unshrunk_predictive_formula_str:
+- shrunk_predictive_formula:
 
-  Predictive terms not to be shrunk ('unpredeffect').
-
-- shrunk_prognostic_formula_str:
-
-  Prognostic terms to be shrunk ('shprogeffect'). These are main effects
-  where regularization is desired.
+  \`formula\` or \`NULL\`. Formula specifying predictive terms to be
+  regularized (\`shpredeffect\`). Typically treatment interactions.
+  Supports colon notation (e.g., \`~ 0 + trt:region\`), star notation
+  (e.g., \`~ 0 + trt\*region\`), or random effects notation (e.g., \`~
+  (0 + trt \|\| region)\`). Different syntaxes may be combined.
 
 - response_type:
 
-  The type of outcome variable. One of "binary", "count", "continuous",
-  or "survival".
+  \`character(1)\`. Type of outcome variable: one of \`"binary"\`,
+  \`"count"\`, \`"continuous"\`, or \`"survival"\`.
 
-- stratification_formula_str:
+- stratification_formula:
 
-  A formula string specifying the stratification variable, e.g., "~
-  strata_var".
+  \`formula\` or \`NULL\`. Formula specifying stratification variable
+  (e.g., \`~ strata_var\`) for modeling baseline hazard (survival) or
+  distributional parameters.
 
 ## Value
 
-A list with three elements: \`formula\` (a \`brmsformula\` object),
-\`data\` (the modified data.frame), and \`response_type\` (the character
-string of the response type).
+\`list\` with six named elements:
+
+- \`formula\`:
+
+  \`brmsformula\` object containing the complete multi-part model
+  specification
+
+- \`data\`:
+
+  \`data.frame\` with modified contrast coding (must be used for model
+  fitting)
+
+- \`response_type\`:
+
+  \`character(1)\` indicating the outcome type (\`"binary"\`,
+  \`"count"\`, \`"continuous"\`, or \`"survival"\`)
+
+- \`trt_var\`:
+
+  \`character(1)\` name of treatment variable extracted from response
+  formula
+
+- \`stan_variable_names\`:
+
+  \`list\` of character vectors showing Stan parameter names for each
+  model component
+
+- \`has_intercept\`:
+
+  \`logical(1)\` indicating whether the unshrunk formula includes an
+  intercept (\`TRUE\`) or was specified with \`~ 0 + ...\` (\`FALSE\`)
 
 ## Details
 
@@ -78,21 +111,29 @@ proper factor handling and interactions.
 ## Key Features
 
 - **Multi-Part Formula Construction:** It generates a \`brmsformula\`
-  object with up to four distinct linear components (\`unprogeffect\`,
-  \`shprogeffect\`, \`unpredeffect\`, \`shpredeffect\`), which are
-  combined in a non-linear model. This allows for assigning different
-  priors to each component.
+  object with up to four distinct linear components
+  (\`unshrunktermeffect\`, \`shprogeffect\`, \`shpredeffect\`), which
+  are combined in a non-linear model. This allows for assigning
+  different priors to each component.
 
-- **Automated Interaction Handling:** Predictive terms (e.g., \`~
-  trt:subgroup\`) are automatically handled using R's contrast coding.
-  All variables involved in interactions are converted to factors with
-  treatment contrasts (reference coding), enabling proper model fitting
-  and prediction on new data without manual dummy variable creation.
+- **Automated Interaction Handling:** Predictive terms support three
+  syntaxes that can be used together or separately: colon notation
+  (e.g., \`~ trt:subgroup\`), star notation (e.g., \`~ trt\*subgroup\`),
+  or random effects notation (e.g., \`~ (trt \|\| subgroup)\`). You can
+  mix these syntaxes in the same model (e.g., \`~ trt:var1 + trt\*var2 +
+  (trt \|\| var3)\`). All variables involved in interactions are
+  converted to factors with appropriate contrasts (reference coding for
+  unshrunk, one-hot for shrunk), enabling proper model fitting and
+  prediction on new data without manual dummy variable creation.
 
-- **Hierarchical Integrity:** When a predictive term like
-  \`trt:subgroup\` is specified, the function automatically ensures that
-  the corresponding prognostic (main) effect \`subgroup\` is included in
-  the model, adhering to the principle of model hierarchy.
+- **Hierarchical Integrity Check:** When a predictive term like
+  \`trt:subgroup\` is specified, the function checks whether the
+  corresponding prognostic effect \`subgroup\` is included in the model.
+  If missing, it issues a warning message to alert you about the
+  violation of the marginality principle, allowing you to decide whether
+  to add the main effect. Note: Star notation (\`\*\`) automatically
+  includes main effects, so these variables are excluded from the
+  marginality check.
 
 - **Intelligent Defaults:** The main treatment variable is automatically
   added as an unshrunk prognostic term if not specified elsewhere. It
@@ -119,15 +160,32 @@ spline knots to ensure stability:
     times to calculate quantile-based knots, it gracefully falls back to
     placing evenly spaced knots within the defined boundaries.
 
-## Data Transformation
+## Data Transformation and Contrast Coding
 
-It is critical to note that this function returns a modified
-\`data.frame\`. The treatment variable and any variables involved in
-interactions are converted to factors with treatment contrasts
-(reference coding). This contrast-based approach enables proper model
-fitting and easy prediction on new data, as the same contrasts are
-automatically applied. The returned \`data\` object should be used in
-the subsequent call to \`brms::brm()\`, not the original data.
+**CRITICAL:** This function returns a modified \`data.frame\` that must
+be used in subsequent calls to \`brms::brm()\`, not the original data.
+The transformations are:
+
+- **Treatment variable:** Converted to numeric binary (0/1) to avoid
+  multi-level factor interactions. The first level (alphabetically or
+  numerically) becomes 0, the second becomes 1.
+
+- **Factor covariates:** Automatic contrast coding based on shrinkage
+  type:
+
+  - **Shrunk terms:** One-hot encoding (all factor levels represented).
+    For proper regularization, specify these using \`~ 0 + var\` to
+    explicitly remove the intercept. To treat all subgroups
+    symmetrically without privileging a specific reference group, to
+    ensure the exchangeability assumption.
+
+  - **Unshrunk terms:** Dummy encoding (reference level dropped). Use
+    standard formula syntax \`~ var\` with intercept.
+
+- **Custom contrasts:** If you have pre-specified contrasts via
+  \`contrasts(data\$var) \<- \<matrix\>\` before calling this function,
+  they will be preserved. Otherwise, defaults are applied based on
+  shrinkage category.
 
 ## Stratification
 
@@ -163,41 +221,53 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2. Run the function
+  # 2a. Example with colon interaction syntax
   prepared_model <- prepare_formula_model(
     data = sim_data,
-    response_formula_str = "Surv(time, status) ~ trt",
-    shrunk_predictive_formula_str = "~ trt:subgroup",
-    unshrunk_prognostic_formula_str = "~ age",
-    shrunk_prognostic_formula_str = "~ region",
+    response_formula = Surv(time, status) ~ trt,
+    unshrunk_terms_formula = ~ age + subgroup,
+    shrunk_predictive_formula = ~ trt:subgroup,
     response_type = "survival",
-    stratification_formula_str = "~ region"
+    stratification_formula = ~ region
   )
+
+  # 2b. Alternatively, using pipe-pipe (||) syntax
+  # prepared_model <- prepare_formula_model(
+  #   data = sim_data,
+  #   response_formula = Surv(time, status) ~ trt,
+  #   unshrunk_terms_formula = ~ age,
+  #   shrunk_predictive_formula = ~ (0 + trt || subgroup),
+  #   response_type = "survival",
+  #   stratification_formula = ~ region
+  # )
 
   # 3. View the results
   print(prepared_model$formula)
   print(head(prepared_model$data))
 }
+#> Converting treatment variable 'trt' to numeric binary (0/1). '0' = 0, '1' = 1
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 #> Applying stratification: estimating separate baseline hazards by 'region'.
-#> Treatment 'trt' added to unshrunk prognostic terms by default.
-#> Auto-adding missing prognostic effect for interaction: subgroup
-#> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unprogeffect + shprogeffect + shpredeffect 
-#> unprogeffect ~ age + trt + subgroup + 0
-#> shprogeffect ~ region + 0
-#> shpredeffect ~ trt_subgroupS1 + trt_subgroupS2 + trt_subgroupS3 + 0
-#>   time status trt      age region subgroup trt_subgroupS1 trt_subgroupS2
-#> 1   29      0   1 57.87739      B       S2              0              1
-#> 2   79      1   1 57.69042      B       S1              1              0
-#> 3   41      1   1 53.32203      B       S3              0              0
-#> 4   88      0   0 39.91623      B       S3              0              0
-#> 5   94      1   1 48.80547      A       S3              0              0
-#> 6    6      1   1 47.19605      A       S2              0              1
-#>   trt_subgroupS3
-#> 1              0
-#> 2              0
-#> 3              1
-#> 4              0
-#> 5              1
-#> 6              0
+#> Note: Treatment 'trt' automatically added to unshrunk terms.
+#> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)
+#> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'subgroup'
+#> DEBUG: Creating sub-formulas...
+#>   - all_unshrunk_terms: age, subgroup, trt
+#>   - shrunk_prog_terms: 
+#>   - shrunk_pred_formula: trt:subgroup
+#> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
+#> DEBUG: Final formula object:
+#> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect 
+#> unshrunktermeffect ~ 0 + age + subgroup + trt
+#> shpredeffect ~ trt:subgroup
+#> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect 
+#> unshrunktermeffect ~ 0 + age + subgroup + trt
+#> shpredeffect ~ trt:subgroup
+#>   time status trt      age region subgroup
+#> 1   29      0   1 57.87739      B       S2
+#> 2   79      1   1 57.69042      B       S1
+#> 3   41      1   1 53.32203      B       S3
+#> 4   88      0   0 39.91623      B       S3
+#> 5   94      1   1 48.80547      A       S3
+#> 6    6      1   1 47.19605      A       S2
 ```

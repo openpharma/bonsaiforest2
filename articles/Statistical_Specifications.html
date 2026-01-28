@@ -79,13 +79,22 @@
 <li>
 <strong>Prognostic</strong> (main) vs. <strong>Predictive</strong> (interaction) effects.</li>
 <li>
-<strong>Shrunk</strong> vs. <strong>Unshrunk</strong> coefficients, allowing exploratory terms to be penalized while pre-specified terms are not.</li>
+<strong>Shrunk</strong> vs. <strong>Unshrunk</strong> coefficients. Users can specify unshrunk terms (with weakly informative priors), and optionally add shrunk prognostic effects and/or shrunk predictive effects (with strong regularization priors) as needed for their analysis.</li>
+<li>
+<strong>Customizable Priors:</strong> Users can specify custom priors for individual coefficients or coefficient groups when domain expertise is available. If no custom priors are specified, the package applies automatic, well-calibrated default priors based on established best practices.</li>
 </ul>
 </li>
 <li>
 <strong>Advanced Shrinkage Priors:</strong> Supports state-of-the-art shrinkage priors, including the <strong>Regularized Horseshoe</strong> <span class="citation">(<a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>; <a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span> and <strong>R2D2</strong> <span class="citation">(<a href="#ref-zhang2022bayesian">Zhang et al. 2022</a>)</span>, to provide robust control of false-positive findings while identifying potential heterogeneity.</li>
 <li>
-<strong>Marginal Effect Estimation:</strong> Use of <strong>standardization (G-computation)</strong> to derive interpretable <em>marginal</em> subgroup treatment effects, which average over the covariate distributions within each subgroup <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>.</li>
+<strong>Marginal Effect Estimation:</strong> Use of <strong>standardization (G-computation)</strong> to derive interpretable <em>marginal</em> subgroup treatment effects, which average over the covariate distributions within each subgroup <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>. This is implemented through:
+<ul>
+<li>
+<code><a href="../reference/estimate_subgroup_effects.html">estimate_subgroup_effects()</a></code> for the computational G-computation workflow.</li>
+<li>
+<code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> for user-friendly effect summaries.</li>
+</ul>
+</li>
 </ol>
 <p>This document is structured as follows: <a href="#sec-intro">Section 2</a> provides a conceptual introduction to subgroup analysis challenges and the Bayesian shrinkage solution. <a href="#sec-methodology">Section 3</a> details the statistical methodology, including notation, the global and the one-variable at a time models, endpoint-specific likelihoods, prior specifications, and the standardization procedure. <a href="#sec-functions">Section 4</a> maps these statistical methods to the core functions in the <code>bonsaiforest2</code> package.</p>
 </div>
@@ -401,11 +410,11 @@
 <li>
 <span class="math inline">\(\boldsymbol{\beta_3}\)</span> is the <span class="math inline">\(V \times 1\)</span> vector of extra prognostic effects coefficients</li>
 </ul>
-<table style="width:99%;" class="table">
+<table class="table">
 <colgroup>
-<col width="22%">
-<col width="38%">
-<col width="38%">
+<col width="33%">
+<col width="33%">
+<col width="33%">
 </colgroup>
 <thead><tr class="header">
 <th align="left"></th>
@@ -554,12 +563,12 @@
 <span class="header-section-number">3.7</span> Endpoint-Specific Models<a class="anchor" aria-label="anchor" href="#sec-endpoint"></a>
 </h3>
 <p>The package supports four primary endpoint types by specifying the appropriate likelihood and link function for <span class="math inline">\(g(\boldsymbol{\mu}) = \boldsymbol{\eta}\)</span>.</p>
-<table style="width:99%;" class="table">
+<table class="table">
 <colgroup>
-<col width="9%">
-<col width="28%">
-<col width="18%">
-<col width="41%">
+<col width="25%">
+<col width="25%">
+<col width="25%">
+<col width="25%">
 </colgroup>
 <thead><tr class="header">
 <th align="left">Endpoint</th>
@@ -677,11 +686,11 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <p>he Horseshoe prior is set using the function call:</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/horseshoe.html" class="external-link">horseshoe</a></span><span class="op">(</span>df <span class="op">=</span> <span class="fl">1</span>, scale_global <span class="op">=</span> <span class="fl">1</span>, df_global <span class="op">=</span> <span class="fl">1</span>, scale_slab <span class="op">=</span> <span class="fl">2</span>, df_slab <span class="op">=</span> <span class="fl">4</span>, par_ratio <span class="op">=</span> <span class="cn">NULL</span>, autoscale <span class="op">=</span> <span class="cn">TRUE</span>, main <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
-<table style="width:100%;" class="table">
+<table class="table">
 <colgroup>
-<col width="12%">
-<col width="15%">
-<col width="71%">
+<col width="33%">
+<col width="33%">
+<col width="33%">
 </colgroup>
 <thead><tr class="header">
 <th align="left">Horseshoe Argument</th>
@@ -754,11 +763,11 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 </ul>
 </li>
 </ul>
-<table style="width:99%;" class="table">
+<table class="table">
 <colgroup>
-<col width="19%">
-<col width="20%">
-<col width="60%">
+<col width="33%">
+<col width="33%">
+<col width="33%">
 </colgroup>
 <thead><tr class="header">
 <th align="center">
@@ -832,11 +841,11 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <p>The R2D2 prior is set using the function call:</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/R2D2.html" class="external-link">R2D2</a></span><span class="op">(</span>mean_R2 <span class="op">=</span> <span class="fl">0.5</span>, prec_R2 <span class="op">=</span> <span class="fl">2</span>, cons_D2 <span class="op">=</span> <span class="fl">0.5</span>, autoscale <span class="op">=</span> <span class="cn">TRUE</span>, main <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
-<table style="width:100%;" class="table">
+<table class="table">
 <colgroup>
-<col width="10%">
-<col width="11%">
-<col width="77%">
+<col width="33%">
+<col width="33%">
+<col width="33%">
 </colgroup>
 <thead><tr class="header">
 <th align="left">R2D2 Argument</th>
@@ -1004,20 +1013,26 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <h2 id="sec-functions">
 <span class="header-section-number">4</span> Mapping of Statistical Methods to <code>bonsaiforest2</code> Functions<a class="anchor" aria-label="anchor" href="#sec-functions"></a>
 </h2>
-<p>This section connects the statistical methodology (Section 3) to the core package functions.</p>
+<p>This section connects the statistical methodology (Section 3) to the package functions. The package provides a three-level architecture: high-level user interface functions, modular worker functions for advanced control, and internal helpers.</p>
+<div class="section level3" number="4.1">
+<h3 id="high-level-user-interface">
+<span class="header-section-number">4.1</span> High-Level User Interface<a class="anchor" aria-label="anchor" href="#high-level-user-interface"></a>
+</h3>
+<p>These are the main functions users typically call in their analysis workflow:</p>
 <ul>
 <li>
 <p><strong><code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code></strong></p>
 <ul>
 <li>
-<strong>Maps to:</strong> Sections 3.2 (Global Model), 3.3 (Endpoints), 3.4 (Priors), 3.5 (Estimation).</li>
+<strong>Maps to:</strong> Sections 3.2 (Models), 3.3 (Endpoints), 3.4 (Priors), 3.5 (Estimation).</li>
 <li>
-<strong>Action:</strong> This function is the primary model-fitting engine.
+<strong>Action:</strong> Main entry point that orchestrates the complete modeling workflow.
 <ul>
-<li>It constructs the design matrices <span class="math inline">\(\mathbf{X_n}, \mathbf{X_p}, \mathbf{Z_n}, \mathbf{Z_p}, \mathbf{U}\)</span> based on the formula string arguments (e.g., <code>unshrunk_prognostic_formula_str</code>, <code>shrunk_predictive_formula_str</code>).</li>
-<li>It assigns the specified priors (e.g., <code>predictive_effect_priors = list(shrunk = "horseshoe(par_ratio = 0.1)")</code>).</li>
-<li>It builds and passes the full <code>brmsformula</code> and data to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> to run the Stan MCMC sampler.</li>
-<li>It handles stratification via the <code>stratification_formula_str</code> argument, which adds terms like <code>bhaz(country)</code> or <code>sigma ~ country</code> to the <code>brmsformula</code>.</li>
+<li>Internally calls <code><a href="../reference/prepare_formula_model.html">prepare_formula_model()</a></code> to construct the three-component <code>brmsformula</code> structure and validate inputs.</li>
+<li>Then calls <code><a href="../reference/fit_brms_model.html">fit_brms_model()</a></code> to run MCMC sampling via <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> and Stan.</li>
+<li>Stores essential metadata (treatment variable, response type, original data) as attributes on the fitted model object for downstream analysis.</li>
+<li>Handles all formula components: <code>unshrunktermeffect</code> (unshrunk terms), <code>shprogeffect</code> (shrunk prognostic), and <code>shpredeffect</code> (shrunk predictive).</li>
+<li>Returns a <code>brmsfit</code> object with enriched attributes.</li>
 </ul>
 </li>
 </ul>
@@ -1028,12 +1043,12 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <li>
 <strong>Maps to:</strong> Section 3.6 (Standardization / G-computation).</li>
 <li>
-<strong>Action:</strong> This function implements the full G-computation procedure.
+<strong>Action:</strong> User-facing wrapper for marginal effect summarization.
 <ul>
-<li>It takes the fitted <code>brms_fit</code> object (containing posterior samples) and the <code>original_data</code>.</li>
-<li>It automatically detects the subgroups specified in the model (or uses the <code>subgroup_vars</code> argument).</li>
-<li>It iterates through each posterior sample, generates counterfactual predictions, averages within subgroups, and calculates the marginal effect measure (e.g., AHR, OR) based on the <code>response_type</code>.</li>
-<li>It returns a <code>subgroup_summary</code> object containing the posterior distributions of the marginal effects.</li>
+<li>Internally calls <code><a href="../reference/estimate_subgroup_effects.html">estimate_subgroup_effects()</a></code> to perform the G-computation procedure.</li>
+<li>Automatically extracts treatment variable, response type, and data from model attributes (set by <code><a href="../reference/fit_brms_model.html">fit_brms_model()</a></code>).</li>
+<li>Auto-detects subgroups from all formula components by searching for treatment interactions in <code>unshrunktermeffect</code>, <code>shprogeffect</code>, and <code>shpredeffect</code>.</li>
+<li>Returns a <code>subgroup_summary</code> S3 object containing estimates, credible intervals, and metadata.</li>
 </ul>
 </li>
 </ul>
@@ -1044,10 +1059,112 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <li>
 <strong>Maps to:</strong> Final visualization of Section 3.6 results.</li>
 <li>
-<strong>Action:</strong> This is a method for <code>subgroup_summary</code> objects. It takes the summarized posterior distributions (median and 95% CrI) for the overall and subgroup effects and generates a forest plot.</li>
+<strong>Action:</strong> S3 method for <code>subgroup_summary</code> objects. Generates publication-ready forest plots from marginal effect estimates with median and 95% credible intervals.</li>
 </ul>
 </li>
 </ul>
+</div>
+<div class="section level3" number="4.2">
+<h3 id="advancedmodular-interface">
+<span class="header-section-number">4.2</span> Advanced/Modular Interface<a class="anchor" aria-label="anchor" href="#advancedmodular-interface"></a>
+</h3>
+<p>For users requiring fine-grained control over the modeling process, the package exposes intermediate worker functions:</p>
+<ul>
+<li>
+<p><strong><code><a href="../reference/prepare_formula_model.html">prepare_formula_model()</a></code></strong></p>
+<ul>
+<li>
+<strong>Parameters:</strong>
+<ul>
+<li>
+<code>data</code>: Dataset containing all variables</li>
+<li>
+<code>response_formula</code>: Response specification (e.g., <code>outcome ~ trt</code> or <code>Surv(time, status) ~ trt</code>)</li>
+<li>
+<code>unshrunk_terms_formula</code>: Unshrunk terms specification (may include main effects and treatment interactions)</li>
+<li>
+<code>shrunk_prognostic_formula</code>: Prognostic main effects to be regularized (optional)</li>
+<li>
+<code>shrunk_predictive_formula</code>: Treatment interactions to be regularized (optional)</li>
+<li>
+<code>response_type</code>: One of <code>"binary"</code>, <code>"count"</code>, <code>"continuous"</code>, or <code>"survival"</code>
+</li>
+<li>
+<code>stratification_formula</code>: Stratification variable (optional)</li>
+</ul>
+</li>
+<li>
+<strong>Action:</strong> Constructs and validates the three-component <code>brmsformula</code> structure:
+<ul>
+<li>
+<code>unshrunktermeffect</code>: Unshrunk terms with weakly informative priors (intercept, main treatment effect, pre-specified covariates). Specified via <code>unshrunk_terms_formula</code>.</li>
+<li>
+<code>shprogeffect</code>: Shrunk prognostic effects with strong regularization priors. Specified via <code>shrunk_prognostic_formula</code>.</li>
+<li>
+<code>shpredeffect</code>: Shrunk predictive effects (treatment interactions) with strong regularization priors. Specified via <code>shrunk_predictive_formula</code>.</li>
+</ul>
+</li>
+<li>Supports flexible interaction syntax: colon notation (<code>trt:subgroup</code>), star notation (<code>trt*subgroup</code>), or random effects notation (<code>(trt || subgroup)</code>), which can be mixed in the same model.</li>
+<li>Validates model hierarchy: checks if predictive terms have corresponding prognostic main effects, issuing warnings if violations are detected (star notation automatically includes main effects and is excluded from this check).</li>
+<li>Applies automatic contrast coding: one-hot encoding for shrunk terms (all levels represented for exchangeability) and dummy encoding for unshrunk terms (reference level dropped).</li>
+<li>Constructs design matrices <span class="math inline">\(\mathbf{X_n}, \mathbf{X_p}, \mathbf{Z_n}, \mathbf{Z_p}, \mathbf{U}\)</span> from formula specifications.</li>
+<li>Returns a list containing the complete <code>brmsformula</code>, transformed data with proper contrasts, response type, treatment variable name, Stan parameter names, and metadata.</li>
+</ul>
+</li>
+<li>
+<p><strong><code><a href="../reference/fit_brms_model.html">fit_brms_model()</a></code></strong></p>
+<ul>
+<li>
+<strong>Action:</strong> Executes the MCMC sampling and model fitting.
+<ul>
+<li>Takes output from <code><a href="../reference/prepare_formula_model.html">prepare_formula_model()</a></code> or manually specified formula components.</li>
+<li>Assigns priors to each formula component based on user specifications or defaults.</li>
+<li>Calls <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> to compile Stan code and run MCMC chains.</li>
+<li>Handles endpoint-specific configurations (Section 3.3): likelihood functions, link functions, and stratification.</li>
+<li>Attaches essential metadata as attributes to the fitted model for use by <code><a href="../reference/estimate_subgroup_effects.html">estimate_subgroup_effects()</a></code>.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code><a href="../reference/estimate_subgroup_effects.html">estimate_subgroup_effects()</a></code></strong></p>
+<ul>
+<li>
+<strong>Action:</strong> Implements the complete G-computation procedure described in Section 3.8:
+<ol style="list-style-type: decimal">
+<li>For each MCMC draw, creates counterfactual datasets (all patients as treated vs. control).</li>
+<li>Generates posterior predictions using <code><a href="https://mc-stan.org/rstantools/reference/posterior_epred.html" class="external-link">brms::posterior_epred()</a></code> or <code>brms::posterior_survfit()</code>.</li>
+<li>Averages predictions within each subgroup to obtain marginal expected outcomes.</li>
+<li>Computes endpoint-specific effect measures:
+<ul>
+<li>Continuous: Mean difference (<span class="math inline">\(\hat{\mu}_{l,1} - \hat{\mu}_{l,0}\)</span>)</li>
+<li>Binary: Odds ratio</li>
+<li>Count: Rate ratio</li>
+<li>Survival: Average hazard ratio (AHR)</li>
+</ul>
+</li>
+</ol>
+</li>
+<li>Auto-detects subgroups by parsing all formula components for treatment interactions (both colon <code>:</code> syntax and pipe <code>||</code> syntax for random effects).</li>
+<li>Returns raw posterior draws and summary statistics (median, credible intervals).</li>
+</ul>
+</li>
+</ul>
+</div>
+<div class="section level3" number="4.3">
+<h3 id="internal-helper-functions">
+<span class="header-section-number">4.3</span> Internal Helper Functions<a class="anchor" aria-label="anchor" href="#internal-helper-functions"></a>
+</h3>
+<p>These functions support the main workflow but are not typically called directly by users:</p>
+<ul>
+<li>
+<strong><code>.prepare_subgroup_vars()</code></strong>: Detects subgroup variables from model formula by identifying treatment interaction terms.</li>
+<li>
+<strong><code>.create_counterfactual_data()</code></strong>: Generates counterfactual datasets for G-computation.</li>
+<li>
+<strong><code>.compute_effect_measure()</code></strong>: Calculates appropriate effect measure based on response type.</li>
+</ul>
+</div>
 </div>
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>

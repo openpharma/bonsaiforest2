@@ -2,6 +2,8 @@
 
 ## All functions
 
+- [`combine_summaries()`](https://openpharma.github.io/bonsaiforest2/reference/combine_summaries.md)
+  : Combine Multiple Subgroup Summaries for Comparison Plotting
 - [`estimate_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/estimate_subgroup_effects.md)
   : Estimate Marginal Subgroup Treatment Effects
 - [`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md)
