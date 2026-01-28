@@ -164,7 +164,7 @@ ovat_age <- run_brms_analysis(
 #> shpredeffect ~ 0 + (0 + trt || age_group)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 2.9 seconds.
+#> Chain 1 finished in 3.0 seconds.
 
 summary_ovat_age <- summary_subgroup_effects(brms_fit = ovat_age, subgroup_vars = "age_group")
 ```

@@ -194,7 +194,7 @@ fit_brms_model(
 <span class="r-in"><span>    data <span class="op">=</span> <span class="va">sim_data</span>,</span></span>
 <span class="r-in"><span>    response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">time</span>, <span class="va">status</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span></span>
 <span class="r-in"><span>    shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="va">trt</span><span class="op">:</span><span class="va">subgroup</span>,</span></span>
-<span class="r-in"><span>    unshrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span>,</span></span>
+<span class="r-in"><span>    unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span>,</span></span>
 <span class="r-in"><span>    shrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="va">region</span>,</span></span>
 <span class="r-in"><span>    response_type <span class="op">=</span> <span class="st">"survival"</span>,</span></span>
 <span class="r-in"><span>    stratification_formula <span class="op">=</span> <span class="op">~</span> <span class="va">region</span></span></span>
@@ -235,7 +235,24 @@ fit_brms_model(
 <span class="r-msg co"><span class="r-pr">#&gt;</span> The following object is masked from ‘package:brms’:</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span>     kidney</span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in prepare_formula_model(data = sim_data, response_formula = Surv(time,     status) ~ trt, shrunk_predictive_formula = ~trt:subgroup,     unshrunk_prognostic_formula = ~age, shrunk_prognostic_formula = ~region,     response_type = "survival", stratification_formula = ~region):</span> unused argument (unshrunk_prognostic_formula = ~age)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Converting treatment variable 'trt' to numeric binary (0/1). '0' = 0, '1' = 1</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Applying stratification: estimating separate baseline hazards by 'region'.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Treatment 'trt' automatically added to unshrunk terms.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Marginality principle not followed - interaction term 'subgroup' is used without its main effect. Consider adding 'subgroup' to prognostic terms for proper model hierarchy.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> DEBUG: Creating sub-formulas...</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>   - all_unshrunk_terms: age, trt</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>   - shrunk_prog_terms: region</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span>   - shrunk_pred_formula: trt:subgroup</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Formula 'shprogeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.</span>
+<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> DEBUG: Final formula object:</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shprogeffect + shpredeffect </span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> unshrunktermeffect ~ 0 + age + trt</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> shprogeffect ~ region</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ trt:subgroup</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

@@ -151,7 +151,7 @@ if (require("brms") && require("survival")) {
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
     shrunk_predictive_formula = ~ trt:subgroup,
-    unshrunk_prognostic_formula = ~ age,
+    unshrunk_terms_formula = ~ age,
     shrunk_prognostic_formula = ~ region,
     response_type = "survival",
     stratification_formula = ~ region
@@ -192,5 +192,22 @@ if (require("brms") && require("survival")) {
 #> The following object is masked from ‘package:brms’:
 #> 
 #>     kidney
-#> Error in prepare_formula_model(data = sim_data, response_formula = Surv(time,     status) ~ trt, shrunk_predictive_formula = ~trt:subgroup,     unshrunk_prognostic_formula = ~age, shrunk_prognostic_formula = ~region,     response_type = "survival", stratification_formula = ~region): unused argument (unshrunk_prognostic_formula = ~age)
+#> Converting treatment variable 'trt' to numeric binary (0/1). '0' = 0, '1' = 1
+#> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
+#> Applying stratification: estimating separate baseline hazards by 'region'.
+#> Note: Treatment 'trt' automatically added to unshrunk terms.
+#> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)
+#> Note: Marginality principle not followed - interaction term 'subgroup' is used without its main effect. Consider adding 'subgroup' to prognostic terms for proper model hierarchy.
+#> Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)
+#> DEBUG: Creating sub-formulas...
+#>   - all_unshrunk_terms: age, trt
+#>   - shrunk_prog_terms: region
+#>   - shrunk_pred_formula: trt:subgroup
+#> Warning: Formula 'shprogeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
+#> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
+#> DEBUG: Final formula object:
+#> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shprogeffect + shpredeffect 
+#> unshrunktermeffect ~ 0 + age + trt
+#> shprogeffect ~ region
+#> shpredeffect ~ trt:subgroup
 ```
