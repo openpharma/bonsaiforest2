@@ -49,7 +49,7 @@ test_that("Basic functionality works (binary/continuous)", {
   # Check output structure
   expect_s3_class(res_bin$formula, "brmsformula")
   expect_s3_class(res_bin$data, "data.frame")
-  expect_named(res_bin, c("formula", "data", "response_type"))
+  expect_named(res_bin, c("formula", "data", "response_type", "trt_var", "stan_variable_names", "has_intercept", "has_random_effects"))
   expect_equal(res_bin$response_type, "binary")
 
   # Check data modifications - treatment should be numeric binary (0/1)
@@ -65,7 +65,7 @@ test_that("Basic functionality works (binary/continuous)", {
     data = test_data,
     response_formula = "outcome ~ trt",
     response_type = "continuous",
-    shrunk_prognostic_formula = "~ age" # Put age in shrunk this time
+    shrunk_prognostic_formula = "~ 0 + age" # Put age in shrunk this time, use ~ 0 + to avoid intercept warning
   )
   expect_equal(res_cont$response_type, "continuous")
   expect_equal(get_formula_rhs(res_cont$formula), c("shprogeffect", "unshrunktermeffect"))
@@ -79,7 +79,7 @@ test_that("Predictive terms (interactions) are processed correctly", {
     data = test_data,
     response_formula = "outcome ~ trt",
     response_type = "continuous",
-    shrunk_predictive_formula = "~ trt:subgroup1",
+    shrunk_predictive_formula = "~ 0 + trt:subgroup1",  # Use ~ 0 + to avoid intercept warning
     unshrunk_terms_formula = "~ trt:region"  # Updated: now goes in unshrunk_terms
   )
 
@@ -108,7 +108,7 @@ test_that("Term overlaps and defaults are handled", {
       response_formula = "outcome ~ trt",
       response_type = "continuous",
       unshrunk_terms_formula = "~ age + region",  # Updated parameter name
-      shrunk_prognostic_formula = "~ age + subgroup1" # age overlaps
+      shrunk_prognostic_formula = "~ 0 + age + subgroup1" # age overlaps, use ~ 0 + to avoid intercept warning
     ),
     regexp = "Prioritizing as unshrunk: age"
   )
@@ -127,7 +127,7 @@ test_that("Term overlaps and defaults are handled", {
       response_formula = "outcome ~ trt",
       response_type = "continuous",
       unshrunk_terms_formula = "~ region",  # Main effect in unshrunk
-      shrunk_predictive_formula = "~ trt:region"  # Interaction in shrunk
+      shrunk_predictive_formula = "~ 0 + trt:region"  # Interaction in shrunk, use ~ 0 + to avoid warning
     ),
     regexp = NA  # No overlap warning expected - different terms
   )
@@ -146,7 +146,7 @@ test_that("Count models handle offset", {
     response_type = "count"
   )
   # Check output structure
-  expect_named(res_count, c("formula", "data", "response_type"))
+  expect_named(res_count, c("formula", "data", "response_type", "trt_var", "stan_variable_names", "has_intercept", "has_random_effects"))
   expect_equal(res_count$response_type, "count")
 
   # Check that offset is included correctly in the main formula string
@@ -207,7 +207,7 @@ test_that("Star notation excludes from marginality check", {
       response_formula = "outcome ~ trt",
       response_type = "continuous",
       unshrunk_terms_formula = "~ trt*region",  # Includes main effects
-      shrunk_predictive_formula = "~ trt:subgroup1"  # Missing subgroup1 main effect
+      shrunk_predictive_formula = "~ 0 + trt:subgroup1"  # Missing subgroup1 main effect, use ~ 0 + to avoid intercept warning
     ),
     regexp = "Marginality principle not followed.*subgroup1",
     all = TRUE
@@ -226,7 +226,7 @@ test_that("Survival models work (basic, stratified, fallback)", {
     response_type = "survival"
   )
   # Check output structure
-  expect_named(res_surv, c("formula", "data", "response_type"))
+  expect_named(res_surv, c("formula", "data", "response_type", "trt_var", "stan_variable_names", "has_intercept", "has_random_effects"))
   expect_equal(res_surv$response_type, "survival")
 
   main_form_str <- paste(deparse(res_surv$formula$formula), collapse = "")

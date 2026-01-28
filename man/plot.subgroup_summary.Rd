@@ -7,16 +7,16 @@
 \method{plot}{subgroup_summary}(x, x_lab = NULL, title = NULL, ...)
 }
 \arguments{
-\item{x}{An object of class `subgroup_summary`.}
+\item{x}{`subgroup_summary`. Object created by `summary_subgroup_effects()`.}
 
-\item{x_lab}{A character string for the x-axis label.}
+\item{x_lab}{`character(1)` or `NULL`. Custom label for x-axis.}
 
-\item{title}{A character string for the plot title.}
+\item{title}{`character(1)` or `NULL`. Custom title for plot.}
 
-\item{...}{Additional arguments.}
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
-A `ggplot` object representing the forest plot.
+`ggplot`. Forest plot visualization of subgroup treatment effects.
 }
 \description{
 Creates a forest plot from a `subgroup_summary` object.

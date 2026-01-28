@@ -64,26 +64,29 @@
 #' )
 #' ```
 #'
-#' @param prepared_model A list object returned from `prepare_formula_model()`.
-#'   It must contain the elements `formula`, `data`, and `response_type`.
-#' @param sigma_ref A numeric value used as a reference scale for priors. This is
-#'   REQUIRED and must be provided by the user. **Recommended approach:**
-#'   1) Use the standard deviation from the trial protocol (preferred),
-#'   2) Use `sd(outcome_variable)` if protocol sigma is unavailable (fallback).
-#'   For binary/survival outcomes, typically use 1.
-#'   You can use this in prior expressions like `"normal(0, 2.5 * sigma_ref)"`.
-#' @param intercept_prior Prior for the model intercept. Can be a character string
-#'   (e.g., `"normal(0, 10)"`) or a `brmsprior` object.
-#' @param unshrunk_prior Prior for unshrunk terms (unshrunktermeffect component).
-#'   Can be a character string or `brmsprior` object.
-#' @param shrunk_prognostic_prior Prior for shrunk prognostic effects. Can be a
-#'   character string or `brmsprior` object.
-#' @param shrunk_predictive_prior Prior for shrunk predictive effects. Can be a
-#'   character string or `brmsprior` object.
-#' @param stanvars An object created by `brms::stanvar()` to add custom Stan code.
-#' @param ... Additional arguments passed directly to `brms::brm()`.
+#' @param prepared_model `list`. Object returned from `prepare_formula_model()` containing
+#'   elements `formula` (`brmsformula`), `data` (`data.frame`), `response_type` (`character`),
+#'   and `trt_var` (`character`). The `trt_var` element is stored as an attribute on the
+#'   fitted model for downstream functions.
+#' @param sigma_ref `numeric(1)`. Reference scale for prior specification (REQUIRED).
+#'   Recommended: (1) Standard deviation from trial protocol (preferred), or
+#'   (2) `sd(outcome_variable)` if protocol value unavailable (fallback).
+#'   For binary/survival outcomes, typically use 1. Can be referenced in prior strings
+#'   (e.g., `"normal(0, 2.5 * sigma_ref)"`).
+#' @param intercept_prior `character(1)` or `brmsprior` or `NULL`. Prior specification for
+#'   model intercept (e.g., `"normal(0, 10)"`).
+#' @param unshrunk_prior `character(1)` or `brmsprior` or `NULL`. Prior specification for
+#'   unshrunk terms (`unshrunktermeffect` component).
+#' @param shrunk_prognostic_prior `character(1)` or `brmsprior` or `NULL`. Prior specification
+#'   for regularized prognostic effects.
+#' @param shrunk_predictive_prior `character(1)` or `brmsprior` or `NULL`. Prior specification
+#'   for regularized predictive effects (treatment interactions).
+#' @param stanvars `stanvars` or `NULL`. Custom Stan code created via `brms::stanvar()`.
+#' @param ... Additional arguments passed to `brms::brm()` (e.g., `chains`, `iter`, `cores`).
 #'
-#' @return A fitted `brmsfit` object.
+#' @return `brmsfit`. Fitted Bayesian model object with attributes:
+#'   `response_type` (`character`), `model_data` (`data.frame`), and
+#'   `trt_var` (`character`) for downstream analysis functions.
 #'
 #' @importFrom checkmate assert_class assert_data_frame assert_choice assert_list assert_string
 #' @importFrom brms bernoulli negbinomial cox set_prior empty_prior
@@ -163,6 +166,14 @@ fit_brms_model <- function(prepared_model,
     choices = c("binary", "count", "continuous", "survival")
   )
 
+  # Extract trt_var from prepared_model
+  trt_var <- prepared_model$trt_var
+  if (!is.null(trt_var)) {
+    checkmate::assert_string(trt_var, min.chars = 1)
+    checkmate::assert_subset(trt_var, names(prepared_model$data))
+    message("Using trt_var from prepared_model: ", trt_var)
+  }
+
   # sigma_ref is now REQUIRED
   checkmate::assert_number(sigma_ref, lower = 0, finite = TRUE,
                           .var.name = "sigma_ref")
@@ -173,6 +184,18 @@ fit_brms_model <- function(prepared_model,
   formula <- prepared_model$formula
   data <- prepared_model$data
   response_type <- prepared_model$response_type
+  has_intercept <- prepared_model$has_intercept  # Extract intercept information
+  has_random_effects <- prepared_model$has_random_effects  # Extract random effects flag
+  
+  # Default to TRUE if not provided (for backwards compatibility)
+  if (is.null(has_intercept)) {
+    has_intercept <- TRUE
+  }
+  
+  # Default to FALSE if not provided (for backwards compatibility)
+  if (is.null(has_random_effects)) {
+    has_random_effects <- FALSE
+  }
 
   message("Using sigma_ref = ", round(sigma_ref, 3))
 
@@ -201,8 +224,9 @@ fit_brms_model <- function(prepared_model,
 
   # --- 3. Construct the Prior List  ---
 
-  # Process priors with sigma_ref substitution
-  # This allows users to write priors like "normal(0, 2.5 * sigma_ref)"
+  # Process prior specifications with sigma_ref substitution
+  # Enables user-friendly prior specification syntax: "normal(0, 2.5 * sigma_ref)"
+  # The literal string "sigma_ref" is replaced with its numeric value before model compilation
   intercept_prior_processed <- .process_sigma_ref(intercept_prior, sigma_ref)
   unshrunk_prior_processed <- .process_sigma_ref(unshrunk_prior, sigma_ref)
   shrunk_prognostic_prior_processed <- .process_sigma_ref(shrunk_prognostic_prior, sigma_ref)
@@ -224,10 +248,11 @@ fit_brms_model <- function(prepared_model,
     default_shrunk_pred <- "horseshoe(1)"
   }
 
-  # Define all possible prior components
-  # unshrunktermeffect: consolidated component for all unshrunk terms (no separate prog/pred)
-  # shprogeffect: shrunk prognostic effects with strong regularization
-  # shpredeffect: shrunk predictive effects (treatment interactions) with strong regularization
+  # Define prior configuration for three-component model architecture:
+  # - unshrunktermeffect: Consolidated component for all unshrunk terms (no separate prog/pred)
+  # - shprogeffect: Shrunk prognostic effects with strong regularization (e.g., horseshoe)
+  # - shpredeffect: Shrunk predictive effects (treatment interactions) with strong regularization
+  # This architecture enables differential prior specification across model components
   prior_config <- list(
     # Intercept for unshrunk terms
     list(nlpar = "unshrunktermeffect", class = "b", coef = "Intercept",
@@ -251,10 +276,14 @@ fit_brms_model <- function(prepared_model,
 
     # Shrunk Predictive - No intercept (user specifies formulas with ~ 0 + ...)
     # Applied to treatment interactions (effect modifiers) with strong regularization
-    list(nlpar = "shpredeffect", class = "b", coef = NULL,
+    # Use 'sd' class for random effects, 'b' class for fixed effects
+    list(nlpar = "shpredeffect", 
+         class = if (has_random_effects) "sd" else "b", 
+         coef = NULL,
          user_prior = shrunk_predictive_prior_processed,
          default = default_shrunk_pred,
-         label = "shrunk predictive")
+         label = "shrunk predictive",
+         is_random_effect = has_random_effects)
   )
 
   defined_nlpars <- names(formula$pforms)
@@ -268,6 +297,11 @@ fit_brms_model <- function(prepared_model,
       # Skip intercept prior for survival models (Cox models have no intercept)
       # Intercept only exists in unshrunktermeffect for non-survival response types
       if (!is.null(conf$coef) && conf$coef == "Intercept" && response_type == "survival") {
+        next
+      }
+      
+      # Skip intercept prior if user specified ~ 0 + ... (no intercept)
+      if (!is.null(conf$coef) && conf$coef == "Intercept" && !has_intercept) {
         next
       }
 
@@ -294,8 +328,10 @@ fit_brms_model <- function(prepared_model,
     message(paste(default_messages, collapse = "\n"))
   }
 
-  # Add sigma prior for continuous and count models
-  if (response_type %in% c("continuous", "count")) {
+  # Add sigma prior only for continuous models without stratification
+  # Count models use negative binomial with shape parameter, not sigma
+  # Stratified continuous models have distributional formulas for sigma, so no global sigma prior
+  if (response_type == "continuous" && !("sigma" %in% names(formula$pforms))) {
     sigma_prior <- brms::set_prior(
       paste0("normal(0, ", sigma_ref, ")"),
       class = "sigma"
@@ -319,7 +355,15 @@ fit_brms_model <- function(prepared_model,
     ...
   )
 
-  # --- 5. Return the fitted model ---
+  # --- 5. Attach metadata as attributes ---
+  # Store response_type, trt_var, and data for downstream functions
+  attr(model_fit, "response_type") <- response_type
+  attr(model_fit, "model_data") <- data
+  if (!is.null(trt_var)) {
+    attr(model_fit, "trt_var") <- trt_var
+  }
+
+  # --- 6. Return the fitted model ---
   return(model_fit)
 }
 

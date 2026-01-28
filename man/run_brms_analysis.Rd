@@ -8,58 +8,59 @@ run_brms_analysis(
   data,
   response_formula,
   response_type = c("binary", "count", "continuous", "survival"),
-  shrunk_predictive_formula = NULL,
-  unshrunk_prognostic_formula = NULL,
-  unshrunk_predictive_formula = NULL,
+  unshrunk_terms_formula = NULL,
   shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = NULL,
   stratification_formula = NULL,
-  predictive_effect_priors = list(),
-  prognostic_effect_priors = list(),
+  sigma_ref = NULL,
+  intercept_prior = NULL,
+  unshrunk_prior = NULL,
+  shrunk_prognostic_prior = NULL,
+  shrunk_predictive_prior = NULL,
   stanvars = NULL,
   ...
 )
 }
 \arguments{
-\item{data}{A data.frame containing all the necessary variables.}
+\item{data}{`data.frame`. Dataset containing all necessary variables.}
 
-\item{response_formula}{A formula for the response part, e.g.,
-outcome ~ trt or Surv(time, status) ~ trt.}
+\item{response_formula}{`formula`. Response specification (e.g., `outcome ~ trt` or `Surv(time, status) ~ trt`).}
 
-\item{response_type}{The type of outcome variable. One of "binary", "count",
-"continuous", or "survival".}
+\item{response_type}{`character(1)`. Outcome type: `"binary"`, `"count"`, `"continuous"`, or `"survival"`.}
 
-\item{shrunk_predictive_formula}{Predictive terms to be shrunk ('shpredeffect').
-E.g., ~ trt:subgroup1 or ~ (trt || subgroup1).}
+\item{unshrunk_terms_formula}{`formula` or `NULL`. Unshrunk terms specification (`unshrunktermeffect`).
+May include main effects and treatment interactions without regularization (e.g., `~ age + sex + trt*region`).}
 
-\item{unshrunk_prognostic_formula}{Prognostic terms not to be shrunk
-('unprogeffect'). E.g., ~ age + sex.}
+\item{shrunk_prognostic_formula}{`formula` or `NULL`. Prognostic effects for strong regularization
+(`shprogeffect`). Must use `~ 0 + ...` syntax (e.g., `~ 0 + biomarker1 + biomarker2`).}
 
-\item{unshrunk_predictive_formula}{Predictive terms not to be shrunk
-('unpredeffect'). E.g., ~ trt:important_subgroup or ~ (trt || important_subgroup).
-Note: Only one interaction syntax (: or ||) can be used across all predictive formulas.}
+\item{shrunk_predictive_formula}{`formula` or `NULL`. Treatment interactions for strong regularization
+(`shpredeffect`). Must use `~ 0 + ...` syntax (e.g., `~ 0 + trt:subgroup` or `~ (0 + trt || subgroup)`).}
 
-\item{shrunk_prognostic_formula}{Prognostic terms to be shrunk
-('shprogeffect'). E.g., ~ region + center.}
+\item{stratification_formula}{`formula` or `NULL`. Stratification variable specification (e.g., `~ strata_var`).}
 
-\item{stratification_formula}{A formula specifying a stratification
-variable, e.g., ~ strata_var.}
+\item{sigma_ref}{`numeric(1)`. Reference scale for priors (REQUIRED). For continuous/count outcomes,
+typically `sd(outcome_variable)`. For binary/survival, typically 1. Referenced in prior
+expressions (e.g., `"normal(0, 2.5 * sigma_ref)"`).}
 
-\item{predictive_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
-containing the priors for predictive effects. Can be strings or `brmsprior` objects.
-E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)")`.}
+\item{intercept_prior}{`character(1)` or `brmsprior` or `NULL`. Intercept prior for `unshrunktermeffect`.
+Not used for survival models. Example: `"normal(0, 10 * sigma_ref)"`.}
 
-\item{prognostic_effect_priors}{A named list with elements `shrunk`, `unshrunk` and/or `intercept`
-containing the priors for prognostic effects.
-E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 10)")`.}
+\item{unshrunk_prior}{`character(1)` or `brmsprior` or `NULL`. Prior for unshrunk terms
+(non-intercept coefficients in `unshrunktermeffect`). Example: `"normal(0, 2.5 * sigma_ref)"`.}
 
-\item{stanvars}{An object created by `brms::stanvar()` to add custom Stan code,
-necessary for some hierarchical priors.}
+\item{shrunk_prognostic_prior}{`character(1)` or `brmsprior` or `NULL`. Prior for regularized
+prognostic effects. Typically strong regularization. Example: `"horseshoe(scale_global = sigma_ref)"`.}
 
-\item{...}{Additional arguments passed directly to `brms::brm()` (e.g.,
-`chains`, `iter`, `cores`, `backend`).}
+\item{shrunk_predictive_prior}{`character(1)` or `brmsprior` or `NULL`. Prior for regularized
+predictive effects (treatment interactions). Example: `"horseshoe(scale_global = 0.5 * sigma_ref)"`.}
+
+\item{stanvars}{`stanvars` or `NULL`. Custom Stan code via `brms::stanvar()` for hierarchical priors.}
+
+\item{...}{Additional arguments for `brms::brm()` (e.g., `chains`, `iter`, `cores`, `backend`).}
 }
 \value{
-A fitted `brmsfit` object.
+`brmsfit`. Fitted Bayesian model object with stored attributes for downstream analysis.
 }
 \description{
 This high-level wrapper function streamlines the entire process of preparing
@@ -95,17 +96,14 @@ if (require("brms") && require("survival")) {
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
     response_type = "survival",
-    shrunk_predictive_formula = ~ trt:subgroup,
-    unshrunk_prognostic_formula = ~ age,
+    unshrunk_terms_formula = ~ age,
     shrunk_prognostic_formula = ~ region,
+    shrunk_predictive_formula = ~ trt:subgroup,
     stratification_formula = ~ region,
-    prognostic_effect_priors = list(
-      shrunk = "normal(0, 1)",
-      unshrunk = "normal(0, 5)"
-    ),
-    predictive_effect_priors = list(
-      shrunk = "horseshoe(1)"
-    ),
+    sigma_ref = 1,
+    unshrunk_prior = "normal(0, 2 * sigma_ref)",
+    shrunk_prognostic_prior = "normal(0, sigma_ref)",
+    shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
     chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
   )
 

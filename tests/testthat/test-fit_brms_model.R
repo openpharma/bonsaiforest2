@@ -21,8 +21,8 @@ prep_cont <- prepare_formula_model(
   data = test_data_fit,
   response_formula = "outcome ~ trt",
   response_type = "continuous",
-  shrunk_prognostic_formula = "~ age",
-  shrunk_predictive_formula = "~ trt:region"
+  shrunk_prognostic_formula = "~ 0 + age",  # Use ~ 0 + to avoid intercept warning
+  shrunk_predictive_formula = "~ 0 + trt:region"  # Use ~ 0 + to avoid intercept warning
 )
 
 # Prepare a basic formula object (survival)
@@ -102,7 +102,8 @@ test_that("Prior assignment works correctly", {
   expect_match(get_nlpar_prior(default_priors_df, "shpredeffect"), "horseshoe\\(1\\)")
 
   # Check unshrunktermeffect default (for class 'b' non-intercept)
-  expect_match(get_nlpar_prior(default_priors_df, "unshrunktermeffect"), "normal\\(0,\\s*5")
+  # Note: Prior is calculated as normal(0, 5 * sigma_ref) which varies based on data
+  expect_match(get_nlpar_prior(default_priors_df, "unshrunktermeffect"), "normal\\(0,\\s*[0-9.]+")
 
 
   # 2. User-specified priors (as strings)
@@ -201,13 +202,13 @@ test_that("Assertions work for invalid inputs", {
   # Missing sigma_ref
   expect_error(
     fit_brms_model(prepared_model = prep_cont),
-    regexp = "missing.*sigma_ref"
+    regexp = "Must be of type 'number'"
   )
   
   # Invalid sigma_ref (negative)
   expect_error(
     fit_brms_model(prepared_model = prep_cont, sigma_ref = -1),
-    regexp = "Must be >= 0"
+    regexp = "Element 1 is not >= 0"
   )
   
   # Invalid sigma_ref (not numeric)

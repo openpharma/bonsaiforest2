@@ -20,10 +20,11 @@ original_test_data$trt <- factor(original_test_data$trt, levels = c(0, 1))
 minimal_brms_fit <- suppressMessages(
   run_brms_analysis(
     data = original_test_data,
-    response_formula_str = "outcome ~ trt",
+    response_formula = "outcome ~ trt",
     response_type = "continuous",
-    shrunk_prognostic_formula_str = "~ age",
-    shrunk_predictive_formula_str = "~ trt:region + trt:sex", # Interactions needed for 'auto'
+    shrunk_prognostic_formula = "~ 0 + age",  # Use ~ 0 + to avoid intercept warning
+    shrunk_predictive_formula = "~ 0 + trt:region + trt:sex", # Interactions needed for 'auto', use ~ 0 + to avoid intercept warning
+    sigma_ref = sd(original_test_data$outcome),
     chains = 1, iter = 10, warmup = 5, refresh = 0,
     backend = "cmdstanr", # Use faster backend if available
     cores = 1
@@ -33,13 +34,10 @@ minimal_brms_fit <- suppressMessages(
 # --- Tests Start Here ---
 
 test_that("Basic functionality works (overall and specific subgroups)", {
-  # Test Overall effect
+  # Test Overall effect - with automatic extraction from model
   res_overall <- estimate_subgroup_effects(
     brms_fit = minimal_brms_fit,
-    original_data = original_test_data,
-    trt_var = "trt",
-    subgroup_vars = NULL, # Explicitly request overall
-    response_type = "continuous"
+    subgroup_vars = NULL # Explicitly request overall
   )
 
   expect_s3_class(res_overall$estimates, "tbl_df")
@@ -51,13 +49,10 @@ test_that("Basic functionality works (overall and specific subgroups)", {
   expect_true("Overall" %in% names(res_overall$draws))
   expect_true(all(c("Subgroup", "Median", "CI_Lower", "CI_Upper") %in% names(res_overall$estimates)))
 
-  # Test Specific subgroups
+  # Test Specific subgroups - with automatic extraction
   res_specific <- estimate_subgroup_effects(
     brms_fit = minimal_brms_fit,
-    original_data = original_test_data,
-    trt_var = "trt",
-    subgroup_vars = c("region", "sex"), # Request specific subgroups
-    response_type = "continuous"
+    subgroup_vars = c("region", "sex") # Request specific subgroups
   )
 
   expect_equal(nrow(res_specific$estimates), 5) # 3 region levels + 2 sex levels
@@ -66,16 +61,23 @@ test_that("Basic functionality works (overall and specific subgroups)", {
   expect_equal(sort(res_specific$estimates$Subgroup), sort(expected_subgroups))
   expect_equal(sort(names(res_specific$draws)), sort(expected_subgroups))
 
+  # Test explicit parameter override still works
+  res_explicit <- estimate_subgroup_effects(
+    brms_fit = minimal_brms_fit,
+    trt_var = "trt",  # Explicitly provide
+    subgroup_vars = NULL,
+    response_type = "continuous"  # Explicitly provide
+  )
+  expect_equal(nrow(res_explicit$estimates), 1)
+  expect_equal(res_explicit$estimates$Subgroup, "Overall")
+
 })
 
 test_that("'auto' subgroup detection works", {
   # minimal_brms_fit was created with trt:region and trt:sex interactions
   res_auto <- estimate_subgroup_effects(
     brms_fit = minimal_brms_fit,
-    original_data = original_test_data,
-    trt_var = "trt",
-    subgroup_vars = "auto", # Use auto-detection
-    response_type = "continuous"
+    subgroup_vars = "auto" # Use auto-detection, other params auto-extracted
   )
 
   # Should detect 'region' and 'sex' from the interaction terms in minimal_brms_fit$data
@@ -91,10 +93,7 @@ test_that("ndraws argument works", {
   # Get full draws first
   res_full <- estimate_subgroup_effects(
     brms_fit = minimal_brms_fit,
-    original_data = original_test_data,
-    trt_var = "trt",
     subgroup_vars = "sex",
-    response_type = "continuous",
     ndraws = NULL
   )
   expect_equal(nrow(res_full$draws), 5) # Check based on iter/warmup
@@ -102,10 +101,7 @@ test_that("ndraws argument works", {
   # Get subset of draws
   res_subset <- estimate_subgroup_effects(
     brms_fit = minimal_brms_fit,
-    original_data = original_test_data,
-    trt_var = "trt",
     subgroup_vars = "sex",
-    response_type = "continuous",
     ndraws = 3
   )
   expect_equal(nrow(res_subset$draws), 3) # Check if subsetting worked
@@ -117,43 +113,44 @@ test_that("ndraws argument works", {
 test_that("Assertions catch invalid inputs", {
   # Invalid brms_fit
   expect_error(
-    estimate_subgroup_effects(brms_fit = list(), original_data = original_test_data, trt_var = "trt", response_type = "continuous"),
+    estimate_subgroup_effects(brms_fit = list()),
     regexp = "Must inherit from class 'brmsfit'"
   )
-  # Invalid original_data
+  
+  # Invalid trt_var (not a string) when explicitly provided
   expect_error(
-    estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = as.matrix(original_test_data), trt_var = "trt", response_type = "continuous"),
-    regexp = "Must be of type 'data.frame'"
-  )
-  # Invalid trt_var (not a string)
-  expect_error(
-    estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = original_test_data, trt_var = 123, response_type = "continuous"),
+    estimate_subgroup_effects(brms_fit = minimal_brms_fit, trt_var = 123),
     regexp = "Must be of type 'string'"
   )
-  # trt_var not in original_data
+  
+  # trt_var not in data when explicitly provided
   expect_error(
-    estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = original_test_data, trt_var = "treatment", response_type = "continuous"),
+    estimate_subgroup_effects(brms_fit = minimal_brms_fit, trt_var = "treatment"),
     regexp = "Must be a subset of"
   )
+  
   # Invalid subgroup_vars type
   expect_error(
-    estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = original_test_data, trt_var = "trt", subgroup_vars = 123, response_type = "continuous"),
+    estimate_subgroup_effects(brms_fit = minimal_brms_fit, subgroup_vars = 123),
     regexp = "Assertion failed"
   )
-  # subgroup_vars not in original_data
+  
+  # subgroup_vars not in data
   expect_error(
-    estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = original_test_data, trt_var = "trt", subgroup_vars = c("region", "missing_var"), response_type = "continuous"),
+    estimate_subgroup_effects(brms_fit = minimal_brms_fit, subgroup_vars = c("region", "missing_var")),
     regexp = "Must be a subset of"
   )
-  # Invalid response_type
+  
+  # Invalid response_type when explicitly provided
   expect_error(
-    estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = original_test_data, trt_var = "trt", response_type = "gaussian"),
+    estimate_subgroup_effects(brms_fit = minimal_brms_fit, response_type = "gaussian"),
     regexp = "Must be element of set"
   )
+  
   # Invalid ndraws
   expect_error(
-    estimate_subgroup_effects(brms_fit = minimal_brms_fit, original_data = original_test_data, trt_var = "trt", response_type = "continuous", ndraws = 0),
-    regexp = "Must be >= 1" # <-- Update this pattern
+    estimate_subgroup_effects(brms_fit = minimal_brms_fit, ndraws = 0),
+    regexp = "Must be >= 1"
   )
 
 })

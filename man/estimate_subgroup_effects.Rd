@@ -6,36 +6,39 @@
 \usage{
 estimate_subgroup_effects(
   brms_fit,
-  original_data,
-  trt_var,
+  trt_var = NULL,
+  data = NULL,
   subgroup_vars = "auto",
-  response_type = c("continuous", "binary", "count", "survival"),
+  response_type = NULL,
   ndraws = NULL
 )
 }
 \arguments{
-\item{brms_fit}{A fitted `brmsfit` object from `fit_brms_model()` or
-`run_brms_analysis()`.}
+\item{brms_fit}{`brmsfit`. Fitted model object from `fit_brms_model()` or `run_brms_analysis()`.}
 
-\item{original_data}{A `data.frame` containing the data. Used for validation
-and structure, while internal predictions use the model's processed data.}
+\item{trt_var}{`character(1)` or `NULL`. Treatment variable name. If `NULL`, extracted from
+model attributes (set by `fit_brms_model()`).}
 
-\item{trt_var}{A character string specifying the name of the treatment variable.}
+\item{data}{`data.frame` or `NULL`. Dataset used for model fitting. If `NULL`, extracted from
+model attributes (set by `fit_brms_model()`).}
 
-\item{subgroup_vars}{A character vector of subgroup variable names.
-If "auto", detects both fixed interaction terms (Colon syntax) and
-random effect grouping factors (Pipe syntax).}
+\item{subgroup_vars}{`character` or `"auto"`. Subgroup variable names. If `"auto"`, automatically
+detects treatment interaction terms (colon syntax) and random effect grouping factors (pipe syntax)
+from all formula components.}
 
-\item{response_type}{The type of outcome variable. One of "binary", "count",
-"continuous", or "survival".}
+\item{response_type}{`character(1)` or `NULL`. Outcome type: `"binary"`, `"count"`, `"continuous"`,
+or `"survival"`. If `NULL`, extracted from model attributes (set by `fit_brms_model()`).}
 
-\item{ndraws}{An integer specifying the number of posterior draws to use.
-If `NULL` (default), all available draws are used.}
+\item{ndraws}{`integer(1)` or `NULL`. Number of posterior draws to use. If `NULL` (default),
+all available draws are used.}
 }
 \value{
-A `data.frame` (tibble) where each row corresponds to a subgroup
-(or the "Overall" effect), providing the estimated marginal effect and
-posterior summaries (e.g., `mean`, `sd`, `q2.5`, `q97.5`).
+`list` with two named elements:
+  \describe{
+    \item{`estimates`}{`tibble` where each row represents a subgroup (or "Overall" effect),
+      with columns for `Subgroup`, `Median`, `CI_Lower`, and `CI_Upper` from posterior distribution}
+    \item{`draws`}{`data.frame` containing posterior draws for each subgroup}
+  }
 }
 \description{
 The function uses a counterfactual, marginal approach based on the posterior
