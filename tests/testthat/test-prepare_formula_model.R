@@ -41,35 +41,35 @@ test_that("Basic functionality works (binary/continuous)", {
   # --- Binary example ---
   res_bin <- prepare_formula_model(
     data = test_data,
-    response_formula_str = "outcome ~ trt",
+    response_formula = "outcome ~ trt",
     response_type = "binary",
-    unshrunk_prognostic_formula_str = "~ age"
+    unshrunk_terms_formula = "~ age"  # Updated parameter name
   )
 
   # Check output structure
   expect_s3_class(res_bin$formula, "brmsformula")
   expect_s3_class(res_bin$data, "data.frame")
-  expect_named(res_bin, c("formula", "data", "response_type")) # <-- UPDATED
-  expect_equal(res_bin$response_type, "binary") # <-- NEW
+  expect_named(res_bin, c("formula", "data", "response_type", "trt_var", "stan_variable_names", "has_intercept", "has_random_effects"))
+  expect_equal(res_bin$response_type, "binary")
 
-  # Check data modifications - treatment should be a factor with sum contrasts
-  expect_true(is.factor(res_bin$data$trt))
-  expect_true(!is.null(contrasts(res_bin$data$trt)))
+  # Check data modifications - treatment should be numeric binary (0/1)
+  expect_true(is.numeric(res_bin$data$trt))
+  expect_true(all(res_bin$data$trt %in% c(0, 1)))
 
-  # Check formula components (trt automatically added to unprogeffect)
-  expect_equal(get_formula_rhs(res_bin$formula), "unprogeffect") # Main formula has placeholder
-  expect_equal(get_formula_rhs(res_bin$formula, "unprogeffect"), c("age", "trt"))
+  # Check formula components (trt automatically added to unshrunktermeffect)
+  expect_equal(get_formula_rhs(res_bin$formula), "unshrunktermeffect") # Main formula has placeholder
+  expect_equal(get_formula_rhs(res_bin$formula, "unshrunktermeffect"), c("age", "trt"))
 
   # --- Continuous example ---
   res_cont <- prepare_formula_model(
     data = test_data,
-    response_formula_str = "outcome ~ trt",
+    response_formula = "outcome ~ trt",
     response_type = "continuous",
-    shrunk_prognostic_formula_str = "~ age" # Put age in shrunk this time
+    shrunk_prognostic_formula = "~ 0 + age" # Put age in shrunk this time, use ~ 0 + to avoid intercept warning
   )
   expect_equal(res_cont$response_type, "continuous")
-  expect_equal(get_formula_rhs(res_cont$formula), c("shprogeffect", "unprogeffect"))
-  expect_equal(get_formula_rhs(res_cont$formula, "unprogeffect"), "trt")
+  expect_equal(get_formula_rhs(res_cont$formula), c("shprogeffect", "unshrunktermeffect"))
+  expect_equal(get_formula_rhs(res_cont$formula, "unshrunktermeffect"), "trt")
   expect_equal(get_formula_rhs(res_cont$formula, "shprogeffect"), "age")
 })
 
@@ -77,27 +77,23 @@ test_that("Basic functionality works (binary/continuous)", {
 test_that("Predictive terms (interactions) are processed correctly", {
   res_int <- prepare_formula_model(
     data = test_data,
-    response_formula_str = "outcome ~ trt",
+    response_formula = "outcome ~ trt",
     response_type = "continuous",
-    shrunk_predictive_formula_str = "~ trt:subgroup1",
-    unshrunk_predictive_formula_str = "~ trt:region"
+    shrunk_predictive_formula = "~ 0 + trt:subgroup1",  # Use ~ 0 + to avoid intercept warning
+    unshrunk_terms_formula = "~ trt:region"  # Updated: now goes in unshrunk_terms
   )
 
-  # Check for new dummy columns in data (NEW FORMAT: trt_subgroupVARlevel)
-  expect_true(all(c("trt_subgroup1S1", "trt_subgroup1S2") %in% names(res_int$data)))
-  expect_true(all(c("trt_regionA", "trt_regionB") %in% names(res_int$data)))
+  # Check that subgroup variables are factors with contrasts
+  expect_true(is.factor(res_int$data$subgroup1))
+  expect_true(is.factor(res_int$data$region))
+  expect_true(!is.null(contrasts(res_int$data$subgroup1)))
+  expect_true(!is.null(contrasts(res_int$data$region)))
 
-  # Check that dummy columns look correct (0 or 1)
-  expect_true(all(res_int$data$trt_subgroup1S1 %in% c(0, 1)))
-  expect_true(all(res_int$data$trt_regionA %in% c(0, 1)))
-
-  # Check formula components
-  expect_equal(get_formula_rhs(res_int$formula), c("shpredeffect", "unpredeffect", "unprogeffect"))
-  expect_equal(get_formula_rhs(res_int$formula, "shpredeffect"), c("trt_subgroup1S1", "trt_subgroup1S2"))
-  expect_equal(get_formula_rhs(res_int$formula, "unpredeffect"), c("trt_regionA", "trt_regionB"))
-
-  # Check hierarchical integrity: main effects subgroup1 and region added to unprogeffect
-  expect_equal(get_formula_rhs(res_int$formula, "unprogeffect"), c("region", "subgroup1", "trt"))
+  # Check formula components - all unshrunk terms consolidated into unshrunktermeffect
+  expect_equal(get_formula_rhs(res_int$formula), c("shpredeffect", "unshrunktermeffect"))
+  expect_equal(get_formula_rhs(res_int$formula, "shpredeffect"), "trt:subgroup1")
+  # Both trt and trt:region go into unshrunktermeffect
+  expect_equal(get_formula_rhs(res_int$formula, "unshrunktermeffect"), c("trt", "trt:region"))
 
   # Check returned response type
   expect_equal(res_int$response_type, "continuous")
@@ -105,75 +101,66 @@ test_that("Predictive terms (interactions) are processed correctly", {
 
 # --- Test Overlaps and Defaults ---
 test_that("Term overlaps and defaults are handled", {
-  # Expect warning when prognostic terms overlap
+  # Expect warning when terms overlap between unshrunk and shrunk
   expect_warning(
     res_overlap_prog <- prepare_formula_model(
       data = test_data,
-      response_formula_str = "outcome ~ trt",
+      response_formula = "outcome ~ trt",
       response_type = "continuous",
-      unshrunk_prognostic_formula_str = "~ age + region",
-      shrunk_prognostic_formula_str = "~ age + subgroup1" # age overlaps
+      unshrunk_terms_formula = "~ age + region",  # Updated parameter name
+      shrunk_prognostic_formula = "~ 0 + age + subgroup1" # age overlaps, use ~ 0 + to avoid intercept warning
     ),
     regexp = "Prioritizing as unshrunk: age"
   )
   expect_equal(res_overlap_prog$response_type, "continuous")
 
-  # Check that 'age' ended up in unshrunk
-  expect_equal(get_formula_rhs(res_overlap_prog$formula, "unprogeffect"), c("age", "region", "trt"))
+  # Check that 'age' ended up in unshrunk (all unshrunk terms consolidated)
+  expect_equal(get_formula_rhs(res_overlap_prog$formula, "unshrunktermeffect"), c("age", "region", "trt"))
   expect_equal(get_formula_rhs(res_overlap_prog$formula, "shprogeffect"), "subgroup1")
 
-  # Expect warning when predictive terms overlap (shrunk wins)
+  # Test overlap between unshrunk and shrunk predictive
+  # Note: Now we don't have separate unshrunk_predictive_formula
+  # All unshrunk terms go in unshrunk_terms_formula
   expect_warning(
     res_overlap_pred <- prepare_formula_model(
       data = test_data,
-      response_formula_str = "outcome ~ trt",
+      response_formula = "outcome ~ trt",
       response_type = "continuous",
-      unshrunk_predictive_formula_str = "~ trt:region + trt:subgroup1",
-      shrunk_predictive_formula_str = "~ trt:region + trt:subgroup2" # trt:region overlaps
+      unshrunk_terms_formula = "~ region",  # Main effect in unshrunk
+      shrunk_predictive_formula = "~ 0 + trt:region"  # Interaction in shrunk, use ~ 0 + to avoid warning
     ),
-    regexp = "Prioritizing as shrunk: trt:region"
+    regexp = NA  # No overlap warning expected - different terms
   )
   expect_equal(res_overlap_pred$response_type, "continuous")
 
-  # Check that 'trt:region' dummies ended up in shrunk
-  expect_equal(get_formula_rhs(res_overlap_pred$formula, "shpredeffect"), c("trt_regionA", "trt_regionB", "trt_subgroup2X", "trt_subgroup2Y"))
-  expect_equal(get_formula_rhs(res_overlap_pred$formula, "unpredeffect"), c("trt_subgroup1S1", "trt_subgroup1S2"))
-
-  # Check treatment added by default message
-  expect_message(
-    prepare_formula_model(
-      data = test_data,
-      response_formula_str = "outcome ~ trt",
-      response_type = "continuous",
-      unshrunk_prognostic_formula_str = "~ age" # trt not mentioned
-    ),
-    regexp = "Treatment 'trt' added to unshrunk prognostic terms by default."
-  )
+  # Check formula components
+  expect_true("region" %in% get_formula_rhs(res_overlap_pred$formula, "unshrunktermeffect"))
+  expect_equal(get_formula_rhs(res_overlap_pred$formula, "shpredeffect"), "trt:region")
 })
 
 # --- Test Different Response Types ---
 test_that("Count models handle offset", {
   res_count <- prepare_formula_model(
     data = test_data,
-    response_formula_str = "n_events + offset(log_days) ~ trt",
+    response_formula = "n_events + offset(log_days) ~ trt",
     response_type = "count"
   )
   # Check output structure
-  expect_named(res_count, c("formula", "data", "response_type"))
+  expect_named(res_count, c("formula", "data", "response_type", "trt_var", "stan_variable_names", "has_intercept", "has_random_effects"))
   expect_equal(res_count$response_type, "count")
 
   # Check that offset is included correctly in the main formula string
   main_form_str <- deparse(res_count$formula$formula)
-  expect_true(grepl("n_events ~ unprogeffect \\+ log_days", main_form_str))
+  expect_true(grepl("n_events ~ unshrunktermeffect \\+ log_days", main_form_str))
 })
 
 test_that("Stratification works for continuous and count", {
   # Continuous - sigma stratified
   res_cont_strat <- prepare_formula_model(
     data = test_data,
-    response_formula_str = "outcome ~ trt",
+    response_formula = "outcome ~ trt",
     response_type = "continuous",
-    stratification_formula_str = "~ region"
+    stratification_formula = "~ region"
   )
   expect_equal(res_cont_strat$response_type, "continuous")
   expect_true("sigma" %in% names(res_cont_strat$formula$pforms))
@@ -182,24 +169,64 @@ test_that("Stratification works for continuous and count", {
   # Count - shape stratified
   res_count_strat <- prepare_formula_model(
     data = test_data,
-    response_formula_str = "n_events ~ trt",
+    response_formula = "n_events ~ trt",
     response_type = "count",
-    stratification_formula_str = "~ region"
+    stratification_formula = "~ region"
   )
   expect_equal(res_count_strat$response_type, "count")
   expect_true("shape" %in% names(res_count_strat$formula$pforms))
   expect_true(grepl("shape ~ region", deparse(res_count_strat$formula$pforms$shape)))
 })
 
+test_that("Star notation is supported and preserved", {
+  res_star <- prepare_formula_model(
+    data = test_data,
+    response_formula = "outcome ~ trt",
+    response_type = "continuous",
+    unshrunk_terms_formula = "~ age + trt*region"  # Star notation
+  )
+
+  # Check that region has contrasts applied
+  expect_true(is.factor(res_star$data$region))
+  expect_true(!is.null(contrasts(res_star$data$region)))
+
+  # Check that star notation is preserved in the formula
+  unshrunk_terms <- get_formula_rhs(res_star$formula, "unshrunktermeffect")
+  # Should contain age, trt, and trt*region (star notation preserved)
+  expect_true("age" %in% unshrunk_terms)
+  expect_true("trt" %in% unshrunk_terms)
+  # Star notation should be in the formula
+  expect_true(any(grepl("\\*", unshrunk_terms)) || "trt:region" %in% unshrunk_terms)
+})
+
+test_that("Star notation excludes from marginality check", {
+  # Star notation includes main effects, so no warning expected
+  expect_message(
+    res_star_no_warn <- prepare_formula_model(
+      data = test_data,
+      response_formula = "outcome ~ trt",
+      response_type = "continuous",
+      unshrunk_terms_formula = "~ trt*region",  # Includes main effects
+      shrunk_predictive_formula = "~ 0 + trt:subgroup1"  # Missing subgroup1 main effect, use ~ 0 + to avoid intercept warning
+    ),
+    regexp = "Marginality principle not followed.*subgroup1",
+    all = TRUE
+  )
+  
+  # Should NOT get warning about region (it's in star notation)
+  # Should get warning about subgroup1 (it's in colon notation)
+  expect_equal(res_star_no_warn$response_type, "continuous")
+})
+
 test_that("Survival models work (basic, stratified, fallback)", {
   # Basic survival
   res_surv <- prepare_formula_model(
     data = test_data,
-    response_formula_str = "Surv(time, status) ~ trt",
+    response_formula = "Surv(time, status) ~ trt",
     response_type = "survival"
   )
   # Check output structure
-  expect_named(res_surv, c("formula", "data", "response_type"))
+  expect_named(res_surv, c("formula", "data", "response_type", "trt_var", "stan_variable_names", "has_intercept", "has_random_effects"))
   expect_equal(res_surv$response_type, "survival")
 
   main_form_str <- paste(deparse(res_surv$formula$formula), collapse = "")
@@ -210,9 +237,9 @@ test_that("Survival models work (basic, stratified, fallback)", {
   # Stratified survival
   res_surv_strat <- prepare_formula_model(
     data = test_data,
-    response_formula_str = "Surv(time, status) ~ trt",
+    response_formula = "Surv(time, status) ~ trt",
     response_type = "survival",
-    stratification_formula_str = "~ region"
+    stratification_formula = "~ region"
   )
   expect_equal(res_surv_strat$response_type, "survival")
 
@@ -226,7 +253,7 @@ test_that("Survival models work (basic, stratified, fallback)", {
   expect_warning(
     res_surv_sparse <- prepare_formula_model(
       data = sparse_data,
-      response_formula_str = "Surv(time, status) ~ trt",
+      response_formula = "Surv(time, status) ~ trt",
       response_type = "survival"
     ),
     regexp = "Not enough unique event times to compute quantile knots"
@@ -261,12 +288,12 @@ test_that("Assertions and error checks work", {
   )
   # Strat var not in data (survival)
   expect_error(
-    prepare_formula_model(test_data, "Surv(time, status) ~ trt", response_type = "survival", stratification_formula_str = "~ missing_var"),
+    prepare_formula_model(test_data, "Surv(time, status) ~ trt", response_type = "survival", stratification_formula = "~ missing_var"),
     regexp = "Must be a subset of"
   )
   # Strat var not in data (continuous)
   expect_error(
-    prepare_formula_model(test_data, "outcome ~ trt", response_type = "continuous", stratification_formula_str = "~ missing_var"),
+    prepare_formula_model(test_data, "outcome ~ trt", response_type = "continuous", stratification_formula = "~ missing_var"),
     regexp = "Must be a subset of"
   )
   # Survival formula doesn't start with Surv

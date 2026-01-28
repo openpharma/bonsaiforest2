@@ -62,13 +62,16 @@ shrunk_prog_str <- paste("~", paste(names(biomarker_data), collapse = " + "))
 
 ```{r}
 # Model Fitting with Offset
+# For count models, sigma_ref is typically set to 1 (used as reference scale for priors)
+
 count_model_fit <- run_brms_analysis(
   data = count_data,
   # Include offset(log_exposure_time) directly in the response formula
-  response_formula_str = "exacerbation_count + offset(log_exposure_time) ~ medication",
+  response_formula = exacerbation_count + offset(log_exposure_time) ~ medication,
   response_type = "count",
-  unshrunk_prognostic_formula_str = "~ 1 + baseline_severity",
-  shrunk_prognostic_formula_str = shrunk_prog_str,
+  unshrunk_terms_formula = ~ 1 + baseline_severity,
+  shrunk_prognostic_formula = as.formula(shrunk_prog_str),
+  sigma_ref = 1,  # Standard value for count models
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 ```
@@ -80,12 +83,17 @@ The choice of prior is central to Bayesian shrinkage. `bonsaiforest2` provides s
 
 ## Prior Specification Mechanics
 
-You specify priors as named lists containing strings, which are then passed to `brms::set_prior()`.
+**NEW API:** Priors are now specified using separate parameters for each component, with a **required** `sigma_ref` parameter that serves as the reference scale.
 
-| Prior Group | Argument | Sub-List Names | Default Prior (Type) |
-|:-----------------|:-----------------|:-----------------|:-----------------|
-| **Predictive** (Interaction/Treatment) | `predictive_effect_priors` | `shrunk`, `unshrunk` | `horseshoe(1)` (Shrinkage) |
-| **Prognostic** (Covariates) | `prognostic_effect_priors` | `shrunk`, `unshrunk`, `intercept` | `horseshoe(1)` (Shrinkage) |
+| Prior Component | Parameter Name | Default Prior | Notes |
+|:-----------------|:-----------------|:-----------------|:------------------|
+| **Reference Scale** | `sigma_ref` | **REQUIRED** | Must be user-specified: `sd(outcome)` for continuous/count, typically `1` for binary/survival |
+| **Intercept** | `intercept_prior` | `normal(mean(outcome), 5*sigma_ref)` | Automatically centered at observed mean |
+| **Unshrunk Terms** | `unshrunk_prior` | `normal(0, 5*sigma_ref)` | Weakly informative |
+| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = sigma_ref)` | Strong shrinkage |
+| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = sigma_ref)` | Strong shrinkage |
+
+**Key Feature:** You can use `sigma_ref` in prior expressions (e.g., `"normal(0, 2.5 * sigma_ref)"`) and the actual value will be automatically substituted.
 
 ### Prior Recommendations for Non-Shrunk Terms
 
@@ -135,23 +143,23 @@ prepared_model <- prepare_formula_model(
   data = sim_data,
   
   # Main response variable and treatment identifier
-  response_formula_str = "Surv(time, status) ~ trt",
+  response_formula = Surv(time, status) ~ trt,
   
   # Predictive (Interaction) effects to be shrunk
   # Note: The function will automatically generate dummy columns for 'subgroup'
-  shrunk_predictive_formula_str = "~ trt:subgroup",
+  shrunk_predictive_formula = ~ 0 + trt:subgroup,
   
   # Prognostic (Main) effects: Unshrunk (Fixed)
-  unshrunk_prognostic_formula_str = "~ age",
+  unshrunk_terms_formula = ~ age,
   
   # Prognostic (Main) effects: Shrunk (Regularized)
-  shrunk_prognostic_formula_str = "~ region",
+  shrunk_prognostic_formula = ~ 0 + region,
   
   # Model type
   response_type = "survival",
   
   # Stratify the baseline hazard by region
-  stratification_formula_str = "~ region"
+  stratification_formula = ~ region
 )
 
 # 3. Inspect the Results
@@ -168,62 +176,262 @@ head(prepared_model$data)
 ### Model Preparation 
 
 
-### Example 2: Using Recommended Weakly Informative Priors 
+### Example 2: Using Default Priors (Recommended)
 
-This is the easiest example we can have. Just use the recommended priors without any tunning.
+The simplest approach: just provide `sigma_ref` and let the package use smart defaults that adapt to your outcome type.
 
 ```{r}
+# For survival models, sigma_ref is typically 1
+# For continuous outcomes, use sd(outcome)
+sigma_ref <- 1  # Standard for survival models
+
 fit_ex3 <- fit_brms_model(
   prepared_model = prepared_model,
+  sigma_ref = sigma_ref,
+  # All priors use defaults - no need to specify!
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
+
+# View the priors that were automatically set
+cat("\n=== Priors Used ===\n")
+print(prior_summary(fit_ex3))
 ```
 
 ### Example 3: Using the R2D2 Shrinkage Prior
 
-The R2D2 prior is useful when you want to control the *global* shrinkage via the coefficient of determination ($R^2$) rather than a scale parameter $\tau$. This is often more interpretable for stakeholders.
+The R2D2 prior is useful when you want to control the *global* shrinkage via the coefficient of determination ($R^2$) rather than a scale parameter. This is often more interpretable for stakeholders.
 
 ```{r}
-# Use a custom R2D2 string for the shrunk predictive effects (interactions)
+# Use a custom R2D2 prior for the shrunk predictive effects (interactions)
 # mean_R2 = 0.5 implies we expect the subgroups to explain 50% of the variance
-r2d2_prior_string <- "R2D2(mean_R2 = 0.5, prec_R2 = 1)" 
+# This is more interpretable than abstract scale parameters
 
 fit_ex4 <- fit_brms_model(
   prepared_model = prepared_model,
-  predictive_effect_priors = list(shrunk = r2d2_prior_string),
+  sigma_ref = 1,
+  shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
+  # Can also customize other priors
+  intercept_prior = "normal(0, 5 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 ```
 
 ### Example 4: Custom Hierarchical Prior (Advanced)
 
-This example demonstrates injecting raw Stan code. This is necessary if you want to implement a hierarchical structure that `brms` does not support natively, such as linking specific coefficients via a custom global parameter $\tau_{pred}$.
+This example demonstrates injecting raw Stan code using `stanvars`. This is necessary if you want to implement a hierarchical structure that `brms` does not support natively, such as estimating a shared variance parameter across coefficients.
 
 ```{r}
 library(brms)
 
-# 1. Define a new hyperparameter 'tau_pred' for the Stan code
+# 1. Define new hyperparameters in Stan
+# Declare parameters that will be estimated
 stanvars_full_hierarchical <- brms::stanvar(
   scode = "  real mu_pred;\n  real<lower=0> sigma_pred;\n",
   block = "parameters"
 ) +
+  # Add priors for these parameters
   brms::stanvar(
     scode = "  // Priors on the hierarchical parameters\n  target += normal_lpdf(mu_pred | 0, 4); \n  target += normal_lpdf(sigma_pred | 0, 1) - normal_lccdf(0 | 0, 1); \n",
     block = "model"
   )
 
-# 
+# 2. Create prior that references the Stan variables
 prior_full_hierarchical <- brms::set_prior("normal(mu_pred, sigma_pred)")
 
-# 3. Pass both objects to the function
+# 3. Pass both to fit_brms_model
 fit_ex5 <- fit_brms_model(
   prepared_model = prepared_model,
-  predictive_effect_priors = list(shrunk = prior_full_hierarchical),
+  sigma_ref = 1,
+  shrunk_predictive_prior = prior_full_hierarchical,
   stanvars = stanvars_full_hierarchical,
+  # Other priors can still use sigma_ref
+  intercept_prior = "normal(0, 5 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
+
+# View the estimated hyperparameters
+cat("\n=== Estimated Hierarchical Parameters ===\n")
+mu_pred_samples <- as.data.frame(fit_ex5)$mu_pred
+sigma_pred_samples <- as.data.frame(fit_ex5)$sigma_pred
+
+if (!is.null(mu_pred_samples)) {
+  cat("mu_pred: ", round(mean(mu_pred_samples), 3), 
+      " (SD: ", round(sd(mu_pred_samples), 3), ")\n")
+}
+if (!is.null(sigma_pred_samples)) {
+  cat("sigma_pred: ", round(mean(sigma_pred_samples), 3), 
+      " (SD: ", round(sd(sigma_pred_samples), 3), ")\n")
+}
 ```
 
+# Advanced Model Parameterization
+
+This section demonstrates advanced features for controlling how your model represents subgroups and priors.
+
+## Example 5: One-Hot Encoding for Interaction Terms
+
+**NEW FEATURE:** When you use `~ 0 + trt:factor_var`, ALL levels of the factor will appear in the interaction (not k-1 levels). This gives you full control over the model parameterization.
+
+```{r}
+# Create sample data with multiple subgroups
+set.seed(456)
+n_patients <- 180
+sample_data_onehot <- data.frame(
+  id = 1:n_patients,
+  trt = factor(sample(0:1, n_patients, replace = TRUE)),
+  outcome = rnorm(n_patients, 50, 10),
+  age = rnorm(n_patients, 65, 10),
+  biomarker = factor(sample(c("Low", "Medium", "High"), n_patients, replace = TRUE))
+)
+
+# Compare: Standard vs One-Hot Encoding
+cat("\\n=== Standard Encoding (k-1 levels) ===\\n")
+cat("~ trt:biomarker gives k-1 = 2 interaction terms (reference category excluded)\\n\\n")
+
+cat("=== One-Hot Encoding (ALL levels) ===\\n")
+cat("~ 0 + trt:biomarker gives k = 3 interaction terms (all categories included)\\n\\n")
+
+# Prepare with one-hot encoding
+prepared_onehot <- prepare_formula_model(
+  data = sample_data_onehot,
+  response_formula = outcome ~ trt,
+  unshrunk_terms_formula = ~ age,
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,  # Note the "0 +" prefix!
+  response_type = "continuous"
+)
+
+# Fit the model
+sigma_ref <- sd(sample_data_onehot$outcome)
+fit_onehot <- fit_brms_model(
+  prepared_model = prepared_onehot,
+  sigma_ref = sigma_ref,
+  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+)
+
+# Check coefficients - you should see ALL three biomarker levels
+cat("\\n=== All Biomarker Levels in Interaction ===\\n")
+coefs_onehot <- fixef(fit_onehot)
+print(coefs_onehot[grepl("biomarker", rownames(coefs_onehot)), ])
+
+cat("\\n=== Advantage ===\\n")
+cat("All biomarker levels treated symmetrically - no arbitrary reference category\\n")
+```
+
+## Example 6: Coefficient-Specific Priors
+
+**ADVANCED FEATURE:** You can set different priors for specific coefficients by passing a `brmsprior` object (created with `c()`).
+
+*Scenario*: Set a general prior for all unshrunk terms, but use a tighter prior specifically for treatment-biomarker interactions.
+
+```{r}
+# Prepare model with biomarker:trt interaction in unshrunk terms
+prepared_specific <- prepare_formula_model(
+  data = sample_data_onehot,
+  response_formula = outcome ~ trt,
+  unshrunk_terms_formula = ~ age + trt:biomarker,  # Interaction in unshrunk
+  response_type = "continuous"
+)
+
+sigma_ref <- sd(sample_data_onehot$outcome)
+
+cat("\\n=== Prior Strategy ===\\n")
+cat("General unshrunk prior: normal(0,", round(5 * sigma_ref, 2), ")\\n")
+cat("Specific for trt:biomarker: normal(0,", round(1 * sigma_ref, 2), ")\\n\\n")
+
+# Create combined prior object
+# IMPORTANT: Use EXACT coefficient names - check with get_prior() if unsure
+unshrunk_priors_combined <- c(
+  brms::set_prior("normal(0, 5 * sigma_ref)", class = "b"),  # General
+  brms::set_prior("normal(0, 1 * sigma_ref)", class = "b", coef = "trt:biomarkerLow"),
+  brms::set_prior("normal(0, 1 * sigma_ref)", class = "b", coef = "trt:biomarkerMedium")
+)
+
+# Fit the model
+fit_specific <- fit_brms_model(
+  prepared_model = prepared_specific,
+  sigma_ref = sigma_ref,
+  unshrunk_prior = unshrunk_priors_combined,  # Pass the combined object
+  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+)
+
+cat("\n=== Coefficient Estimates ===\n")
+coefs_specific <- fixef(fit_specific)
+cat("\nAge (general prior):\n")
+print(coefs_specific["unshrunktermeffect_age", ])
+cat("\nTreatment:biomarker (tighter prior):\n")
+print(coefs_specific[grepl("trt.*:biomarker", rownames(coefs_specific)), ])
+```
+
+## Example 7: Hierarchical Priors with Shared Variance (stanvars)
+
+**VERY ADVANCED FEATURE:** Create correlated priors by sharing a common variance parameter estimated from the data.
+
+*Use case*: When you believe treatment effects across subgroups should be exchangeable, you can pool information by giving them a shared variance.
+
+```{r}
+# Prepare model
+prepared_corr <- prepare_formula_model(
+  data = sample_data_onehot,
+  response_formula = outcome ~ trt,
+  unshrunk_terms_formula = ~ age + trt:biomarker,
+  response_type = "continuous"
+)
+
+sigma_ref <- sd(sample_data_onehot$outcome)
+
+cat("\n=== Hierarchical Prior Structure ===\n")
+cat("Instead of independent priors, we'll use a shared variance:\n")
+cat("  tau ~ half-normal(0, 1)  [shared variance parameter]\n")
+cat("  beta_Low ~ N(0, tau)\n")
+cat("  beta_Medium ~ N(0, tau)\n")
+cat("This creates exchangeability and adaptive shrinkage.\n\n")
+
+# Step 1: Declare tau as a parameter to be estimated
+tau_parameter <- brms::stanvar(
+  scode = "  real<lower=0> biomarker_tau;  // Shared variance\n",
+  block = "parameters"
+)
+
+# Step 2: Add prior for tau
+tau_prior <- brms::stanvar(
+  scode = "  biomarker_tau ~ normal(0, 1);  // Hyperprior\n",
+  block = "model"
+)
+
+# Combine stanvars
+hierarchical_stanvars <- tau_parameter + tau_prior
+
+# Step 3: Create priors referencing the estimated tau
+unshrunk_priors_hier <- c(
+  brms::set_prior("normal(0, 5 * sigma_ref)", class = "b"),  # General
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:biomarkerLow"),
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:biomarkerMedium")
+)
+
+# Step 4: Fit the hierarchical model
+fit_hier <- fit_brms_model(
+  prepared_model = prepared_corr,
+  sigma_ref = sigma_ref,
+  unshrunk_prior = unshrunk_priors_hier,
+  stanvars = hierarchical_stanvars,
+  chains = 1, iter = 400, warmup = 200, cores = 1, refresh = 0, backend = "cmdstanr"
+)
+
+# Extract the estimated tau
+cat("\n=== Estimated Shared Variance ===\n")
+tau_samples <- as.data.frame(fit_hier)$biomarker_tau
+if (!is.null(tau_samples) && length(tau_samples) > 0) {
+  cat("Posterior mean:", round(mean(tau_samples), 3), "\n")
+  cat("95% CI: [", round(quantile(tau_samples, 0.025), 3), ",", 
+      round(quantile(tau_samples, 0.975), 3), "]\n\n")
+  cat("Interpretation:\n")
+  cat("- Small tau: Effects tightly clustered (strong shrinkage)\n")
+  cat("- Large tau: Effects show substantial variability (weak shrinkage)\n")
+  cat("- Data-driven: tau adapts automatically\n")
+}
+```
 
 #Stratification for Nuisance Parameters 
 
@@ -231,7 +439,7 @@ In many trials, parameters like the observation error variance ($\sigma^2$ for c
 
 Use the `stratification_formula_str` argument to define the grouping factor(s).
 
-## Example 5: Stratified Continuous Model
+## Example 8: Stratified Continuous Model
 
 *Scenario*: We model SBP change where the observation **variance** $\sigma^2$ differs by $\text{clinic\_site}$. This is modeled by stratifying the $\sigma$ parameter in the Normal distribution by the site variable.
 
@@ -255,13 +463,17 @@ sample_data_strat_cont$sbp_change <- -5 - (as.integer(sample_data_strat_cont$trt
 
 ```{r}
 # Model Fitting with Stratified Sigma
+# Calculate sigma_ref from the outcome SD
+sigma_ref <- sd(sample_data_strat_cont$sbp_change)
+
 fit_continuous_stratified <- run_brms_analysis(
   data = sample_data_strat_cont,
-  response_formula_str = "sbp_change ~ trt",
+  response_formula = sbp_change ~ trt,
   response_type = "continuous",
-  unshrunk_prognostic_formula_str = "~ baseline_sbp",
-  shrunk_predictive_formula_str = "~ age_group:trt",
-  stratification_formula_str = "~ clinic_site",
+  unshrunk_terms_formula = ~ baseline_sbp,
+  shrunk_predictive_formula = ~ 0 + trt:age_group,
+  stratification_formula = ~ clinic_site,
+  sigma_ref = sigma_ref,
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 ```
@@ -269,17 +481,15 @@ fit_continuous_stratified <- run_brms_analysis(
 
 ```{r}
 strat_continuous_summary <- summary_subgroup_effects(
-  brms_fit = fit_continuous_stratified,
-  original_data = sample_data_strat_cont,
-  trt_var = "trt",
-  response_type = "continuous" # Auto-detects age_group interaction
+  brms_fit = fit_continuous_stratified
+  # All parameters automatically extracted!
 )
 
 print(strat_continuous_summary$estimates)
 plot(strat_continuous_summary, title = "Stratified Continuous: Subgroup Effects")
 ```
 
-## Example 6: Stratified Survival Model
+## Example 9: Stratified Survival Model
 
 *Scenario*: We model a time-to-event outcome where the **baseline hazard** $h_0(t)$ differs by $\text{country}$. This is particularly important for multi-regional trials where regional differences in standard of care affect baseline risk.
 
@@ -309,23 +519,35 @@ surv_data_strat$event_time <- pmin(true_event_time, censoring_time)
 # Model Fitting with Stratified Baseline Hazard
 fit_surv_stratified <- run_brms_analysis(
   data = surv_data_strat,
-  response_formula_str = "Surv(event_time, event_status) ~ trt",
+  response_formula = Surv(event_time, event_status) ~ trt,
   response_type = "survival",
-  unshrunk_prognostic_formula_str = "~ age",
-  shrunk_predictive_formula_str = "~ biomarker:trt",
-  stratification_formula_str = "~ country",
+  unshrunk_terms_formula = ~ age,
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  stratification_formula = ~ country,
+  sigma_ref = 1,  # For survival models, typically use 1
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 ```
 
 ```{r ex6-summary-plot}
 strat_surv_summary <- summary_subgroup_effects(
-  brms_fit = fit_surv_stratified,
-  original_data = surv_data_strat,
-  trt_var = "trt",
-  response_type = "survival" # Auto-detects biomarker interaction
+  brms_fit = fit_surv_stratified
+  # All parameters automatically extracted!
 )
 
 print(strat_surv_summary$estimates)
 plot(strat_surv_summary, title = "Stratified Survival: Subgroup Effects (AHR)")
 ```
+
+# Summary
+
+This vignette demonstrated advanced functionalities in `bonsaiforest2`:
+
+1. **Offset variables** for count outcomes with varying exposure times
+2. **Custom prior specification** with the new `sigma_ref` API
+3. **One-hot encoding** for full factor representation in interactions
+4. **Coefficient-specific priors** for fine-grained control
+5. **Hierarchical priors** with shared variance using `stanvars`
+6. **Stratification** for nuisance parameters that vary by groups
+
+These features provide researchers with powerful tools for complex trial analyses while maintaining the principled Bayesian shrinkage framework.

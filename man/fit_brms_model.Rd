@@ -6,28 +6,47 @@
 \usage{
 fit_brms_model(
   prepared_model,
-  predictive_effect_priors = list(),
-  prognostic_effect_priors = list(),
+  sigma_ref = NULL,
+  intercept_prior = NULL,
+  unshrunk_prior = NULL,
+  shrunk_prognostic_prior = NULL,
+  shrunk_predictive_prior = NULL,
   stanvars = NULL,
   ...
 )
 }
 \arguments{
-\item{prepared_model}{A list object returned from `prepare_formula_model()`.
-It must contain the elements `formula`, `data`, and `response_type`.}
+\item{prepared_model}{`list`. Object returned from `prepare_formula_model()` containing
+elements `formula` (`brmsformula`), `data` (`data.frame`), `response_type` (`character`),
+and `trt_var` (`character`). The `trt_var` element is stored as an attribute on the
+fitted model for downstream functions.}
 
-\item{predictive_effect_priors}{A named list with elements `shrunk` and/or `unshrunk`
-containing the priors for predictive effects.}
+\item{sigma_ref}{`numeric(1)`. Reference scale for prior specification (REQUIRED).
+Recommended: (1) Standard deviation from trial protocol (preferred), or
+(2) `sd(outcome_variable)` if protocol value unavailable (fallback).
+For binary/survival outcomes, typically use 1. Can be referenced in prior strings
+(e.g., `"normal(0, 2.5 * sigma_ref)"`).}
 
-\item{prognostic_effect_priors}{A named list with elements `shrunk`, `unshrunk`,
-and/or `intercept` containing the priors for prognostic effects.}
+\item{intercept_prior}{`character(1)` or `brmsprior` or `NULL`. Prior specification for
+model intercept (e.g., `"normal(0, 10)"`).}
 
-\item{stanvars}{An object created by `brms::stanvar()` to add custom Stan code.}
+\item{unshrunk_prior}{`character(1)` or `brmsprior` or `NULL`. Prior specification for
+unshrunk terms (`unshrunktermeffect` component).}
 
-\item{...}{Additional arguments passed directly to `brms::brm()`.}
+\item{shrunk_prognostic_prior}{`character(1)` or `brmsprior` or `NULL`. Prior specification
+for regularized prognostic effects.}
+
+\item{shrunk_predictive_prior}{`character(1)` or `brmsprior` or `NULL`. Prior specification
+for regularized predictive effects (treatment interactions).}
+
+\item{stanvars}{`stanvars` or `NULL`. Custom Stan code created via `brms::stanvar()`.}
+
+\item{...}{Additional arguments passed to `brms::brm()` (e.g., `chains`, `iter`, `cores`).}
 }
 \value{
-A fitted `brmsfit` object.
+`brmsfit`. Fitted Bayesian model object with attributes:
+  `response_type` (`character`), `model_data` (`data.frame`), and
+  `trt_var` (`character`) for downstream analysis functions.
 }
 \description{
 This function serves as a wrapper to fit a Bayesian model using the `brms`
@@ -37,12 +56,63 @@ components of the model.
 }
 \section{Prior Specification}{
 
-Priors for prognostic and predictive effects should be provided as named lists.
-This makes the code explicit and prevents errors. For example:
-`prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)", intercept = "normal(0, 10)")`.
-The function accepts prior definitions as character strings (e.g., `"normal(0, 1)"`)
-or as full `brmsprior` objects, which is useful for defining complex
-hierarchical or parameter-specific priors.
+Priors are specified separately for each model component using dedicated parameters.
+This provides explicit control and prevents errors. The function accepts prior
+definitions as character strings (e.g., `"normal(0, 2.5 * sigma_ref)"`) or as
+`brmsprior` objects for complex hierarchical or parameter-specific priors.
+
+**Available prior parameters:**
+- `intercept_prior`: Prior for the intercept in the unshrunk component
+- `unshrunk_prior`: Prior for all unshrunk terms (main effects you trust)
+- `shrunk_prognostic_prior`: Prior for shrunk prognostic effects (regularized)
+- `shrunk_predictive_prior`: Prior for shrunk predictive effects (regularized)
+
+**Using sigma_ref in priors:**
+You can reference `sigma_ref` in prior strings, and it will be automatically
+substituted. For example: `"normal(0, 2.5 * sigma_ref)"` becomes
+`"normal(0, 8)"` when sigma_ref = 3.2.
+
+**Default Priors by Response Type:**
+
+If you don't specify priors, the function uses sensible defaults:
+
+*Continuous outcomes:*
+- `intercept_prior`: `normal(outcome_mean, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)`
+- `sigma`: `normal(0, sigma_ref)`
+
+*Binary outcomes:*
+- `intercept_prior`: `normal(0, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)`
+
+*Count outcomes:*
+- `intercept_prior`: `normal(0, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)`
+- `shape`: Uses brms default prior for negative binomial shape parameter
+
+*Survival outcomes:*
+- No intercept (Cox models don't have intercepts)
+- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)`
+
+**Example:**
+```
+fit_brms_model(
+  prepared_model = prepared,
+  sigma_ref = 12.5,  # From trial protocol (preferred)
+  # OR sigma_ref = sd(data$outcome),  # If protocol value unavailable
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 0.5 * sigma_ref)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 0.1 * sigma_ref)"
+)
+```
 }
 
 \examples{
@@ -62,24 +132,30 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2. Prepare the formula and data
+  # 2. Prepare the formula and data using colon syntax
   prepared_model <- prepare_formula_model(
     data = sim_data,
-    response_formula_str = "Surv(time, status) ~ trt",
-    shrunk_predictive_formula_str = "~ trt:subgroup",
-    unshrunk_prognostic_formula_str = "~ age",
-    shrunk_prognostic_formula_str = "~ region",
+    response_formula = Surv(time, status) ~ trt,
+    shrunk_predictive_formula = ~ trt:subgroup,
+    unshrunk_prognostic_formula = ~ age,
+    shrunk_prognostic_formula = ~ region,
     response_type = "survival",
-    stratification_formula_str = "~ region"
+    stratification_formula = ~ region
   )
 
   # 3. Fit the model
   \dontrun{
+  # For survival models, typically use sigma_ref = 1
+  # For continuous outcomes, use protocol sigma (preferred) or sd(outcome) (fallback)
+  # Example: sigma_ref <- 12.5  # from protocol
+  # OR: sigma_ref <- sd(sim_data$outcome)  # if protocol value unavailable
+
   fit <- fit_brms_model(
     prepared_model = prepared_model,
-    # Note: intercept prior is not needed for survival models
-    prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 2)"),
-    predictive_effect_priors = list(shrunk = "horseshoe(1)"),
+    sigma_ref = 1,
+    unshrunk_prior = "normal(0, 2 * sigma_ref)",
+    shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+    shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
     chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
   )
 

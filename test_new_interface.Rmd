@@ -1,0 +1,338 @@
+---
+title: "Testing New bonsaiforest2 Interface"
+author: "Test Document"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = TRUE, warning = TRUE)
+
+# Load required packages
+library(brms)
+library(survival)
+
+# Load the package from the bonsaiforest2 directory
+devtools::load_all("/home/pedreram/bonsaiforest2")
+
+# This will reload all functions from R/ directory
+# Make changes to R files and re-run this chunk to see updates!
+```
+
+## Overview
+
+This document demonstrates the new features in bonsaiforest2:
+
+1. **Formula interface** - use formula objects instead of strings
+2. **Relaxed checking** - informative messages instead of forced changes
+
+## Create Sample Data
+
+```{r create-data}
+set.seed(123)
+n <- 200  # Larger sample for clearer effects
+
+sim_data <- data.frame(
+  time = round(runif(n, 1, 100)),
+  status = sample(0:1, n, replace = TRUE),
+  trt = sample(c(0, 1), n, replace = TRUE),
+  age = rnorm(n, 50, 10),
+  sex = sample(c("M", "F"), n, replace = TRUE),
+  region = sample(c("North", "South", "East"), n, replace = TRUE),
+  biomarker = sample(c("Low", "Medium", "High"), n, replace = TRUE)
+)
+
+# Ensure factors
+sim_data$sex <- as.factor(sim_data$sex)
+sim_data$region <- as.factor(sim_data$region)
+sim_data$biomarker <- as.factor(sim_data$biomarker)
+
+# Create continuous outcome with REAL treatment effects varying by biomarker
+# Baseline: intercept + age effect
+baseline <- 50
+
+# Treatment effects that vary by biomarker level:
+# - Low biomarker: Large positive effect (+8)
+# - Medium biomarker: Moderate positive effect (+3)  
+# - High biomarker: No effect (0)
+trt_effect <- ifelse(sim_data$trt == 1,
+  ifelse(sim_data$biomarker == "Low", 8,
+    ifelse(sim_data$biomarker == "Medium", 3, 0)),
+  0
+)
+
+# Add noise
+sim_data$continuous_outcome <- baseline + trt_effect + rnorm(n, 0, 8)
+
+str(sim_data)
+
+contrasts(sim_data$sex) <- contr.treatment(levels(sim_data$sex), contrasts = FALSE)
+```
+
+## Example 1: Basic Usage with New Formula Interface
+
+**NEW:** Use formula objects directly (no quotes!)
+
+```{r example1-prepare}
+# Old way (still works):
+# response_formula_str = "Surv(time, status) ~ trt"
+
+# New way (cleaner!):
+prepared_basic <- prepare_formula_model(
+  data = sim_data,
+ response_formula = continuous_outcome ~ trt,
+  shrunk_predictive_formula = ~ 0+trt:biomarker,  # Pipe-pipe syntax
+  unshrunk_prognostic_formula = ~ sex,
+  response_type = "continuous"
+)
+
+# View the formula
+prepared_basic$formula
+
+
+```
+
+### Fit the model and examine coefficients
+
+```{r example1-fit, eval=TRUE}
+# Fit the model with simple priors for quick testing
+fit_basic <- fit_brms_model(
+  prepared_model = prepared_basic,
+  prognostic_effect_priors = list(
+    shrunk = "horseshoe(1)",
+    unshrunk = "normal(0, 5)"
+  ),
+  predictive_effect_priors = list(
+    shrunk = "horseshoe(1)"  # Allow for real effects
+  ),
+  chains = 2,
+  iter = 2000,  # More iterations for better estimates
+  warmup = 1000,
+  cores = 2,
+  refresh = 0  # Suppress iteration messages
+)
+
+
+# View coefficient summary
+summary(fit_basic)
+
+# Get specific coefficients
+cat("\n=== KEY COEFFICIENTS ===\n")
+coefs <- fixef(fit_basic)
+cat("Overall treatment effect (unprogeffect_trt):\n")
+print(coefs["unprogeffect_trt", ])
+
+cat("\n\nTreatment interactions with biomarker:\n")
+print(coefs[grepl("trt:biomarker", rownames(coefs)), ])
+```
+
+### Estimate the subgroup treatment effects
+```{r}
+summary_basic <- summary_subgroup_effects(
+  brms_fit = fit_basic,
+  original_data = fit_basic$data,
+  trt_var = "trt",
+  response_type = "continuous"
+)
+
+# View the estimates
+print(summary_basic$estimates)
+```
+
+## Example 4: Pipe-Pipe Syntax (Alternative)
+
+You can also use the `(trt || subgroup)` syntax:
+
+```{r example4-pipe-syntax}
+prepared_pipe <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  shrunk_predictive_formula = ~ (0+trt || biomarker),  # Pipe-pipe syntax
+  unshrunk_prognostic_formula = ~ sex,
+  response_type = "continuous"
+)
+
+prepared_pipe$formula
+
+# Fit the model with simple priors for quick testing
+fit_pipe <- fit_brms_model(
+  prepared_model = prepared_pipe,
+  prognostic_effect_priors = list(
+    shrunk = "horseshoe(1)",
+    unshrunk = "normal(0, 5)"
+  ),
+  predictive_effect_priors = list(
+    shrunk = "normal(0,2)"  # Allow for real effects
+  ),
+  chains = 2,
+  iter = 2000,  # More iterations for better estimates
+  warmup = 1000,
+  cores = 2,
+  refresh = 0  # Suppress iteration messages
+)
+
+
+# View coefficient summary
+summary(fit_pipe)
+
+summary <- summary_subgroup_effects(
+  brms_fit = fit_pipe,
+  original_data = fit_pipe$data,
+  trt_var = "trt",
+  response_type = "continuous"
+)
+
+# View the estimates
+print(summary$estimates)
+```
+
+
+
+## Example 2: Relaxed Treatment Checking
+
+**NEW:** Treatment is not automatically added - you get a message instead
+
+```{r example2-no-treatment}
+# Notice: trt is NOT in prognostic formulas
+# Old behavior: would auto-add trt
+# New behavior: shows message but respects your choice
+
+prepared_no_trt <- prepare_formula_model(
+  data = sim_data,
+  response_formula = Surv(time, status) ~ trt,
+  shrunk_predictive_formula = ~ trt:biomarker,
+  unshrunk_prognostic_formula = ~ age + sex,  # No trt here!
+  shrunk_prognostic_formula = ~ region,       # Or here!
+  response_type = "survival"
+)
+
+prepared_no_trt$formula
+```
+
+## Example 3: Relaxed Marginality Principle
+
+**NEW:** Interaction without main effect - you get a message instead of auto-addition
+
+```{r example3-no-marginality}
+# biomarker interaction without biomarker main effect
+# Old behavior: would auto-add biomarker to prognostic
+# New behavior: shows message but respects your choice
+
+prepared_no_main <- prepare_formula_model(
+  data = sim_data,
+  response_formula = Surv(time, status) ~ trt,
+  shrunk_predictive_formula = ~ trt:biomarker,  # biomarker interaction
+  unshrunk_prognostic_formula = ~ age,          # NO biomarker main effect!
+  response_type = "survival"
+)
+
+prepared_no_main$formula
+```
+
+## Example 5: Continuous Outcome with Intercept Control
+
+**NEW:** Control intercept inclusion explicitly
+
+```{r example5-continuous}
+# Create continuous outcome
+sim_data$continuous_outcome <- rnorm(n, 50, 10)
+
+# Without explicit intercept (you'll get a message)
+prepared_cont1 <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  shrunk_predictive_formula = ~ trt:biomarker,
+  unshrunk_prognostic_formula = ~ age,  # No "1" for intercept
+  response_type = "continuous"
+)
+
+# With explicit intercept (no message)
+prepared_cont2 <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  shrunk_predictive_formula = ~ trt:biomarker,
+  unshrunk_prognostic_formula = ~ 1 + age,  # Explicit intercept
+  response_type = "continuous"
+)
+
+# Compare formulas
+list(
+  without_explicit_intercept = prepared_cont1$formula,
+  with_explicit_intercept = prepared_cont2$formula
+)
+```
+
+## Example 6: Full Analysis (if you want to fit)
+
+This section is commented out to avoid long computation times. 
+Uncomment to run a full analysis:
+
+```{r example6-full-analysis, eval=FALSE}
+# Full analysis with the new interface
+full_fit <- run_brms_analysis(
+  data = sim_data,
+  response_formula = Surv(time, status) ~ trt,
+  response_type = "survival",
+  shrunk_predictive_formula = ~ trt:biomarker,
+  unshrunk_prognostic_formula = ~ age + sex,
+  shrunk_prognostic_formula = ~ region,
+  prognostic_effect_priors = list(
+    shrunk = "horseshoe(1)",
+    unshrunk = "normal(0, 2)"
+  ),
+  predictive_effect_priors = list(
+    shrunk = "horseshoe(1)"
+  ),
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2
+)
+
+# View summary
+summary(full_fit)
+
+# Estimate subgroup effects
+effects <- estimate_subgroup_effects(
+  fit = full_fit,
+  prepared_model = prepared_basic,
+  predictive_var = "biomarker"
+)
+
+print(effects)
+```
+
+## Testing Backward Compatibility
+
+The old string interface still works:
+
+```{r backward-compat}
+# Old string-based interface (still supported)
+prepared_strings <- prepare_formula_model(
+  data = sim_data,
+  response_formula = "Surv(time, status) ~ trt",
+  shrunk_predictive_formula = "~ trt:biomarker",
+  unshrunk_prognostic_formula = "~ age + sex",
+  response_type = "survival"
+)
+
+prepared_strings$formula
+```
+
+## Summary of Changes
+
+### 1. Formula Interface
+- **Before**: `response_formula_str = "Surv(time, status) ~ trt"`
+- **After**: `response_formula = Surv(time, status) ~ trt`
+- Cleaner, more natural R syntax
+- Backward compatible with strings
+
+### 2. Relaxed Checking
+- **Treatment auto-addition**: Now just a message, not enforced
+- **Marginality principle**: Now just a message, not enforced  
+- **Intercept defaults**: Now just a message, uses default if not specified
+
+### 3. Benefits
+- More control over your model specification
+- Clear messages about statistical best practices
+- No surprising automatic changes to your model

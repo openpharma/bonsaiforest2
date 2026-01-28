@@ -19,12 +19,13 @@ test_that("run_brms_analysis executes and returns brmsfit object", {
   fit <- suppressMessages(
     run_brms_analysis(
       data = test_data_run,
-      response_formula_str = "outcome ~ trt",
+      response_formula = "outcome ~ trt",
       response_type = "continuous",
-      shrunk_prognostic_formula_str = "~ age",
-      shrunk_predictive_formula_str = "~ trt:region",
-      prognostic_effect_priors = list(shrunk = "normal(0,1)"),
-      predictive_effect_priors = list(shrunk = "normal(0,1)"),
+      shrunk_prognostic_formula = "~ 0 + age",
+      shrunk_predictive_formula = "~ 0 + trt:region",
+      shrunk_prognostic_prior = "normal(0,1)",
+      shrunk_predictive_prior = "normal(0,1)",
+      sigma_ref = sd(test_data_run$outcome),
       chains = 1, iter = 10, warmup = 5, refresh = 0,
       backend = "cmdstanr", # Use faster backend if available
       cores = 1
@@ -57,39 +58,32 @@ test_that("run_brms_analysis assertions catch invalid inputs", {
 
   # Invalid data (matrix)
   expect_error(
-    run_brms_analysis(data = as.matrix(test_data_run), response_formula_str = "outcome ~ trt", response_type = "continuous"),
+    run_brms_analysis(data = as.matrix(test_data_run), response_formula = "outcome ~ trt", response_type = "continuous", sigma_ref = 1),
     regexp = "Must be of type 'data.frame'"
   )
 
-  # Invalid response_formula_str (missing ~)
+  # Invalid response_formula (string without ~)
   expect_error(
-    run_brms_analysis(data = test_data_run, response_formula_str = "outcome", response_type = "continuous"),
+    run_brms_analysis(data = test_data_run, response_formula = "outcome", response_type = "continuous", sigma_ref = 1),
     regexp = "Must comply to pattern '~'"
   )
 
   # Invalid response_type
   expect_error(
-    run_brms_analysis(data = test_data_run, response_formula_str = "outcome ~ trt", response_type = "gaussian"),
+    run_brms_analysis(data = test_data_run, response_formula = "outcome ~ trt", response_type = "gaussian", sigma_ref = 1),
     regexp = "Must be element of set"
   )
 
-  # Invalid optional formula string (doesn't start with ~)
-  expect_error(
-    run_brms_analysis(data = test_data_run, response_formula_str = "outcome ~ trt", response_type = "continuous",
-                      shrunk_prognostic_formula_str = "age"), # Missing ~
-    regexp = "Must comply to pattern"
-  )
-
-  # Invalid prior list (not named)
-  expect_error(
-    run_brms_analysis(data = test_data_run, response_formula_str = "outcome ~ trt", response_type = "continuous",
-                      prognostic_effect_priors = list("normal(0,1)")), # Unnamed list
-    regexp = "Must have names" # <-- Update this pattern
-  )
+  # Note: Optional formulas don't have pattern validation - they can be NULL or valid formulas
+  # The function will error later if they contain invalid syntax when parsed by R's formula()
+  
+  # Invalid prior list (not named) - but this no longer applies since priors are separate parameters
+  # Skipping this test as the API has changed
+  
   # Invalid stanvars class
   expect_error(
-    run_brms_analysis(data = test_data_run, response_formula_str = "outcome ~ trt", response_type = "continuous",
-                      stanvars = list("dummy")), # Not a stanvars object
+    run_brms_analysis(data = test_data_run, response_formula = "outcome ~ trt", response_type = "continuous",
+                      stanvars = list("dummy"), sigma_ref = 1), # Not a stanvars object
     regexp = "Must inherit from class 'stanvars'"
   )
 

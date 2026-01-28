@@ -16,10 +16,11 @@ original_test_data_summary$trt <- factor(original_test_data_summary$trt, levels 
 minimal_brms_fit_summary <- suppressMessages(
   run_brms_analysis(
     data = original_test_data_summary,
-    response_formula_str = "outcome ~ trt",
+    response_formula = "outcome ~ trt",
     response_type = "continuous",
-    shrunk_prognostic_formula_str = "~ age",
-    shrunk_predictive_formula_str = "~ trt:region + trt:sex",
+    shrunk_prognostic_formula = "~ 0 + age",  # Use ~ 0 + to avoid intercept warning
+    shrunk_predictive_formula = "~ 0 + trt:region + trt:sex",  # Use ~ 0 + to avoid intercept warning
+    sigma_ref = sd(original_test_data_summary$outcome),
     chains = 1, iter = 10, warmup = 5, refresh = 0,
     backend = "cmdstanr", cores = 1
   )
@@ -29,10 +30,7 @@ minimal_brms_fit_summary <- suppressMessages(
 sample_summary_obj <- suppressMessages(
   summary_subgroup_effects(
     brms_fit = minimal_brms_fit_summary,
-    original_data = original_test_data_summary,
-    trt_var = "trt",
-    response_type = "continuous",
-    subgroup_vars = c("region", "sex")
+    subgroup_vars = c("region", "sex")  # Other params auto-extracted
   )
 )
 
@@ -45,10 +43,7 @@ test_that("summary_subgroup_effects throws error if subgroup_vars = NULL", {
   expect_error(
     summary_subgroup_effects(
       brms_fit = minimal_brms_fit_summary,
-      original_data = original_test_data_summary,
-      trt_var = "trt",
-      response_type = "continuous",
-      subgroup_vars = NULL
+      subgroup_vars = NULL  # Other params auto-extracted
     ),
     regexp = "Assertion.*failed"
   )
@@ -79,10 +74,7 @@ test_that("summary_subgroup_effects works with subgroup_vars = 'auto'", {
   res_auto <- suppressMessages(
     summary_subgroup_effects(
       brms_fit = minimal_brms_fit_summary,
-      original_data = original_test_data_summary,
-      trt_var = "trt",
-      response_type = "continuous",
-      subgroup_vars = "auto"
+      subgroup_vars = "auto"  # Other params auto-extracted
     )
   )
   expect_s3_class(res_auto, "subgroup_summary")
@@ -100,27 +92,25 @@ test_that("summary_subgroup_effects works with subgroup_vars = 'auto'", {
 test_that("summary_subgroup_effects assertions catch invalid inputs", {
   # Invalid brms_fit
   expect_error(
-    summary_subgroup_effects(brms_fit = list(), original_data = original_test_data_summary, trt_var = "trt", response_type = "continuous"),
+    summary_subgroup_effects(brms_fit = list()),
     regexp = "Must inherit from class 'brmsfit'"
   )
-  # Invalid original_data
+  
+  # trt_var not in data when explicitly provided
   expect_error(
-    summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, original_data = as.matrix(original_test_data_summary), trt_var = "trt", response_type = "continuous"),
-    regexp = "Must be of type 'data.frame'"
-  )
-  # trt_var not in original_data
-  expect_error(
-    summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, original_data = original_test_data_summary, trt_var = "treatment", response_type = "continuous"),
+    summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, trt_var = "treatment"),
     regexp = "Must be a subset of"
   )
+  
   # Invalid subgroup_vars type (number instead of char or 'auto')
   expect_error(
-    summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, original_data = original_test_data_summary, trt_var = "trt", subgroup_vars = 123, response_type = "continuous"),
+    summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, subgroup_vars = 123),
     regexp = "Assertion failed"
   )
-  # subgroup_vars not in original_data
+  
+  # subgroup_vars not in data
   expect_error(
-    summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, original_data = original_test_data_summary, trt_var = "trt", subgroup_vars = c("region", "missing_var"), response_type = "continuous"),
+    summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, subgroup_vars = c("region", "missing_var")),
     regexp = "Must be a subset of"
   )
 })

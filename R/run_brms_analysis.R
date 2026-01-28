@@ -7,34 +7,31 @@
 #' `prepare_formula_model` to build the `brmsformula` and process the data,
 #' then passes the results to `fit_brms_model` to run the analysis.
 #'
-#' @param data A data.frame containing all the necessary variables.
-#' @param response_formula_str A character string for the response part, e.g.,
-#'   "outcome ~ trt" or "Surv(time, status) ~ trt".
-#' @param response_type The type of outcome variable. One of "binary", "count",
-#'   "continuous", or "survival".
-#' @param shrunk_predictive_formula_str Predictive terms to be shrunk ('shpredeffect').
-#'   E.g., "~ trt:subgroup1" or "~ (trt || subgroup1)".
-#' @param unshrunk_prognostic_formula_str Prognostic terms not to be shrunk
-#'   ('unprogeffect'). E.g., "~ age + sex".
-#' @param unshrunk_predictive_formula_str Predictive terms not to be shrunk
-#'   ('unpredeffect'). E.g., "~ trt:important_subgroup" or "~ (trt || important_subgroup)".
-#'   Note: Only one interaction syntax (: or ||) can be used across all predictive formulas.
-#' @param shrunk_prognostic_formula_str Prognostic terms to be shrunk
-#'   ('shprogeffect'). E.g., "~ region + center".
-#' @param stratification_formula_str A formula string specifying a stratification
-#'   variable, e.g., "~ strata_var".
-#' @param predictive_effect_priors A named list with elements `shrunk` and/or `unshrunk`
-#'   containing the priors for predictive effects. Can be strings or `brmsprior` objects.
-#'   E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)")`.
-#' @param prognostic_effect_priors A named list with elements `shrunk`, `unshrunk` and/or `intercept`
-#'   containing the priors for prognostic effects.
-#'   E.g., `list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 10)")`.
-#' @param stanvars An object created by `brms::stanvar()` to add custom Stan code,
-#'   necessary for some hierarchical priors.
-#' @param ... Additional arguments passed directly to `brms::brm()` (e.g.,
-#'   `chains`, `iter`, `cores`, `backend`).
+#' @param data `data.frame`. Dataset containing all necessary variables.
+#' @param response_formula `formula`. Response specification (e.g., `outcome ~ trt` or `Surv(time, status) ~ trt`).
+#' @param response_type `character(1)`. Outcome type: `"binary"`, `"count"`, `"continuous"`, or `"survival"`.
+#' @param unshrunk_terms_formula `formula` or `NULL`. Unshrunk terms specification (`unshrunktermeffect`).
+#'   May include main effects and treatment interactions without regularization (e.g., `~ age + sex + trt*region`).
+#' @param shrunk_prognostic_formula `formula` or `NULL`. Prognostic effects for strong regularization
+#'   (`shprogeffect`). Must use `~ 0 + ...` syntax (e.g., `~ 0 + biomarker1 + biomarker2`).
+#' @param shrunk_predictive_formula `formula` or `NULL`. Treatment interactions for strong regularization
+#'   (`shpredeffect`). Must use `~ 0 + ...` syntax (e.g., `~ 0 + trt:subgroup` or `~ (0 + trt || subgroup)`).
+#' @param stratification_formula `formula` or `NULL`. Stratification variable specification (e.g., `~ strata_var`).
+#' @param sigma_ref `numeric(1)`. Reference scale for priors (REQUIRED). For continuous/count outcomes,
+#'   typically `sd(outcome_variable)`. For binary/survival, typically 1. Referenced in prior
+#'   expressions (e.g., `"normal(0, 2.5 * sigma_ref)"`).
+#' @param intercept_prior `character(1)` or `brmsprior` or `NULL`. Intercept prior for `unshrunktermeffect`.
+#'   Not used for survival models. Example: `"normal(0, 10 * sigma_ref)"`.
+#' @param unshrunk_prior `character(1)` or `brmsprior` or `NULL`. Prior for unshrunk terms
+#'   (non-intercept coefficients in `unshrunktermeffect`). Example: `"normal(0, 2.5 * sigma_ref)"`.
+#' @param shrunk_prognostic_prior `character(1)` or `brmsprior` or `NULL`. Prior for regularized
+#'   prognostic effects. Typically strong regularization. Example: `"horseshoe(scale_global = sigma_ref)"`.
+#' @param shrunk_predictive_prior `character(1)` or `brmsprior` or `NULL`. Prior for regularized
+#'   predictive effects (treatment interactions). Example: `"horseshoe(scale_global = 0.5 * sigma_ref)"`.
+#' @param stanvars `stanvars` or `NULL`. Custom Stan code via `brms::stanvar()` for hierarchical priors.
+#' @param ... Additional arguments for `brms::brm()` (e.g., `chains`, `iter`, `cores`, `backend`).
 #'
-#' @return A fitted `brmsfit` object.
+#' @return `brmsfit`. Fitted Bayesian model object with stored attributes for downstream analysis.
 #' @export
 #'
 #' @examples
@@ -60,19 +57,16 @@
 #'   \dontrun{
 #'   full_fit <- run_brms_analysis(
 #'     data = sim_data,
-#'     response_formula_str = "Surv(time, status) ~ trt",
+#'     response_formula = Surv(time, status) ~ trt,
 #'     response_type = "survival",
-#'     shrunk_predictive_formula_str = "~ trt:subgroup",
-#'     unshrunk_prognostic_formula_str = "~ age",
-#'     shrunk_prognostic_formula_str = "~ region",
-#'     stratification_formula_str = "~ region",
-#'     prognostic_effect_priors = list(
-#'       shrunk = "normal(0, 1)",
-#'       unshrunk = "normal(0, 5)"
-#'     ),
-#'     predictive_effect_priors = list(
-#'       shrunk = "horseshoe(1)"
-#'     ),
+#'     unshrunk_terms_formula = ~ age,
+#'     shrunk_prognostic_formula = ~ region,
+#'     shrunk_predictive_formula = ~ trt:subgroup,
+#'     stratification_formula = ~ region,
+#'     sigma_ref = 1,
+#'     unshrunk_prior = "normal(0, 2 * sigma_ref)",
+#'     shrunk_prognostic_prior = "normal(0, sigma_ref)",
+#'     shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
 #'     chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
 #'   )
 #'
@@ -80,43 +74,50 @@
 #'   }
 #' }
 run_brms_analysis <- function(data,
-                              response_formula_str,
-                              response_type,
-                              shrunk_predictive_formula_str = NULL,
-                              unshrunk_prognostic_formula_str = NULL,
-                              unshrunk_predictive_formula_str = NULL,
-                              shrunk_prognostic_formula_str = NULL,
-                              stratification_formula_str = NULL,
-                              predictive_effect_priors = list(), # Use list() as default
-                              prognostic_effect_priors = list(), # Use list() as default
+                              response_formula,
+                              response_type = c("binary", "count", "continuous", "survival"),
+                              unshrunk_terms_formula = NULL,
+                              shrunk_prognostic_formula = NULL,
+                              shrunk_predictive_formula = NULL,
+                              stratification_formula = NULL,
+                              sigma_ref = NULL,
+                              intercept_prior = NULL,
+                              unshrunk_prior = NULL,
+                              shrunk_prognostic_prior = NULL,
+                              shrunk_predictive_prior = NULL,
                               stanvars = NULL,
                               ...) {
 
   # --- 1. Prepare the Formula and Data ---
+  # Builds the brmsformula with three components:
+  # - unshrunktermeffect: all unshrunk terms (weakly informative priors)
+  # - shprogeffect: shrunk prognostic effects (strong regularization)
+  # - shpredeffect: shrunk predictive effects (strong regularization)
   message("Step 1: Preparing formula and data...")
   prepared_model <- prepare_formula_model(
     data = data,
-    response_formula_str = response_formula_str,
-    shrunk_predictive_formula_str = shrunk_predictive_formula_str,
-    unshrunk_prognostic_formula_str = unshrunk_prognostic_formula_str,
-    unshrunk_predictive_formula_str = unshrunk_predictive_formula_str,
-    shrunk_prognostic_formula_str = shrunk_prognostic_formula_str,
+    response_formula = response_formula,
+    unshrunk_terms_formula = unshrunk_terms_formula,
+    shrunk_prognostic_formula = shrunk_prognostic_formula,
+    shrunk_predictive_formula = shrunk_predictive_formula,
     response_type = response_type,
-    stratification_formula_str = stratification_formula_str
+    stratification_formula = stratification_formula
   )
 
   # --- 2. Fit the Bayesian Model ---
+  # Assigns appropriate priors to each formula component and calls brms::brm()
   message("\nStep 2: Fitting the brms model...")
 
-  # --- THIS IS THE MODIFIED PART ---
   model_fit <- fit_brms_model(
-    prepared_model = prepared_model, # Pass the entire list
-    predictive_effect_priors = predictive_effect_priors,
-    prognostic_effect_priors = prognostic_effect_priors,
+    prepared_model = prepared_model,
+    sigma_ref = sigma_ref,
+    intercept_prior = intercept_prior,
+    unshrunk_prior = unshrunk_prior,
+    shrunk_prognostic_prior = shrunk_prognostic_prior,
+    shrunk_predictive_prior = shrunk_predictive_prior,
     stanvars = stanvars,
     ...
   )
-  # --- END OF MODIFICATION ---
 
   # --- 3. Return the Final Model ---
   message("\nAnalysis complete.")

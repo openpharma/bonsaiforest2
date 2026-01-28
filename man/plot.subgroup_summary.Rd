@@ -7,17 +7,45 @@
 \method{plot}{subgroup_summary}(x, x_lab = NULL, title = NULL, ...)
 }
 \arguments{
-\item{x}{An object of class `subgroup_summary`.}
+\item{x}{`subgroup_summary` or `list`. Object created by `summary_subgroup_effects()`,
+or a named list of such objects for comparison plots.}
 
-\item{x_lab}{A character string for the x-axis label.}
+\item{x_lab}{`character(1)` or `NULL`. Custom label for x-axis.}
 
-\item{title}{A character string for the plot title.}
+\item{title}{`character(1)` or `NULL`. Custom title for plot.}
 
-\item{...}{Additional arguments.}
+\item{...}{Additional arguments (currently unused).}
 }
 \value{
-A `ggplot` object representing the forest plot.
+`ggplot`. Forest plot visualization of subgroup treatment effects.
 }
 \description{
-Creates a forest plot from a `subgroup_summary` object.
+Creates a forest plot from a `subgroup_summary` object or list of objects.
+}
+\details{
+This function creates forest plots for subgroup treatment effects. It supports two modes:
+
+**Single Model Plot**: When `x` is a single `subgroup_summary` object, creates a 
+traditional forest plot with estimates and confidence intervals displayed as text.
+
+**Multiple Model Comparison**: When `x` is a named list of `subgroup_summary` objects,
+creates a comparative plot where different models are distinguished by colors and shapes.
+This is useful for comparing OVAT vs global models, different prior specifications, or
+sensitivity analyses.
+}
+\examples{
+\dontrun{
+# Single model plot
+summary1 <- summary_subgroup_effects(brms_fit = model1)
+plot(summary1, title = "Subgroup Effects")
+
+# Multiple model comparison
+summary2 <- summary_subgroup_effects(brms_fit = model2)
+comparison <- list(
+  "Model 1" = summary1,
+  "Model 2" = summary2
+)
+plot(comparison, title = "Model Comparison")
+}
+
 }

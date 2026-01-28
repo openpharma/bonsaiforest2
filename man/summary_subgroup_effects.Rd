@@ -6,27 +6,32 @@
 \usage{
 summary_subgroup_effects(
   brms_fit,
-  original_data,
-  trt_var,
-  response_type = c("binary", "count", "continuous", "survival"),
+  trt_var = NULL,
+  response_type = NULL,
   subgroup_vars = "auto"
 )
 }
 \arguments{
-\item{brms_fit}{A fitted `brmsfit` object.}
+\item{brms_fit}{`brmsfit`. Fitted model object.}
 
-\item{original_data}{The original `data.frame` used for model fitting.}
+\item{trt_var}{`character(1)` or `NULL`. Treatment variable name (coded 0/1). If `NULL`,
+extracted from model attributes (set by `fit_brms_model()`).}
 
-\item{trt_var}{The name of the treatment variable (coded 0/1).}
+\item{response_type}{`character(1)` or `NULL`. Outcome type: `"binary"`, `"count"`,
+`"continuous"`, or `"survival"`. If `NULL`, extracted from model attributes.}
 
-\item{response_type}{The type of outcome variable. One of "binary", "count",
-"continuous", or "survival".}
-
-\item{subgroup_vars}{A character vector of subgrouping variable names.
-Defaults to "auto". Cannot be NULL.}
+\item{subgroup_vars}{`character` or `"auto"`. Subgrouping variable names. Defaults to `"auto"`,
+which automatically detects treatment interactions from all formula components
+(`unshrunktermeffect`, `shprogeffect`, `shpredeffect`). Cannot be `NULL`.}
 }
 \value{
-An object of class `subgroup_summary`.
+`subgroup_summary`. S3 object containing:
+  \describe{
+    \item{`estimates`}{`tibble` with subgroup-specific treatment effect estimates}
+    \item{`response_type`}{`character(1)` indicating outcome type}
+    \item{`ci_level`}{`numeric(1)` credible interval level (default 0.95)}
+    \item{`trt_var`}{`character(1)` treatment variable name}
+  }
 }
 \description{
 This function orchestrates calls to `estimate_subgroup_effects` to generate

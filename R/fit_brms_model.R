@@ -6,23 +6,87 @@
 #' components of the model.
 #'
 #' @section Prior Specification:
-#' Priors for prognostic and predictive effects should be provided as named lists.
-#' This makes the code explicit and prevents errors. For example:
-#' `prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 5)", intercept = "normal(0, 10)")`.
-#' The function accepts prior definitions as character strings (e.g., `"normal(0, 1)"`)
-#' or as full `brmsprior` objects, which is useful for defining complex
-#' hierarchical or parameter-specific priors.
+#' Priors are specified separately for each model component using dedicated parameters.
+#' This provides explicit control and prevents errors. The function accepts prior
+#' definitions as character strings (e.g., `"normal(0, 2.5 * sigma_ref)"`) or as
+#' `brmsprior` objects for complex hierarchical or parameter-specific priors.
 #'
-#' @param prepared_model A list object returned from `prepare_formula_model()`.
-#'   It must contain the elements `formula`, `data`, and `response_type`.
-#' @param predictive_effect_priors A named list with elements `shrunk` and/or `unshrunk`
-#'   containing the priors for predictive effects.
-#' @param prognostic_effect_priors A named list with elements `shrunk`, `unshrunk`,
-#'   and/or `intercept` containing the priors for prognostic effects.
-#' @param stanvars An object created by `brms::stanvar()` to add custom Stan code.
-#' @param ... Additional arguments passed directly to `brms::brm()`.
+#' **Available prior parameters:**
+#' - `intercept_prior`: Prior for the intercept in the unshrunk component
+#' - `unshrunk_prior`: Prior for all unshrunk terms (main effects you trust)
+#' - `shrunk_prognostic_prior`: Prior for shrunk prognostic effects (regularized)
+#' - `shrunk_predictive_prior`: Prior for shrunk predictive effects (regularized)
 #'
-#' @return A fitted `brmsfit` object.
+#' **Using sigma_ref in priors:**
+#' You can reference `sigma_ref` in prior strings, and it will be automatically
+#' substituted. For example: `"normal(0, 2.5 * sigma_ref)"` becomes
+#' `"normal(0, 8)"` when sigma_ref = 3.2.
+#'
+#' **Default Priors by Response Type:**
+#'
+#' If you don't specify priors, the function uses sensible defaults:
+#'
+#' *Continuous outcomes:*
+#' - `intercept_prior`: `normal(outcome_mean, 5 * sigma_ref)`
+#' - `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+#' - `shrunk_prognostic_prior`: `horseshoe(1)`
+#' - `shrunk_predictive_prior`: `horseshoe(1)`
+#' - `sigma`: `normal(0, sigma_ref)`
+#'
+#' *Binary outcomes:*
+#' - `intercept_prior`: `normal(0, 5 * sigma_ref)`
+#' - `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+#' - `shrunk_prognostic_prior`: `horseshoe(1)`
+#' - `shrunk_predictive_prior`: `horseshoe(1)`
+#'
+#' *Count outcomes:*
+#' - `intercept_prior`: `normal(0, 5 * sigma_ref)`
+#' - `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+#' - `shrunk_prognostic_prior`: `horseshoe(1)`
+#' - `shrunk_predictive_prior`: `horseshoe(1)`
+#' - `shape`: Uses brms default prior for negative binomial shape parameter
+#'
+#' *Survival outcomes:*
+#' - No intercept (Cox models don't have intercepts)
+#' - `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+#' - `shrunk_prognostic_prior`: `horseshoe(1)`
+#' - `shrunk_predictive_prior`: `horseshoe(1)`
+#'
+#' **Example:**
+#' ```
+#' fit_brms_model(
+#'   prepared_model = prepared,
+#'   sigma_ref = 12.5,  # From trial protocol (preferred)
+#'   # OR sigma_ref = sd(data$outcome),  # If protocol value unavailable
+#'   unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+#'   shrunk_prognostic_prior = "horseshoe(scale_global = 0.5 * sigma_ref)",
+#'   shrunk_predictive_prior = "horseshoe(scale_global = 0.1 * sigma_ref)"
+#' )
+#' ```
+#'
+#' @param prepared_model `list`. Object returned from `prepare_formula_model()` containing
+#'   elements `formula` (`brmsformula`), `data` (`data.frame`), `response_type` (`character`),
+#'   and `trt_var` (`character`). The `trt_var` element is stored as an attribute on the
+#'   fitted model for downstream functions.
+#' @param sigma_ref `numeric(1)`. Reference scale for prior specification (REQUIRED).
+#'   Recommended: (1) Standard deviation from trial protocol (preferred), or
+#'   (2) `sd(outcome_variable)` if protocol value unavailable (fallback).
+#'   For binary/survival outcomes, typically use 1. Can be referenced in prior strings
+#'   (e.g., `"normal(0, 2.5 * sigma_ref)"`).
+#' @param intercept_prior `character(1)` or `brmsprior` or `NULL`. Prior specification for
+#'   model intercept (e.g., `"normal(0, 10)"`).
+#' @param unshrunk_prior `character(1)` or `brmsprior` or `NULL`. Prior specification for
+#'   unshrunk terms (`unshrunktermeffect` component).
+#' @param shrunk_prognostic_prior `character(1)` or `brmsprior` or `NULL`. Prior specification
+#'   for regularized prognostic effects.
+#' @param shrunk_predictive_prior `character(1)` or `brmsprior` or `NULL`. Prior specification
+#'   for regularized predictive effects (treatment interactions).
+#' @param stanvars `stanvars` or `NULL`. Custom Stan code created via `brms::stanvar()`.
+#' @param ... Additional arguments passed to `brms::brm()` (e.g., `chains`, `iter`, `cores`).
+#'
+#' @return `brmsfit`. Fitted Bayesian model object with attributes:
+#'   `response_type` (`character`), `model_data` (`data.frame`), and
+#'   `trt_var` (`character`) for downstream analysis functions.
 #'
 #' @importFrom checkmate assert_class assert_data_frame assert_choice assert_list assert_string
 #' @importFrom brms bernoulli negbinomial cox set_prior empty_prior
@@ -48,21 +112,27 @@
 #'   # 2. Prepare the formula and data using colon syntax
 #'   prepared_model <- prepare_formula_model(
 #'     data = sim_data,
-#'     response_formula_str = "Surv(time, status) ~ trt",
-#'     shrunk_predictive_formula_str = "~ trt:subgroup",
-#'     unshrunk_prognostic_formula_str = "~ age",
-#'     shrunk_prognostic_formula_str = "~ region",
+#'     response_formula = Surv(time, status) ~ trt,
+#'     shrunk_predictive_formula = ~ trt:subgroup,
+#'     unshrunk_prognostic_formula = ~ age,
+#'     shrunk_prognostic_formula = ~ region,
 #'     response_type = "survival",
-#'     stratification_formula_str = "~ region"
+#'     stratification_formula = ~ region
 #'   )
 #'
 #'   # 3. Fit the model
 #'   \dontrun{
+#'   # For survival models, typically use sigma_ref = 1
+#'   # For continuous outcomes, use protocol sigma (preferred) or sd(outcome) (fallback)
+#'   # Example: sigma_ref <- 12.5  # from protocol
+#'   # OR: sigma_ref <- sd(sim_data$outcome)  # if protocol value unavailable
+#'
 #'   fit <- fit_brms_model(
 #'     prepared_model = prepared_model,
-#'     # Note: intercept prior is not needed for survival models
-#'     prognostic_effect_priors = list(shrunk = "horseshoe(1)", unshrunk = "normal(0, 2)"),
-#'     predictive_effect_priors = list(shrunk = "horseshoe(1)"),
+#'     sigma_ref = 1,
+#'     unshrunk_prior = "normal(0, 2 * sigma_ref)",
+#'     shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+#'     shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
 #'     chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
 #'   )
 #'
@@ -70,8 +140,11 @@
 #'   }
 #' }
 fit_brms_model <- function(prepared_model,
-                           predictive_effect_priors = list(),
-                           prognostic_effect_priors = list(),
+                           sigma_ref = NULL,
+                           intercept_prior = NULL,
+                           unshrunk_prior = NULL,
+                           shrunk_prognostic_prior = NULL,
+                           shrunk_predictive_prior = NULL,
                            stanvars = NULL,
                            ...) {
 
@@ -92,14 +165,50 @@ fit_brms_model <- function(prepared_model,
     prepared_model$response_type,
     choices = c("binary", "count", "continuous", "survival")
   )
-  checkmate::assert_list(predictive_effect_priors, names = "named", null.ok = TRUE)
-  checkmate::assert_list(prognostic_effect_priors, names = "named", null.ok = TRUE)
+
+  # Extract trt_var from prepared_model
+  trt_var <- prepared_model$trt_var
+  if (!is.null(trt_var)) {
+    checkmate::assert_string(trt_var, min.chars = 1)
+    checkmate::assert_subset(trt_var, names(prepared_model$data))
+    message("Using trt_var from prepared_model: ", trt_var)
+  }
+
+  # sigma_ref is now REQUIRED
+  checkmate::assert_number(sigma_ref, lower = 0, finite = TRUE,
+                          .var.name = "sigma_ref")
+
   checkmate::assert_class(stanvars, "stanvars", null.ok = TRUE)
 
   # --- Unpack  ---
   formula <- prepared_model$formula
   data <- prepared_model$data
   response_type <- prepared_model$response_type
+  has_intercept <- prepared_model$has_intercept  # Extract intercept information
+  has_random_effects <- prepared_model$has_random_effects  # Extract random effects flag
+  
+  # Default to TRUE if not provided (for backwards compatibility)
+  if (is.null(has_intercept)) {
+    has_intercept <- TRUE
+  }
+  
+  # Default to FALSE if not provided (for backwards compatibility)
+  if (is.null(has_random_effects)) {
+    has_random_effects <- FALSE
+  }
+
+  message("Using sigma_ref = ", round(sigma_ref, 3))
+
+  # Calculate mean of outcome for continuous models (used in intercept prior)
+  outcome_mean <- NULL
+  if (response_type == "continuous") {
+    response_vars <- all.vars(formula$formula[[2]])
+    response_var <- response_vars[1]
+    if (response_var %in% names(data)) {
+      outcome_mean <- mean(data[[response_var]], na.rm = TRUE)
+      message("Computed outcome mean: ", round(outcome_mean, 3))
+    }
+  }
 
   # --- 2. Determine brms Family ---
   model_family <- switch(
@@ -115,38 +224,66 @@ fit_brms_model <- function(prepared_model,
 
   # --- 3. Construct the Prior List  ---
 
-  # Define all possible prior components
-  # KEY CHANGE: The Intercept is class 'b' with coef 'Intercept'
+  # Process prior specifications with sigma_ref substitution
+  # Enables user-friendly prior specification syntax: "normal(0, 2.5 * sigma_ref)"
+  # The literal string "sigma_ref" is replaced with its numeric value before model compilation
+  intercept_prior_processed <- .process_sigma_ref(intercept_prior, sigma_ref)
+  unshrunk_prior_processed <- .process_sigma_ref(unshrunk_prior, sigma_ref)
+  shrunk_prognostic_prior_processed <- .process_sigma_ref(shrunk_prognostic_prior, sigma_ref)
+  shrunk_predictive_prior_processed <- .process_sigma_ref(shrunk_predictive_prior, sigma_ref)
+
+  # Set default priors based on response type
+  if (response_type == "continuous") {
+    # Continuous outcomes: use outcome mean for intercept
+    intercept_mean <- if (!is.null(outcome_mean)) outcome_mean else 0
+    default_intercept <- paste0("normal(", intercept_mean, ", ", 5 * sigma_ref, ")")
+    default_unshrunk <- paste0("normal(0, ", 5 * sigma_ref, ")")
+    default_shrunk_prog <- "horseshoe(1)"
+    default_shrunk_pred <- "horseshoe(1)"
+  } else {
+    # Binary, count, survival: different defaults
+    default_intercept <- paste0("normal(0, ", 5 * sigma_ref, ")")
+    default_unshrunk <- paste0("normal(0, ", 5 * sigma_ref, ")")
+    default_shrunk_prog <- "horseshoe(1)"
+    default_shrunk_pred <- "horseshoe(1)"
+  }
+
+  # Define prior configuration for three-component model architecture:
+  # - unshrunktermeffect: Consolidated component for all unshrunk terms (no separate prog/pred)
+  # - shprogeffect: Shrunk prognostic effects with strong regularization (e.g., horseshoe)
+  # - shpredeffect: Shrunk predictive effects (treatment interactions) with strong regularization
+  # This architecture enables differential prior specification across model components
   prior_config <- list(
-    # Shrunk Prognostic (b) - No intercept by definition ( ~ 0 + ...)
+    # Intercept for unshrunk terms
+    list(nlpar = "unshrunktermeffect", class = "b", coef = "Intercept",
+         user_prior = intercept_prior_processed,
+         default = default_intercept,
+         label = "intercept"),
+
+    # Unshrunk terms (all non-intercept coefficients in unshrunktermeffect)
+    # This includes both prognostic and predictive terms that are not regularized
+    list(nlpar = "unshrunktermeffect", class = "b", coef = NULL,
+         user_prior = unshrunk_prior_processed,
+         default = default_unshrunk,
+         label = "unshrunk terms"),
+
+    # Shrunk Prognostic - No intercept (user specifies formulas with ~ 0 + ...)
+    # Applied to prognostic biomarkers/covariates with strong regularization
     list(nlpar = "shprogeffect", class = "b", coef = NULL,
-         user_prior = prognostic_effect_priors$shrunk,
-         default = "horseshoe(1)",
-         label = "shrunk prognostic (b)"),
+         user_prior = shrunk_prognostic_prior_processed,
+         default = default_shrunk_prog,
+         label = "shrunk prognostic"),
 
-    # Unshrunk Prognostic (b) - NON-intercepts
-    list(nlpar = "unprogeffect", class = "b", coef = NULL,
-         user_prior = prognostic_effect_priors$unshrunk,
-         default = "normal(0, 5)",
-         label = "unshrunk prognostic (b)"),
-
-    # Unshrunk Prognostic (Intercept)
-    list(nlpar = "unprogeffect", class = "b", coef = "Intercept", # <-- CHANGED
-         user_prior = prognostic_effect_priors$intercept,
-         default = "normal(0, 5)",
-         label = "prognostic intercept"),
-
-    # Shrunk Predictive (b) - No intercept by definition
-    list(nlpar = "shpredeffect", class = "b", coef = NULL,
-         user_prior = predictive_effect_priors$shrunk,
-         default = "horseshoe(1)",
-         label = "shrunk predictive (b)"),
-
-    # Unshrunk Predictive (b) - No intercept by definition
-    list(nlpar = "unpredeffect", class = "b", coef = NULL,
-         user_prior = predictive_effect_priors$unshrunk,
-         default = "normal(0, 10)",
-         label = "unshrunk predictive (b)")
+    # Shrunk Predictive - No intercept (user specifies formulas with ~ 0 + ...)
+    # Applied to treatment interactions (effect modifiers) with strong regularization
+    # Use 'sd' class for random effects, 'b' class for fixed effects
+    list(nlpar = "shpredeffect", 
+         class = if (has_random_effects) "sd" else "b", 
+         coef = NULL,
+         user_prior = shrunk_predictive_prior_processed,
+         default = default_shrunk_pred,
+         label = "shrunk predictive",
+         is_random_effect = has_random_effects)
   )
 
   defined_nlpars <- names(formula$pforms)
@@ -157,19 +294,25 @@ fit_brms_model <- function(prepared_model,
     # Only add prior if the nlpar exists in the formula
     if (conf$nlpar %in% defined_nlpars) {
 
-      # Special case: Intercept prior only relevant if nlpar is unprogeffect
-      # AND the response type is NOT survival (which has no intercept)
-      # CHANGED: Check conf$coef now, not conf$class
+      # Skip intercept prior for survival models (Cox models have no intercept)
+      # Intercept only exists in unshrunktermeffect for non-survival response types
       if (!is.null(conf$coef) && conf$coef == "Intercept" && response_type == "survival") {
-        next # Skip intercept prior for survival models
+        next
+      }
+      
+      # Skip intercept prior if user specified ~ 0 + ... (no intercept)
+      if (!is.null(conf$coef) && conf$coef == "Intercept" && !has_intercept) {
+        next
       }
 
+      # Process user-provided prior or use default, then target it to the correct nlpar
+      # This handles conversion from strings to brmsprior objects and re-targeting
       processed <- .process_and_retarget_prior(
         user_prior = conf$user_prior,
         target_nlpar = conf$nlpar,
         default_str = conf$default,
         target_class = conf$class,
-        target_coef = conf$coef  # <-- PASSING NEW ARG
+        target_coef = conf$coef
       )
 
       priors_list <- c(priors_list, list(processed$prior))
@@ -183,6 +326,18 @@ fit_brms_model <- function(prepared_model,
   # Print messages if any defaults were used
   if (length(default_messages) > 1) {
     message(paste(default_messages, collapse = "\n"))
+  }
+
+  # Add sigma prior only for continuous models without stratification
+  # Count models use negative binomial with shape parameter, not sigma
+  # Stratified continuous models have distributional formulas for sigma, so no global sigma prior
+  if (response_type == "continuous" && !("sigma" %in% names(formula$pforms))) {
+    sigma_prior <- brms::set_prior(
+      paste0("normal(0, ", sigma_ref, ")"),
+      class = "sigma"
+    )
+    priors_list <- c(priors_list, list(sigma_prior))
+    message("Adding sigma prior: normal(0, ", sigma_ref, ")")
   }
 
   # Combine all prior objects into a single brmsprior object
@@ -200,20 +355,71 @@ fit_brms_model <- function(prepared_model,
     ...
   )
 
-  # --- 5. Return the fitted model ---
+  # --- 5. Attach metadata as attributes ---
+  # Store response_type, trt_var, and data for downstream functions
+  attr(model_fit, "response_type") <- response_type
+  attr(model_fit, "model_data") <- data
+  if (!is.null(trt_var)) {
+    attr(model_fit, "trt_var") <- trt_var
+  }
+
+  # --- 6. Return the fitted model ---
   return(model_fit)
 }
 
 
-#' Process and Re-target a brms Prior
+#' Process Prior String with sigma_ref Substitution
 #'
-#' This internal helper function processes a user-provided prior. It handles three cases:
-#' 1. If the prior is NULL, it applies a default prior string using `brms::set_prior`.
-#' 2. If the prior is a character string, it converts it to a `brmsprior` object
-#'    using `brms::set_prior`.
-#' 3. If the prior is already a `brmsprior` object, it intelligently re-targets
-#'    any priors defined without an `nlpar` to the specific `target_nlpar`,
-#'    `target_class`, and `target_coef` required.
+#' This internal helper function processes a prior string or brmsprior object
+#' and substitutes the literal string \"sigma_ref\" with the actual numeric value.
+#' This allows users to write priors like \"normal(0, 2.5 * sigma_ref)\" which
+#' will be evaluated to the actual prior string.
+#'
+#' @param prior A prior specification. Can be NULL, a character string, or a brmsprior object.
+#' @param sigma_ref A numeric value to substitute for \"sigma_ref\" in the prior string.
+#'
+#' @return The prior with sigma_ref substituted, or NULL if prior is NULL.
+#' @noRd
+.process_sigma_ref <- function(prior, sigma_ref) {
+  if (is.null(prior)) {
+    return(NULL)
+  }
+
+  if (is.character(prior)) {
+    # Replace "sigma_ref" with its numeric value using string substitution
+    # Then evaluate any arithmetic expressions
+    # This handles cases like "normal(0, 2.5 * sigma_ref)"
+    prior_substituted <- gsub("sigma_ref", as.character(sigma_ref), prior)
+    return(prior_substituted)
+  }
+
+  # If it's a brmsprior object, process each prior string in it
+  if (inherits(prior, "brmsprior")) {
+    # Process each prior string in the brmsprior object
+    for (i in seq_len(nrow(prior))) {
+      if (nchar(prior$prior[i]) > 0 && grepl("sigma_ref", prior$prior[i])) {
+        # Replace sigma_ref with the actual value
+        prior$prior[i] <- gsub("sigma_ref", as.character(sigma_ref), prior$prior[i])
+      }
+    }
+    return(prior)
+  }
+
+  return(prior)
+}
+
+
+#' Process and Re-target a brms Prior to a Specific nlpar
+#'
+#' This internal helper function processes a user-provided prior and ensures it targets
+#' the correct formula component (nlpar). It handles three cases:
+#' 1. NULL prior: Uses the provided default prior string
+#' 2. Character string: Converts to a `brmsprior` object targeting the specified nlpar
+#' 3. Existing `brmsprior` object: Intelligently re-targets priors that don't have an
+#'    nlpar specified, while preserving coefficient-specific priors that do.
+#'
+#' This allows users to provide generic priors that get automatically targeted to the
+#' correct model component (unshrunktermeffect, shprogeffect, or shpredeffect).
 #'
 #' @param user_prior A user-provided prior. Can be `NULL`, a character string,
 #'  or a `brmsprior` object.
@@ -244,7 +450,6 @@ fit_brms_model <- function(prepared_model,
   }
 
   if (is.character(prior_to_use)) {
-    # --- THIS BLOCK IS REVISED ---
     # Build a list of arguments, excluding NULLs
     args <- list(
       prior = prior_to_use,
@@ -275,22 +480,31 @@ fit_brms_model <- function(prepared_model,
 
     modified_prior <- prior_to_use
 
-    # Find rows with no nlpar set. These are the ones to retarget.
+    # Find rows with no nlpar set. These are the ones that need the nlpar added.
     rows_to_target <- nchar(modified_prior$nlpar) == 0
 
     if (any(rows_to_target)) {
+      # Add nlpar to all rows that don't have it
       modified_prior$nlpar[rows_to_target] <- target_nlpar
 
-      # Only assign class/coef if they are not NULL
-      if (!is.null(target_class)) {
-        modified_prior$class[rows_to_target] <- target_class
-      }
-      if (!is.null(target_coef)) {
-        modified_prior$coef[rows_to_target] <- target_coef
+      # For class/coef: only set them if the row doesn't already have a coef specified
+      # This allows users to pass brmsprior objects with specific coefficient priors
+      # that will be preserved
+
+      # Find rows that are class-level priors (no coef specified)
+      class_level_rows <- rows_to_target & (nchar(modified_prior$coef) == 0)
+
+      if (any(class_level_rows)) {
+        # Only assign class/coef to class-level priors, not coefficient-specific ones
+        if (!is.null(target_class)) {
+          modified_prior$class[class_level_rows] <- target_class
+        }
+        if (!is.null(target_coef)) {
+          modified_prior$coef[class_level_rows] <- target_coef
+        }
       }
     }
     return(list(prior = modified_prior, default_used = FALSE))
-    # --- END REVISION ---
   }
 
   stop(paste("Prior for", target_nlpar, "must be NULL, a string, or a brmsprior object."), call. = FALSE)
