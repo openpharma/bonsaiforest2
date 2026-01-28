@@ -116,7 +116,7 @@
 #'
 #' @importFrom stringr str_squish str_split str_starts str_match str_trim str_remove str_detect str_replace_all
 #' @importFrom checkmate assert_data_frame assert_string assert_choice assert_subset assert_numeric assert_character
-#' @importFrom stats contrasts gaussian
+#' @importFrom stats contrasts gaussian contr.treatment
 #' @importFrom brms bernoulli negbinomial cox
 #' @export
 #'
@@ -952,8 +952,8 @@ prepare_formula_model <- function(data,
       return(list(
         formula_part = NULL,
         data = .data,
-        prognostic_effects = cha,
-        has_random_effects = FALSEracter(0),
+        prognostic_effects = character(0),
+        has_random_effects = FALSE,
         star_vars = character(0)
       ))
     }
