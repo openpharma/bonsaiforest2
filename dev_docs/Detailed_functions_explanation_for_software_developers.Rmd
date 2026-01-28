@@ -1,0 +1,829 @@
+---
+title: "Detailed_functions_explanation_for_software_developers"
+output: html_document
+---
+
+In this file I give a detailed explanation of the logic followed in the functions of the bonsaiforest2 library.
+
+# File: prepare_formula_model.R
+Purpose: Core preprocessing function for the bonsaiforest library. Prepares a multi-part brms formula 
+         and modified data for Bayesian modeling of heterogeneous (subgroup) treatment effects in 
+         randomized clinical trials. 
+Input: data, 
+       response_formula_str, 
+       shrunk_predictive_formula_str, 
+       unshrunk_prognostic_formula_str, 
+       unshrunk_predictive_formula_str,  
+       shrunk_prognostic_formula_str, 
+       response_type, 
+       stratification_formula_str 
+Returns: list(formula, data, response_type).
+
+## Key Features:
+- **Multi-Part Formula Construction**: Generates a brmsformula object with up to four distinct 
+  linear components (unprogeffect, shprogeffect, unpredeffect, shpredeffect) allowing differential 
+  shrinkage assignment via different priors.
+- **Dual Interaction Syntax Support**: Supports both colon notation (e.g., `~ trt:subgroup`) and 
+  pipe-pipe notation (e.g., `~ (trt || subgroup)`). Only one syntax form may be used across all 
+  predictive formula strings.
+- **Hierarchical Integrity**: Automatically ensures that main effects for variables in interactions 
+  are included in the model.
+- **Intelligent Defaults**: Treatment variable is automatically added as unshrunk prognostic; 
+  overlaps are detected and resolved.
+
+Start
+|
+v
+prepare_formula_model(data, 
+|                     response_formula_str, 
+|                     'Optional predictive/prognostic formulas', 
+|                     response_type)
+|
++-- 0) Validate input arguments & syntax consistency
+| - Calls: .validate_predictive_syntax(shrunk_pred_str, unshrunk_pred_str)
+| - Ensures: Only one syntax form (`:` or `||`) used across ALL predictive formulas
+| - Raises error if both `:` and `||` appear in different formulas
+| - Purpose: Prevent user error and ensure consistent interaction handling
+|
+v
++-- 1) Argument validation & parse initial formula
+| - Calls: .parse_initial_formula(...)
+| - Inputs: raw data, response_formula_str
+| - Outputs: processed_data, response_term, offset_term, trt_var
+| - Side-effects: finds names of trt, outcome and offset variables
+| 
+| - Then calls: .ensure_numeric_binary_treatment(data, trt_var)
+| - Validates: treatment is binary (2 levels if factor, 0/1 if numeric)
+| - Converts: treatment to numeric 0/1 format
+| - Purpose: Single point of validation eliminates repetitive checks
+|
+v
+Decision: response_type == "survival" ?
+
+Yes:
+| +-- 2a) Handle survival specifics
+| - Calls: .handle_survival_response(response_term, 
+|                                    processed_data,
+|                                    stratification_formula_str)
+| - Internals: parses Surv(...), converts to time | cens(1 - status), computes 
+|              bhaz(...) args
+| - Uses: .calculate_bhaz_knots(time_vector) to compute boundary_knots &
+|          internal_knots
+| - Output: updated response_term (possibly with bhaz(...)) or fallback to default
+|           if knots NULL
+
+No:
+| +-- 2b) Optionally handle stratification for distributional params
+| - Calls: .handle_distributional_stratification(response_type, 
+|                                                stratification_formula_str,
+|                                                data)
+| - Output: sub_formulas list (e.g., sigma or shape brms::lf() objects)
+|
+v
++-- 3) Resolve term overlaps & defaults
+| - Calls: .resolve_term_overlaps_and_defaults(unshrunk_prognostic_str,
+|                                              shrunk_prognostic_str,
+|                                              unshrunk_predictive_str,
+|                                              shrunk_predictive_str, 
+|                                              trt_var, 
+|                                              data)
+| - Output: cleaned lists: unshrunk_prog, shrunk_prog, unshrunk_pred, shrunk_pred
+| - Ensures: treatment is added as prognostic if missing; removes overlaps
+|
+v
++-- 4) Apply contrast coding to variables (NEW UNIFIED APPROACH)
+| - Calls: .apply_factor_contrasts_to_vars(data, var_names, user_contrast_vars, 
+|                                          use_one_hot, calling_context)
+| - Purpose: Unified function for applying contrasts (replaces duplicated logic)
+| - For unshrunk terms: use_one_hot = FALSE (dummy coding, k-1 levels)
+| - For shrunk terms: use_one_hot = TRUE (one-hot coding, k levels)
+| - Respects user-specified contrasts (preserves if detected)
+| - Converts character vectors to factors before applying contrasts
+| - Eliminates ~105 lines of duplicated code across 3 previous functions
+|
+v
++-- 5) Detect and process predictive terms (create explicit interaction dummies)
+| - Calls: .detect_interaction_syntax(formula_str) to identify syntax type
+| - For each predictive formula (shrunk & unshrunk):
+|   * Calls .process_predictive_terms(formula_str, processed_data, trt_var)
+|   * Dispatches to appropriate handler based on syntax detected:
+|
+|   IF COLON SYNTAX DETECTED (e.g., "~ trt:subgroup"):
+|   | - Calls: .process_colon_interaction_terms(formula_str, processed_data, trt_var, trt_levels)
+|   | - Parses terms using base R formula machinery
+|   | - For each term matching pattern trt:var:
+|   |   * Ensures var is a factor with contrasts
+|   |   * Creates explicit dummy for each level: trt_varLevelN = 1 if (trt==active & var==level) else 0
+|   |   * Returns formula fragment listing all dummies (e.g., "trt_subgroupA + trt_subgroupB")
+|
+|   ELSE IF PIPE-PIPE SYNTAX DETECTED (e.g., "~ (trt || subgroup)"):
+|   | - Calls: .process_pipe_interaction_terms(formula_str, processed_data, trt_var, trt_levels)
+|   | - Uses regex to extract (var1 || var2) patterns
+|   | - Identifies which var is trt_var, which is the subgroup variable
+|   | - For each level of subgroup:
+|   |   * Creates same explicit dummy as colon: trt_subgroupLevelN = 1 if (trt==active & subgroup==level) else 0
+|   |   * Returns formula fragment with dummy names
+|
+| - Key behavior (both syntaxes):
+| * Ensures trt_var factor has 2 levels
+| * Converts subgroup vars to factor; sets treatment contrasts
+| * Creates explicit dummy columns (numeric 0/1) for brms non-linear compatibility
+| * Returns: formula_part (string of dummy names), updated data, prognostic_effects
+|
+v
++-- 5) Auto-add missing prognostic main effects
+| - Calls: .add_missing_prognostic_effects(prognostic_terms = c(unshrunk_prog, shrunk_prog),
+|                                          needed_terms = unique prognostic_effects,
+|                                          target_term_list = unshrunk_prog)
+| - Ensures hierarchical principle: any var used in trt:x or (trt||x) has x in prognostic terms
+|
+v
++-- 6) Assemble final brms formula
+| - Calls: .assemble_brms_formula(response_term, 
+|                                 offset_term, 
+|                                 response_type, 
+|                                 unshrunk_prog_terms, 
+|                                 shrunk_prog_terms, 
+|                                 unshrunk_pred_formula, 
+|                                 shrunk_pred_formula, 
+|                                 sub_formulas,
+|                                 unshrunk_no_int)  # NEW: tracks user intercept preference
+| - Key steps:
+| * Builds sub-formulas as brms::lf() for unprogeffect, shprogeffect, unpredeffect, shpredeffect
+| * Applies FLEXIBLE intercept rules (NEW BEHAVIOR):
+|   - For survival models: ALWAYS force intercept removal (brms requirement)
+|   - For other models: Respect user's intercept specification via unshrunk_no_int
+|   - Ensures user control while maintaining model validity
+| * Strips offset() wrapper and appends offset RHS if present
+| * Creates main brms::bf(main_formula_str, nl = TRUE) and reduces with + to include sub-formulas
+|
+v
+Return list(formula = final_bf_obj, data = processed_data, response_type = response_type)
+
+
+### Key Details & Notes
+
+- **Syntax Validation (.validate_predictive_syntax)**: Before processing, the function checks that only one interaction syntax (`:` or `||`) is used across all predictive formulas. Mixing both syntaxes raises an error with a clear message.
+
+- **Syntax Detection (.detect_interaction_syntax)**: Helper function that identifies which syntax is present in a formula string by searching for `:` or `||` patterns. Returns "colon", "pipe", or NA_character_.
+
+- **Colon Syntax Processing (.process_colon_interaction_terms)**: 
+  - Parses formula using base R formula machinery and `attr(terms(), "term.labels")`
+  - Splits interactions on ":" to identify trt:subgroup patterns
+  - Validates that treatment variable is included and identifies secondary variable
+  - Creates explicit dummy columns: `trt_subgroupLevel = as.numeric(trt == active & subgroup == level)`
+  - Returns formula fragment with all dummy variable names concatenated with "+"
+
+- **Pipe-Pipe Syntax Processing (.process_pipe_interaction_terms)**:
+  - Uses regex pattern `\(\s*([^|]+?)\s*\|\|\s*([^)]+?)\s*\)` to extract (var1 || var2) terms
+  - Ensures treatment variable is one of the pair
+  - Creates identical dummy variables as colon syntax (interaction dummies are equivalent)
+  - Returns same formula fragment structure as colon processing
+  - **Key equivalence**: Both syntaxes produce identical model results—dummy variables, formula structure, and estimates are the same
+
+- **Treatment handling (.parse_initial_formula)**: Converts trt_var to factor if needed and sets contrasts via `contr.sum(...)` (treatment/sum contrasts for proper coding).
+
+- **Offset handling**: offset(...) on LHS is detected and returned as offset_term; .assemble_brms_formula removes the offset() wrapper before including it in the RHS of the non-linear bf.
+
+- **Predictive dummy naming**: Uses `make.names(paste0(.trt_var, "_", subgroup_var, level))` to ensure valid R variable names (handles special characters); these are numeric 0/1 columns so each interaction yields a single parameter in non-linear brms setup.
+
+- **Hierarchical principle**: Predictive interactions (either syntax) auto-trigger addition of prognostic main effects; .add_missing_prognostic_effects appends missing main effects to unshrunk_prog with a message.
+
+- **Survival baseline hazard (bhaz) knots**: .calculate_bhaz_knots uses unique event times, adds a small buffer to boundaries, chooses internal knots by quantiles if sufficient unique times exist, else evenly spaced fallback. If too few unique times (<4) it returns NULL and the code falls back to default Cox handling.
+
+- **Stratification**: For response_type = "continuous", stratifies sigma; for "count", stratifies shape; for "survival" stratification triggers bhaz grouping via gr = strat_var.
+
+- **Overlap resolution rules**: Prognostic overlap → prioritized as unshrunk (remove from shrunk); Predictive overlap → prioritized as shrunk (remove from unshrunk).
+
+- **Return contract**: Use the returned data for brms::brm() because it contains factor conversions and created dummy columns required by the assembled formula. The formula and data must be used together.
+
+
+###Quick mapping: major internal helpers
+prepare_formula_model() → orchestrator; validates inputs (including syntax consistency), processes formulas, coordinates assembly
+
+.validate_predictive_syntax() → ensures only one syntax form (`:` or `||`) across all predictive formulas; raises error on mixing
+
+.detect_interaction_syntax() → identifies which syntax is present (`:` = "colon", `||` = "pipe", none = NA_character_)
+
+.parse_initial_formula() → extract response, offset, trt_var; convert trt factor/contrasts
+
+.handle_survival_response() → transform Surv() and attach bhaz(...)
+
+.calculate_bhaz_knots() → compute spline knots for bhaz
+
+.handle_distributional_stratification() → create sigma/shape lf() sub-formulas
+
+.resolve_term_overlaps_and_defaults() → parse & clean user formula strings, add trt default
+
+.process_predictive_terms() → dispatches to colon or pipe handler; returns dummy variables + formula fragments
+
+.process_colon_interaction_terms() → parse trt:var interactions; create explicit dummies; return formula part
+
+.process_pipe_interaction_terms() → parse (trt || var) interactions; create identical dummies as colon; return formula part
+
+.add_missing_prognostic_effects() → ensure main effects for interactions (hierarchy)
+
+.assemble_brms_formula() → build brms::bf(..., nl=TRUE) and combine lf() parts
+
+
+# File: fit_brms_model.R
+Purpose: Core model fitting function that wraps brms::brm() for Bayesian inference. Takes the multi-part 
+         formula and data prepared by prepare_formula_model(), constructs flexible prior specifications,
+         handles family selection based on response type, and returns a fitted brmsfit object ready for
+         post-processing and subgroup effect estimation.
+Input: prepared_model,
+       predictive_effect_priors,
+       prognostic_effect_priors,
+       stanvars 
+Returns: fitted `brmsfit` object.
+
+## Key Features:
+- **Flexible Prior Specification**: Accepts priors as NULL (use defaults), character strings (e.g., "horseshoe(1)"), 
+  or full brmsprior objects for complex hierarchical specifications.
+- **Automatic Family Selection**: Maps response_type to appropriate brms family (gaussian, bernoulli, negbinomial, cox).
+- **Intelligent Default Application**: Uses sensible defaults (horseshoe shrinkage for shrunk effects, 
+  normal priors for unshrunk) when user does not specify priors.
+- **Named List Interface**: Prior specification via named lists for clarity and error prevention.
+
+Start
+|
+v
+fit_brms_model(prepared_model, 
+|              predictive_effect_priors, 
+|              prognostic_effect_priors, 
+|              stanvars, ...)
+|
++-- 1) Argument validation & unpack
+| - Validates prepared_model is a named list with required elements:
+|   * formula: class brmsformula (from prepare_formula_model())
+|   * data: data.frame with modified variables (factors, dummies)
+|   * response_type: one of "binary", "count", "continuous", "survival"
+| - Validates prior lists: predictive_effect_priors, prognostic_effect_priors
+|   (both named lists with optional shrunk, unshrunk, intercept keys)
+| - Validates stanvars: NULL or class stanvars (custom Stan code)
+| - Uses checkmate assertions for type and structure safety
+| - Unpacks: formula, data, response_type
+|
+v
++-- 2) Determine brms family based on response type
+| - Maps response_type -> family constructor:
+|   * "continuous"  → gaussian()
+|   * "binary"      → bernoulli(link = "logit")
+|   * "count"       → negbinomial() (for overdispersed count data)
+|   * "survival"    → cox() (for proportional hazards)
+| - Raises error if response_type is invalid
+| - Family object passed directly to brms::brm()
+|
+v
++-- 3) Define prior configuration targets
+| - Creates prior_config: list of all possible prior targets with metadata
+| - Each entry specifies:
+|   * nlpar: non-linear parameter name ("shprogeffect", "unprogeffect", etc.)
+|   * class: brms coefficient class (e.g., "b" for slopes)
+|   * coef: specific coefficient if targeting (e.g., "Intercept")
+|   * user_prior: user-provided prior or NULL
+|   * default: default prior string if user provides nothing
+|   * label: human-readable description for messages
+| - Targets defined for:
+|   * shrunk prognostic:   nlpar="shprogeffect", default="horseshoe(1)"
+|   * unshrunk prognostic: nlpar="unprogeffect", default="normal(0,5)"
+|   * prognostic intercept: nlpar="unprogeffect", coef="Intercept", default="normal(0,5)"
+|   * shrunk predictive:   nlpar="shpredeffect", default="horseshoe(1)"
+|   * unshrunk predictive: nlpar="unpredeffect", default="normal(0,10)"
+|
+v
++-- 4) Process each prior target & build prior list
+| - Fetches which nlpars actually exist in formula via names(formula$pforms)
+| - Skips targets for nlpars not in the formula (e.g., if no interactions, skip shpredeffect)
+| - Special case: Skip intercept prior if response_type == "survival" (no intercept in survival)
+| - For each applicable target:
+|   * Calls .process_and_retarget_prior(user_prior, target_nlpar, default_str,
+|                                       target_class, target_coef)
+|   * Collects returned brmsprior object in priors_list
+|   * Tracks if default was used for later messaging
+|
+v
++-- 5) .process_and_retarget_prior() helper function behavior
+| - Three input modes for user_prior:
+|   * NULL: Uses default_str, sets default_used=TRUE
+|   * character string (e.g., "normal(0,2)"): 
+|     - Calls brms::set_prior() with arguments dynamically constructed
+|     - Only includes target_class and target_coef if not NULL
+|     - Returns brmsprior object ready to combine
+|   * brmsprior object:
+|     - Scans rows for empty nlpar (not yet targeted)
+|     - Re-targets those rows to target_nlpar
+|     - Updates target_class and target_coef for those rows (if not NULL)
+|     - Preserves already-targeted rows unchanged
+|     - Messages user about retargeting action
+| - Returns list: list(prior = <brmsprior>, default_used = <TRUE/FALSE>)
+| - Error handling: Rejects priors of unexpected type
+|
+v
++-- 6) Combine all priors into single brmsprior object
+| - Uses Reduce("+", priors_list) to combine all brmsprior objects
+| - Result: single brmsprior object compatible with brms::brm()
+| - Fallback: If no priors defined, uses brms::empty_prior()
+| - Messages user: lists all default priors that were applied
+|
+v
++-- 7) Call brms::brm() with assembled components
+| - Arguments passed to brms::brm():
+|   * formula: multi-part brmsformula with 4 components
+|   * data: data.frame with factors and explicit dummies
+|   * family: determined family object
+|   * prior: combined brmsprior object
+|   * stanvars: custom Stan code if provided
+|   * ... : all other args (chains, iter, warmup, cores, backend, seed, etc.)
+| - All ... arguments forwarded directly, giving full control over MCMC settings
+| - Returns fitted brmsfit object
+|
+v
+Return fitted brmsfit object
+
+### Key Details & Notes
+
+- **Validation and Safety**: Uses `checkmate` package for rigorous type and structure validation. Ensures 
+  prepared_model$formula is brmsformula, prepared_model$data is non-empty data.frame, and response_type 
+  is valid choice. Prevents downstream errors from invalid inputs.
+
+- **Family Mapping**: Simple switch() statement maps response_type to brms family constructors. 
+  Each family paired with default link function (e.g., logit for bernoulli).
+
+- **Prior Configuration Strategy**: The prior_config list defines all possible targets upfront. 
+  The loop only processes targets with nlpars present in the formula—this automatically skips 
+  inapplicable components (e.g., shpredeffect if no predictive terms exist).
+
+- **Intercept Handling**: Intercept prior explicitly skipped for survival models because survival 
+  non-linear parts in brms have no intercept. This prevents spurious prior specifications.
+
+- **Default Application**: User provides minimal specification (empty list or dict with key targets); 
+  function applies sensible defaults for any missing targets and logs which defaults were used via message().
+
+- **Prior Retargeting Logic (.process_and_retarget_prior)**:
+  - If user passes brmsprior object, only rows with empty nlpar are modified (already-targeted rows untouched)
+  - Allows users to build complex priors separately and pass to function for targeted re-assignment
+  - Character string priors wrapped with set_prior(), NULL triggers default
+  - All three modes return same structure: list(prior = brmsprior, default_used = logical)
+
+- **Combining Priors**: Multiple brmsprior objects combined via Reduce("+", list) operator, 
+  producing single brmsprior accepted by brms::brm(). If no priors created, empty_prior() ensures 
+  consistent interface.
+
+- **stanvars Support**: Custom Stan code via stanvars (class stanvars) forwarded unchanged to brms::brm(), 
+  enabling user-defined likelihood, transformations, or generated quantities.
+
+- **Passthrough (...) Arguments**: All additional arguments forwarded to brms::brm(), giving users 
+  complete control over MCMC sampling (chains, iter, warmup, cores, backend="rstan"/"cmdstanr", seed, etc.).
+
+- **Messaging**: Function emits informative messages at key steps:
+  - Lists all defaults applied (if any)
+  - Logs brmsprior retargeting actions for transparency
+  - "Fitting brms model..." indicates model fitting has begun
+
+- **Return Value**: Returns brmsfit object from brms::brm() for downstream post-processing 
+  (posterior prediction, diagnostics, subgroup effect estimation via estimate_subgroup_effects()).
+
+### Quick mapping: major internal helper
+
+fit_brms_model() → orchestrator; validates prepared_model, selects family, constructs priors, calls brms::brm()
+
+.process_and_retarget_prior() → converts user priors (NULL/string/brmsprior) to standardized brmsprior; 
+                               retargets generic priors to specific nlpar/class/coef; tracks default usage
+
+# File: run_brms_analysis.R
+Purpose: High-level, user-facing orchestrator function for the complete Bayesian hierarchical modeling 
+         workflow. Integrates prepare_formula_model() and fit_brms_model() into a single, streamlined 
+         entry point for estimating heterogeneous treatment effects in clinical trials. Handles all 
+         two-step processes with intuitive progress messages and minimal cognitive overhead.
+Input: data, 
+       response_formula_str, 
+       response_type,
+       shrunk_predictive_formula_str, 
+       unshrunk_prognostic_formula_str, 
+       unshrunk_predictive_formula_str,  
+       shrunk_prognostic_formula_str, 
+       stratification_formula_str,
+       predictive_effect_priors,
+       prognostic_effect_priors,
+       stanvars,
+       ... (additional brms::brm() arguments)
+Returns: fitted `brmsfit` object ready for post-processing.
+
+## Key Features:
+- **Single Entry Point**: Users pass raw data and configuration; function handles all preprocessing and fitting.
+- **Transparent Two-Stage Process**: Clear messaging at each stage (preparation, fitting, completion) 
+  for user visibility and debugging.
+- **Dual Syntax Support**: Supports both colon (trt:subgroup) and pipe-pipe ((trt || subgroup)) 
+  interaction syntax via prepare_formula_model().
+- **Maximum Flexibility**: Accepts custom priors (as strings or brmsprior objects) and forwards all 
+  MCMC arguments to brms::brm().
+- **Minimal Validation Overhead**: Delegates all validation to specialized functions (prepare_formula_model 
+  and fit_brms_model) for clean, focused orchestration.
+
+Start
+|
+v
+run_brms_analysis(data, 
+|                 response_formula_str, 
+|                 response_type,
+|                 shrunk_predictive_formula_str = NULL,
+|                 unshrunk_prognostic_formula_str = NULL,
+|                 unshrunk_predictive_formula_str = NULL,
+|                 shrunk_prognostic_formula_str = NULL,
+|                 stratification_formula_str = NULL,
+|                 predictive_effect_priors = list(),
+|                 prognostic_effect_priors = list(),
+|                 stanvars = NULL,
+|                 ...)
+|
++-- 1) Prepare formula and data preprocessing
+| - Messages: "Step 1: Preparing formula and data..."
+| - Calls: prepare_formula_model(
+|     data = data,
+|     response_formula_str = response_formula_str,
+|     shrunk_predictive_formula_str = shrunk_predictive_formula_str,
+|     unshrunk_prognostic_formula_str = unshrunk_prognostic_formula_str,
+|     unshrunk_predictive_formula_str = unshrunk_predictive_formula_str,
+|     shrunk_prognostic_formula_str = shrunk_prognostic_formula_str,
+|     response_type = response_type,
+|     stratification_formula_str = stratification_formula_str
+|   )
+| - Outputs: prepared_model (list containing formula, data, response_type)
+| - Inside prepare_formula_model():
+|   * Validates all arguments and syntax consistency
+|   * Parses response formula (extracts response, offset, treatment)
+|   * Processes survival response or distributional stratification as needed
+|   * Resolves term overlaps and defaults
+|   * Creates interaction dummies (both colon and pipe-pipe syntax)
+|   * Auto-adds missing prognostic main effects
+|   * Assembles multi-part brmsformula object
+|   * Returns data with factor conversions and dummy columns
+|
+v
++-- 2) Fit the Bayesian model
+| - Messages: "Step 2: Fitting the brms model..."
+| - Calls: fit_brms_model(
+|     prepared_model = prepared_model,
+|     predictive_effect_priors = predictive_effect_priors,
+|     prognostic_effect_priors = prognostic_effect_priors,
+|     stanvars = stanvars,
+|     ...
+|   )
+| - Passes through all ... arguments (chains, iter, warmup, cores, backend, seed, etc.)
+| - Inside fit_brms_model():
+|   * Validates prepared_model structure (formula, data, response_type)
+|   * Determines brms family based on response_type
+|   * Constructs prior configuration with targets
+|   * Processes user priors (NULL/string/brmsprior objects)
+|   * Combines priors into single brmsprior object
+|   * Calls brms::brm() with all parameters
+|   * Returns fitted brmsfit object
+|
+v
++-- 3) Return final fitted model
+| - Messages: "Analysis complete."
+| - Returns: fitted brmsfit object from fit_brms_model()
+| - brmsfit ready for:
+|   * Posterior summaries and diagnostics
+|   * Posterior predictions
+|   * Subgroup effect estimation via estimate_subgroup_effects()
+|   * Custom post-processing and visualization
+|
+v
+End
+
+### Key Details & Notes
+
+- **Orchestrator Design**: run_brms_analysis() is intentionally thin and focused. It:
+  - Does NOT validate inputs itself (delegates to prepare_formula_model)
+  - Does NOT construct priors itself (delegates to fit_brms_model)
+  - Does NOT implement any prior retargeting logic (delegates to fit_brms_model)
+  - Acts as a transparent orchestrator with clear messaging at each step
+
+- **Default Priors**: predictive_effect_priors and prognostic_effect_priors default to empty lists. 
+  fit_brms_model() applies intelligent defaults (horseshoe for shrunk, normal for unshrunk) and 
+  messages which defaults were used. Users can override any or all defaults.
+
+- **Argument Passthrough (...)**:
+  - All ... arguments forwarded to fit_brms_model() → brms::brm()
+  - Gives users complete control over MCMC: chains, iter, warmup, cores, backend, seed, control, etc.
+  - No filtering or validation of these arguments at this level
+
+- **Progress Messages**: Three concise messages at key steps for user visibility:
+  - "Step 1: Preparing formula and data..." (before prepare_formula_model)
+  - "Step 2: Fitting the brms model..." (before fit_brms_model, after fit_brms_model calls brm())
+  - "Analysis complete." (after fit_brms_model returns)
+
+- **Error Handling**: All validation errors propagate from nested functions with informative messages. 
+  No additional error handling at orchestrator level (to avoid masking source).
+
+- **Interaction Syntax Support**: Both colon (trt:subgroup) and pipe-pipe ((trt || subgroup)) syntaxes 
+  supported transparently via prepare_formula_model(). User can mix syntaxes across unshrunk/shrunk 
+  predictive terms, but not within the same set (validation in prepare_formula_model).
+
+- **Stratification**: stratification_formula_str passed directly to prepare_formula_model(), which 
+  handles response-type-specific behavior:
+  - Survival: stratifies baseline hazard
+  - Continuous: stratifies sigma
+  - Count: stratifies shape
+
+- **Return Contract**: Always returns brmsfit object from brms::brm(). Callers responsible for 
+  inspecting convergence diagnostics (Rhat, n_eff), posterior summaries, and trace plots. 
+  Recommended next steps:
+  - print(fit) or summary(fit) for diagnostics
+  - posterior_samples(), posterior_epred(), posterior_linpred() for predictions
+  - estimate_subgroup_effects(fit, ...) for heterogeneous treatment effects
+
+### Quick mapping: major collaborators
+
+run_brms_analysis() → thin orchestrator; passes arguments sequentially; emits progress messages
+
+prepare_formula_model() → builds multi-part brmsformula; creates interaction dummies; prepares/encodes data; 
+                         validates syntax consistency
+
+fit_brms_model() → validates prepared object structure; selects family; constructs & combines priors; 
+                  calls brms::brm(); returns brmsfit
+
+# File: estimate_subgroup_effects.R
+Purpose: Post-processing function that estimates marginal subgroup treatment effects from a fitted brmsfit object using a counterfactual, G-computation approach.
+Input: brms_fit,
+       original_data,
+       trt_var,
+       subgroup_vars,
+       response_type,
+       ndraws
+Returns: list(estimates = data.frame with marginal effects per subgroup, draws = data.frame with posterior draws).
+
+Start
+|
+v
+estimate_subgroup_effects(brms_fit,
+|                         original_data,
+|                         trt_var,
+|                         subgroup_vars = "auto",
+|                         response_type,
+|                         ndraws = NULL)
+|
++-- 1) Validate inputs and extract model data
+| - Assertions: brms_fit is brmsfit, original_data is data.frame, trt_var exists
+| - Check response_type is valid: "continuous", "binary", "count", or "survival"
+| - Extract model_data from brms_fit$data (contains factor levels & contrasts used in fitting)
+| - Warning: if row count differs between original_data and brms_fit$data
+|
+v
++-- 2) Prepare subgroup variables and determine which to analyze
+| - Calls: .prepare_subgroup_vars(brms_fit, original_data, trt_var, subgroup_vars)
+| - If subgroup_vars == "auto": 
+|   * Scans model_data for interaction dummy columns (pattern: trt_var_...)
+|   * Infers which factor variables were used in interactions
+|   * If no interactions found: sets is_overall = TRUE, subgroup_vars = "Overall"
+| - Else: validates user-provided subgroup_vars exist in original_data
+| - Output: prep list with (subgroup_vars, data [possibly with "Overall" added], is_overall)
+|
+v
++-- 3) Create counterfactual datasets
+| - Calls: .create_counterfactual_datasets(prep$data, trt_var)
+| - Creates two identical datasets (treatment and control):
+|   * All rows set to reference level (control) or active level (treatment)
+|   * Recreates explicit interaction dummy columns (trt_var_...) for treatment arm
+|   * Interaction dummies = 1 when: patient in subgroup level AND treatment = active
+|   * Otherwise 0 in both counterfactuals
+| - Output: counterfactual_data list with (control, treatment) datasets
+|
+v
++-- 4) Generate posterior predictions
+| - Calls: .get_posterior_predictions(brms_fit, data_control, data_treatment, 
+|                                     response_type, prep$data, ndraws)
+| - Decision: response_type == "survival" ?
+| 
+| Yes:
+| | - Extracts linear predictors (eta) for both counterfactuals via posterior_linpred()
+| | - Reconstructs baseline hazard posterior:
+| | | - Calls: .extract_baseline_hazard(brms_fit, prep$data, ndraws)
+| | | - Parses formula for Surv(time, status) structure & stratification var
+| | | - Rebuilds spline basis (iSpline) for baseline hazard evaluation
+| | | - Returns H0_posterior (list, possibly stratified), strat_var
+| | - Output: list(H0_posterior, linpred_control, linpred_treatment, strat_var, original_data)
+| 
+| No:
+| | - Gets expected outcomes via posterior_epred() for both counterfactuals
+| | - Handles memory efficiently: combines datasets, makes single call, splits results
+| | - Output: list(pred_control [matrix: draws x observations], 
+| |                pred_treatment [matrix: draws x observations])
+|
+v
++-- 5) Calculate marginal effects per subgroup & summarize
+| - Calls: .calculate_and_summarize_effects(posterior_preds, prep$data, 
+|                                           prep$subgroup_vars, prep$is_overall, 
+|                                           response_type)
+| - For each subgroup variable:
+|   * For each level in that subgroup:
+|     - Gets indices of observations belonging to that level
+|     - Decision: response_type == "survival" ?
+|     
+|     Yes:
+|     | - Calls: .calculate_survival_ahr_draws(linpred_control, linpred_treatment,
+|     |                                         H0_posterior_list, indices, 
+|     |                                         strat_var, original_data)
+|     | - For each posterior draw (chunked for memory efficiency):
+|     |   * Reconstructs marginal survival curves for subgroup via .get_marginal_survival_vectorized()
+|     |     - Applies linear predictors to baseline hazard: S(t) = exp(-H0(t) * exp(eta))
+|     |     - Averages survival curves across individuals in subgroup for each draw
+|     |   * Computes Average Hazard Ratio (AHR) from marginal curves via .calculate_ahr_vectorized()
+|     |     - AHR = sum(S_control * dS_treatment) / sum(S_treatment * dS_control)
+|     | - Returns: vector of AHR draws (one per posterior draw)
+|     
+|     No:
+|     | - Extracts predictions for subgroup individuals
+|     | - Computes marginal (averaged) effect per draw: difference or ratio
+|     | - For continuous/binary: effect = mean(pred_treatment) - mean(pred_control)
+|     | - For count: effect = mean(pred_treatment) / mean(pred_control)
+|     | - Returns: vector of effect draws
+|     
+|     - Summarizes draws: median & 95% credible interval (q2.5, q97.5)
+|     - Creates result tibble row with: subgroup, effect, mean, sd, q2.5, q97.5
+|
+v
++-- 6) Combine and return results
+| - Binds all subgroup result rows into final estimates tibble
+| - Binds all effect draws into draws data.frame (columns = subgroups)
+| - Returns: list(estimates, draws)
+|
+v
+End
+
+### Key Details & Notes
+
+- Data consistency: Uses brms_fit$data (with factor contrasts) rather than original_data for all internal operations, ensuring predictions align with model's encoding.
+
+- Counterfactual principle: Both treatment and control datasets have all other covariates unchanged; only treatment assignment and related interaction dummies differ. This enables G-computation (marginal effect) via averaging.
+
+- Auto-detection of subgroups: Searches for explicit interaction dummy columns created by prepare_formula_model() (pattern: trt_var_levelname); if none found, computes overall marginal effect.
+
+- Survival AHR calculation: Uses reconstructed spline-based baseline hazard to compute marginal survival curves, then derives hazard ratios. Handles stratified hazards (separate baseline per stratum).
+
+- Memory efficiency: 
+  * For non-survival: combines control/treatment in single posterior_epred() call
+  * For survival: chunks AHR calculations to avoid storing all draws × all individuals simultaneously
+
+- Posterior draw processing: If ndraws specified, subsamples from posterior; otherwise uses all available draws for inference.
+
+- Effect computation: 
+  * Continuous/binary: difference in marginal outcomes
+  * Count: ratio of marginal means
+  * Survival: average hazard ratio from marginal survival curves
+
+- Output structure: Returns both point estimates (median ± 95% CI) and full posterior draws for downstream visualization/inference.
+
+### Quick mapping: major internal helpers
+
+estimate_subgroup_effects() → orchestrator; validates inputs, coordinates 4-step process
+
+.prepare_subgroup_vars() → auto-detects or validates subgroup variables from model interaction structure
+
+.create_counterfactual_datasets() → builds all-treated and all-control datasets with interaction dummies
+
+.get_posterior_predictions() → dispatches to posterior_linpred (survival) or posterior_epred (other) with appropriate data handling
+
+.extract_baseline_hazard() → reconstructs spline basis & evaluates baseline hazard posterior from fitted model
+
+.get_marginal_survival_vectorized() → computes marginal survival curves by averaging over subgroup individuals
+
+.calculate_survival_ahr_draws() → per-draw average hazard ratio from marginal survival curves (chunked for memory)
+
+.calculate_ahr_vectorized() → converts survival probability matrices to hazard ratio per draw
+
+.calculate_and_summarize_effects() → computes marginal effects per subgroup, summarizes with posterior statistics
+
+# File: summary_subgroup_effects.R
+Purpose: High-level wrapper that creates a formatted summary object from marginal subgroup treatment effects and provides a forest plot visualization.
+Input (summary_subgroup_effects): brms_fit,
+                                  original_data,
+                                  trt_var,
+                                  response_type,
+                                  subgroup_vars
+Input (plot.subgroup_summary): x (subgroup_summary object),
+                               x_lab (optional),
+                               title (optional)
+Returns (summary_subgroup_effects): list with class "subgroup_summary"
+Returns (plot.subgroup_summary): ggplot object (forest plot).
+
+## Part 1: summary_subgroup_effects()
+
+Start
+|
+v
+summary_subgroup_effects(brms_fit,
+|                        original_data,
+|                        trt_var,
+|                        response_type,
+|                        subgroup_vars = "auto")
+|
++-- 1) Validate all inputs
+| - Assertions: brms_fit is brmsfit, original_data is data.frame, trt_var exists
+| - Check response_type is valid: "binary", "count", "continuous", or "survival"
+| - Validate subgroup_vars: must be "auto" OR character vector (cannot be NULL)
+| - If subgroup_vars is character vector: assert all names exist in original_data
+|
+v
++-- 2) Call estimate_subgroup_effects()
+| - Passes: brms_fit, original_data, trt_var, subgroup_vars, response_type
+| - Returns: list with (estimates = tibble, draws = data.frame)
+| - Assigns estimates_tbl for downstream use
+|
+v
++-- 3) Construct summary_subgroup_effects object
+| - Creates list with components:
+|   * estimates: tibble from estimate_subgroup_effects()
+|   * response_type: passed through for plot defaults
+|   * ci_level: fixed at 0.95 (95% credible interval)
+|   * trt_var: treatment variable name (metadata)
+| - Assigns class "subgroup_summary" for S3 dispatch
+|
+v
+Return list(estimates, response_type, ci_level, trt_var) with class "subgroup_summary"
+
+## Part 2: plot.subgroup_summary() [S3 method]
+
+Start
+|
+v
+plot.subgroup_summary(x,
+|                     x_lab = NULL,
+|                     title = NULL,
+|                     ...)
+|
++-- 1) Validate inputs
+| - Assert x is class "subgroup_summary"
+| - Assert x_lab is character string or NULL
+| - Assert title is character string or NULL
+| - Assert x$estimates is non-empty data.frame
+|
+v
++-- 2) Determine plot parameters based on response_type
+| - null_effect_line (x-intercept value):
+|   * continuous → 0 (no difference)
+|   * binary → 1 (odds ratio = 1)
+|   * count → 1 (rate ratio = 1)
+|   * survival → 1 (average hazard ratio = 1)
+| - Default x_lab if not provided:
+|   * continuous → "Difference in Mean Outcome"
+|   * binary → "Odds Ratio"
+|   * count → "Rate Ratio"
+|   * survival → "Average Hazard Ratio (AHR)"
+|
+v
++-- 3) Prepare plot data
+| - Creates estimate_label: formatted string "%.2f (%.2f to %.2f)"
+| - Extracts sort_group: first component before ":" in Subgroup name
+| - Sorts by sort_group then Subgroup alphabetically
+| - Converts Subgroup to factor with reversed level order (for correct y-axis orientation)
+|
+v
++-- 4) Calculate plot limits and text positioning
+| - Finds min(CI_Lower), max(CI_Upper) across all subgroups
+| - Computes x_range = max_ci - min_ci
+| - Sets pos_estimate = max_ci + (x_range * 0.15) for label placement
+|
+v
++-- 5) Build ggplot2 visualization
+| - Layer 1: geom_vline at null_effect_line (dashed, grey50)
+| - Layer 2: geom_errorbar for confidence intervals (y-oriented, width = 0.2)
+| - Layer 3: geom_point for point estimates (shape = 22, size = 3, black)
+| - Layer 4: geom_text for estimate labels right-aligned at pos_estimate
+| - Layer 5: annotate() for column header "Estimate (95% CI)"
+| - Axes: x = response-specific label, y = blank (uses subgroup names)
+| - Theme: classic base (12pt), centered bold title, clean y-axis (no ticks/lines)
+| - Margins: enlarged right margin (8 lines) for label space
+| - Clipping: turned off (clip = "off") to allow labels outside plot area
+|
+v
+Return ggplot object (forest plot)
+
+### Key Details & Notes
+
+- Two-function pattern: summary_subgroup_effects() orchestrates effect estimation and creates the S3 object; plot.subgroup_summary() provides forest plot visualization via S3 dispatch.
+
+- Input validation: subgroup_vars must be "auto" or explicit character vector (never NULL); ensures user intent is clear.
+
+- Metadata storage: response_type, ci_level, and trt_var are stored in the summary object for consistent plot defaults and transparency.
+
+- Null effect line: Automatically placed at response-type-specific value (0 for difference, 1 for ratio-based effects).
+
+- Sorting logic: Subgroups are sorted by variable name first (sort_group), then by level within each variable, enabling readable grouped display.
+
+- Spatial arrangement: Uses y-axis labels for subgroup names and positions estimate text at x = pos_estimate (15% beyond max CI) to avoid overlap with error bars.
+
+- ggplot2 construction: Purposefully disables y-axis ticks and lines (theme), reverses factor levels for correct orientation, and uses coord_cartesian(clip = "off") to display labels outside plotting area.
+
+- Label formatting: Median estimate and 95% CI displayed as "value (lower to upper)" with 2 decimal places for readability.
+
+### Quick mapping: major collaborators
+
+summary_subgroup_effects() → orchestrator; validates inputs, delegates effect estimation, returns S3 object
+
+estimate_subgroup_effects() → computes marginal effects per subgroup, returns estimates + draws
+
+plot.subgroup_summary() → S3 method; transforms summary object into forest plot via ggplot2
+

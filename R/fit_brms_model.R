@@ -114,7 +114,7 @@
 #'     data = sim_data,
 #'     response_formula = Surv(time, status) ~ trt,
 #'     shrunk_predictive_formula = ~ trt:subgroup,
-#'     unshrunk_prognostic_formula = ~ age,
+#'     unshrunk_terms_formula = ~ age,
 #'     shrunk_prognostic_formula = ~ region,
 #'     response_type = "survival",
 #'     stratification_formula = ~ region

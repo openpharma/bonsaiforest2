@@ -14,3 +14,12 @@ TODO
 ^test_contrast_coding\.R$
 ^test_minimal\.R$
 ^test_quickstart_example\.R$
+^dev_docs$
+^test_multi_plot\.R$
+^trial_both_syntaxes\.Rmd$
+^CHANGELOG_2026-01-26\.Rmd$
+^MULTI_MODEL_PLOT_FEATURE\.md$
+^MULTI_PLOT_USAGE\.md$
+^ESTIMATE_SUBGROUP_EFFECTS_DETAILED_GUIDE\.Rmd$
+^FIT_BRMS_MODEL_DETAILED_GUIDE\.Rmd$
+^PREPARE_FORMULA_MODEL_DETAILED_GUIDE\.Rmd$

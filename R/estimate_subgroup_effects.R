@@ -34,6 +34,7 @@
 #' @importFrom dplyr bind_rows bind_cols
 #' @importFrom stats contrasts contrasts<-
 #' @importFrom tibble tibble
+#' @importFrom utils head
 #' @export
 estimate_subgroup_effects <- function(brms_fit,
                                       trt_var = NULL,

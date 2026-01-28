@@ -1,0 +1,1307 @@
+---
+title: "Testing New bonsaiforest2 Interface"
+author: "Test Document"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = TRUE, warning = TRUE)
+
+# Load required packages
+library(brms)
+library(survival)
+
+# Load the package from the bonsaiforest2 directory
+devtools::load_all("/home/pedreram/bonsaiforest2")
+
+# This will reload all functions from R/ directory
+# Make changes to R files and re-run this chunk to see updates!
+```
+
+## Overview
+
+This document demonstrates the new features in bonsaiforest2:
+
+1. **Formula interface** - use formula objects instead of strings
+2. **Relaxed checking** - informative messages instead of forced changes
+
+## Create Sample Data
+
+```{r create-data}
+set.seed(123)
+n <- 200  # Larger sample for clearer effects
+
+sim_data <- data.frame(
+  time = round(runif(n, 1, 100)),
+  status = sample(0:1, n, replace = TRUE),
+  trt = sample(c(0, 1), n, replace = TRUE),
+  age = rnorm(n, 50, 10),
+  sex = sample(c("M", "F"), n, replace = TRUE),
+  region = sample(c("North", "South", "East"), n, replace = TRUE),
+  biomarker = sample(c("Low", "Medium", "High"), n, replace = TRUE),
+  # Additional variable types for testing
+  bmi = rnorm(n, 25, 4),                          # Continuous variable
+  num_comorbidities = rpois(n, lambda = 2),       # Count variable
+  baseline_score = rnorm(n, 100, 15),             # Another continuous
+  num_prior_treatments = sample(0:5, n, replace = TRUE),  # Count/integer
+  is_smoker = sample(c(0, 1), n, replace = TRUE)  # Binary indicator
+)
+
+# Ensure factors
+sim_data$sex <- as.factor(sim_data$sex)
+sim_data$region <- as.factor(sim_data$region)
+sim_data$biomarker <- as.factor(sim_data$biomarker)
+
+# Create continuous outcome with REAL treatment effects varying by biomarker
+# Baseline: intercept + age effect
+baseline <- 50
+
+# Treatment effects that vary by biomarker level:
+# - Low biomarker: Large positive effect (+8)
+# - Medium biomarker: Moderate positive effect (+3)  
+# - High biomarker: No effect (0)
+trt_effect <- ifelse(sim_data$trt == 1,
+  ifelse(sim_data$biomarker == "Low", 8,
+    ifelse(sim_data$biomarker == "Medium", 3, 0)),
+  0
+)
+
+# Add noise
+sim_data$continuous_outcome <- baseline + trt_effect + rnorm(n, 0, 8)
+
+str(sim_data)
+
+
+```
+
+## Example 1: Basic Usage with New Formula Interface
+
+**NEW:** Use formula objects directly (no quotes!)
+
+```{r example1-prepare}
+# Old way (still works):
+# response_formula_str = "Surv(time, status) ~ trt"
+
+# New way:
+prepared_basic <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ 1+sex*trt,
+  shrunk_prognostic_formula = ~ 0 + region,
+  shrunk_predictive_formula = ~ 0 + trt:region,
+  response_type = "continuous"
+)
+
+# View the formula
+prepared_basic$formula
+
+prepared_basic$stan_variable_names
+```
+
+
+```{r}
+lapply(make_standata(prepared_basic$formula, data=prepared_basic$data), colnames)
+```
+
+
+### Fit the model and examine coefficients
+
+```{r example1-fit, eval=TRUE}
+# Fit the model with simple priors for quick testing
+# Compute sigma_ref from the outcome SD (REQUIRED parameter)
+fit_basic <- fit_brms_model(
+  prepared_model = prepared_basic,
+  sigma_ref = 0.5,  # Computed from outcome SD
+  chains = 2,
+  iter = 2000,  # More iterations for better estimates
+  warmup = 1000,
+  cores = 2,
+  refresh = 0  # Suppress iteration messages
+)
+
+
+# View coefficient summary
+summary(fit_basic)
+
+```
+
+### Estimate the subgroup treatment effects
+```{r}
+# All parameters (trt_var, data, response_type) are automatically extracted from fit_basic!
+summary_basic <- summary_subgroup_effects(
+  brms_fit = fit_basic
+)
+
+# Compute only the overall treatment effect
+results <- estimate_subgroup_effects(
+  brms_fit = fit_basic,
+  subgroup_vars = NULL  # NULL = overall effect only
+)
+
+
+# View the estimates
+print(summary_basic$estimates)
+```
+
+### Create a Forest Plot with the forestploter package
+
+```{r}
+# Install/load the forestploter package
+if (!require("forestploter", quietly = TRUE)) {
+  install.packages("forestploter")
+}
+library(forestploter)
+library(grid)
+
+# Prepare data for forestploter
+# The forestploter package uses a data.frame as the layout
+
+# Extract the estimates table
+est_df <- as.data.frame(summary_basic$estimates)
+
+# Add a formatted estimate column for display
+est_df$`Estimate [95% CI]` <- sprintf("%.2f [%.2f, %.2f]", 
+                                      est_df$Median, 
+                                      est_df$CI_Lower, 
+                                      est_df$CI_Upper)
+
+# Add a blank column for the forest plot display (increase spaces for wider plot)
+est_df$` ` <- paste(rep(" ", 20), collapse = " ")
+
+# Select and reorder columns for display
+plot_data <- est_df[, c("Subgroup", "Estimate [95% CI]", " ")]
+
+# Create the forest plot
+p <- forest(
+  plot_data,
+  est = est_df$Median,
+  lower = est_df$CI_Lower,
+  upper = est_df$CI_Upper,
+  ci_column = 3,  # Column index where CI will be drawn
+  ref_line = 0,   # Reference line at 0 (no effect)
+  xlab = "Treatment Effect (Continuous Outcome)",
+  xlim = c(-5, 10),
+  ticks_at = c(-5, -2.5, 0, 2.5, 5, 7.5, 10)
+)
+
+# Print the plot
+plot(p)
+
+cat("\n=== Interpretation ===\n")
+cat("- Each row shows the treatment effect for a specific subgroup\n")
+cat("- Point estimates (boxes) with 95% credible intervals (whiskers)\n")
+cat("- Positive values indicate treatment benefit\n")
+cat("- Reference line at 0 indicates no treatment effect\n")
+cat("- Subgroups from trt:biomarker and trt:sex interactions\n")
+```
+
+### Customize the Forest Plot Theme
+
+```{r}
+# Create a custom theme for the forest plot
+tm <- forest_theme(
+  base_size = 10,
+  # Confidence interval styling
+  ci_pch = 15,           # Square point
+  ci_col = "#762a83",    # Purple color
+  ci_fill = "black",
+  ci_alpha = 0.8,
+  ci_lty = 1,
+  ci_lwd = 1.5,
+  ci_Theight = 0.2,      # T-shaped ends on whiskers
+  # Reference line
+  refline_gp = gpar(lwd = 1, lty = "dashed", col = "grey20"),
+  # Footnote
+  footnote_gp = gpar(cex = 0.6, fontface = "italic", col = "blue")
+)
+
+# Create the plot with custom theme
+p_custom <- forest(
+  plot_data,
+  est = est_df$Median,
+  lower = est_df$CI_Lower,
+  upper = est_df$CI_Upper,
+  ci_column = 3,
+  ref_line = 0,
+  xlab = "Treatment Effect",
+  xlim = c(-5, 10),
+  ticks_at = c(-5, -2.5, 0, 2.5, 5, 7.5, 10),
+  theme = tm,
+  footnote = "Bayesian estimates of marginal treatment effects in subgroups.\nPositive values favor treatment."
+)
+
+plot(p_custom)
+
+cat("\n=== Forest Plot Successfully Created! ===\n")
+cat("The forestploter package works well with summary_subgroup_effects()!\n")
+cat("- Easy to customize with themes\n")
+cat("- Clean, publication-ready output\n")
+cat("- Integrates seamlessly with bonsaiforest2 output\n")
+```
+
+### Alternative: Using run_brms_analysis (All-in-One)
+
+**NEW:** The `run_brms_analysis` function combines both `prepare_formula_model` and 
+`fit_brms_model` into a single convenient call!
+
+```{r example1-run-analysis}
+# All-in-one approach: prepare + fit in a single function call
+fit_allinone <- run_brms_analysis(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  response_type = "continuous",
+  unshrunk_terms_formula = ~ sex + trt:biomarker + trt*sex,
+  shrunk_prognostic_formula = ~ 0 + region,
+  shrunk_predictive_formula = ~ 0 + trt:region,
+  sigma_ref = 0.5,  # From protocol or sd(sim_data$continuous_outcome)
+  chains = 2,
+  iter = 2000,
+  warmup = 1000,
+  cores = 2,
+  refresh = 0
+)
+
+# Compare with the step-by-step approach
+cat("\n=== Comparison: Step-by-Step vs All-in-One ===\n")
+cat("Both approaches produce identical results!\n\n")
+
+cat("Step-by-step coefficients:\n")
+print(fixef(fit_basic)[1:3, ])
+
+cat("\nAll-in-one coefficients:\n")
+print(fixef(fit_allinone)[1:3, ])
+
+```
+
+## Example 2: Using Default Priors
+
+**NEW:** The package now has smart default priors that adapt to your outcome type!
+
+For continuous outcomes:
+- Intercept: Normal(mean(outcome), 5*sigma_ref) - centered at observed mean
+- Unshrunk covariates: Normal(0, 5*sigma_ref) - weakly informative
+- Shrunk effects: horseshoe(1) - strong shrinkage
+- Sigma: Normal(0, sigma_ref) - automatically added
+
+```{r example2-default-priors}
+# Prepare a simple continuous model
+prepared_defaults <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ sex + age,
+  shrunk_prognostic_formula = ~ 0 + region,
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  response_type = "continuous"
+)
+
+# Compute sigma_ref
+sigma_ref <- sd(sim_data$continuous_outcome)
+outcome_mean <- mean(sim_data$continuous_outcome)
+
+cat("\n=== Using Default Priors ===\n")
+cat("sigma_ref:", round(sigma_ref, 3), "\n")
+cat("outcome mean:", round(outcome_mean, 3), "\n\n")
+
+cat("Expected defaults:\n")
+cat("  Intercept: normal(", round(outcome_mean, 2), ",", round(5*sigma_ref, 2), ")\n")
+cat("  Unshrunk: normal(0,", round(5*sigma_ref, 2), ")\n")
+cat("  Shrunk: horseshoe(1)\n")
+cat("  Sigma: normal(0,", round(sigma_ref, 2), ")\n\n")
+
+# Fit with ALL defaults - just pass sigma_ref!
+fit_defaults <- fit_brms_model(
+  prepared_model = prepared_defaults,
+  sigma_ref = sigma_ref,
+  # All priors set to NULL = use smart defaults
+  intercept_prior = NULL,
+  unshrunk_prior = NULL,
+  shrunk_prognostic_prior = NULL,
+  shrunk_predictive_prior = NULL,
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+# Check what priors were actually used
+cat("\n=== Priors Used in Model ===\n")
+print(prior_summary(fit_defaults))
+```
+
+## Example 3: Relaxed Treatment Checking
+
+**NEW:** Treatment is not automatically added - you get a message instead
+
+```{r example3-no-treatment}
+# Notice: trt is NOT in prognostic formulas
+# Old behavior: would auto-add trt
+# New behavior: shows message but respects your choice
+
+prepared_no_trt <- prepare_formula_model(
+  data = sim_data,
+  response_formula = Surv(time, status) ~ trt,
+  unshrunk_terms_formula = ~ age + sex,  # No trt here!
+  shrunk_prognostic_formula = ~ region,
+  shrunk_predictive_formula = ~ trt:biomarker,
+  response_type = "survival"
+)
+
+prepared_no_trt$formula
+```
+
+## Example 4: Relaxed Marginality Principle
+
+**NEW:** Interaction without main effect - you get a message instead of auto-addition
+
+```{r example3-no-marginality}
+# biomarker interaction without biomarker main effect
+# Old behavior: would auto-add biomarker to prognostic
+# New behavior: shows message but respects your choice
+
+prepared_no_main <- prepare_formula_model(
+  data = sim_data,
+  response_formula = Surv(time, status) ~ trt,
+  unshrunk_terms_formula = ~ age,  # NO biomarker main effect!
+  shrunk_predictive_formula = ~ trt:biomarker,  # biomarker interaction
+  response_type = "survival"
+)
+
+prepared_no_main$formula
+```
+
+## Example 5: Pipe-Pipe Syntax (Alternative)
+
+You can also use the `(trt || subgroup)` syntax:
+
+```{r example4-pipe-syntax}
+prepared_pipe <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ sex,
+  shrunk_predictive_formula = ~ 0+(0 + trt || biomarker),  # Pipe-pipe syntax
+  response_type = "continuous"
+)
+
+prepared_pipe$formula
+
+# Fit the model with simple priors for quick testing
+fit_pipe <- fit_brms_model(
+  prepared_model = prepared_pipe,
+  sigma_ref = sd(sim_data$continuous_outcome),  # Computed from outcome SD
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  chains = 2,
+  iter = 2000,  # More iterations for better estimates
+  warmup = 1000,
+  cores = 2,
+  refresh = 0  # Suppress iteration messages
+)
+
+
+# View coefficient summary
+summary(fit_pipe)
+
+# All parameters automatically extracted from the model!
+summary <- summary_subgroup_effects(
+  brms_fit = fit_pipe
+)
+
+# View the estimates
+print(summary$estimates)
+```
+
+
+
+## Example 6: Continuous Outcome with Intercept Control
+
+**NEW:** Control intercept inclusion explicitly
+
+```{r example5-continuous}
+# Create continuous outcome
+sim_data$continuous_outcome <- rnorm(n, 50, 10)
+
+# Without explicit intercept (you'll get a message)
+prepared_cont1 <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ age,  # No "1" for intercept
+  shrunk_predictive_formula = ~ trt:biomarker,
+  response_type = "continuous"
+)
+
+# With explicit intercept (no message)
+prepared_cont2 <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ 1 + age,  # Explicit intercept
+  shrunk_predictive_formula = ~ trt:biomarker,
+  response_type = "continuous"
+)
+
+# Compare formulas
+list(
+  without_explicit_intercept = prepared_cont1$formula,
+  with_explicit_intercept = prepared_cont2$formula
+)
+```
+
+## Example 7: Full Analysis (if you want to fit)
+
+This section is commented out to avoid long computation times. 
+Uncomment to run a full analysis:
+
+```{r example6-full-analysis, eval=FALSE}
+# Full analysis with the new interface
+full_fit <- run_brms_analysis(
+  data = sim_data,
+  response_formula = Surv(time, status) ~ trt,
+  response_type = "survival",
+  unshrunk_terms_formula = ~ age + sex,
+  shrunk_prognostic_formula = ~ region,
+  shrunk_predictive_formula = ~ trt:biomarker,
+  sigma_ref = 1,  # For survival models
+  intercept_prior = "normal(0, 5)",
+  unshrunk_prior = "normal(0, 2)",
+  shrunk_prognostic_prior = "horseshoe(1)",
+  shrunk_predictive_prior = "horseshoe(1)",
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2
+)
+
+# View summary
+summary(full_fit)
+
+# Estimate subgroup effects
+effects <- estimate_subgroup_effects(
+  fit = full_fit,
+  prepared_model = prepared_basic,
+  predictive_var = "biomarker"
+)
+
+print(effects)
+```
+
+## Example 8: Testing Different Variable Types in Prognostic Effects
+
+### 8a. Testing One-Hot Encoding for All Factor Levels in Interactions
+
+**NEW FEATURE:** When you use `~ 0 + trt:factor_var`, ALL levels of the factor 
+will appear in the interaction (not k-1 levels). This gives you full control 
+over the model parameterization.
+
+**IMPORTANT:** When you have multiple interactions like `~ 0 + trt:region + trt:biomarker`,
+the one-hot encoding is applied to ALL factor variables (both region AND biomarker),
+ensuring consistency across all interaction terms.
+
+```{r example7a-onehot-interactions}
+# WITHOUT ~ 0 +: Standard treatment contrasts (k-1 levels in interaction)
+cat("\nExpected: 2 region levels (k-1) and 2 biomarker levels (k-1)\n")
+
+# WITH ~ 0 +: One-hot encoding (ALL levels in interaction)
+prepared_onehot <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ age + sex + 0 + trt:sex + trt:region,  # With "0 +" for interactions
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,  # With "0 +" prefix
+  response_type = "continuous"
+)
+
+cat("\n=== One-Hot Encoding (All Levels Appear) ===\n")
+prepared_onehot$formula
+cat("\nExpected: 3 region levels (ALL) and 3 biomarker levels (ALL)\n")
+
+# Fit the one-hot version to see all region levels
+fit_onehot <- fit_brms_model(
+  prepared_model = prepared_onehot,
+  sigma_ref = sd(sim_data$continuous_outcome),  # Computed from outcome SD
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = NULL,  # No shrunk prognostic
+  shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+# Check coefficients - you should see ALL three levels for BOTH variables now
+cat("\n=== All Region Levels in Interaction ===\n")
+coefs_onehot <- fixef(fit_onehot)
+print(coefs_onehot[grepl("region", rownames(coefs_onehot)), ])
+
+cat("\n=== All Biomarker Levels in Interaction ===\n")
+print(coefs_onehot[grepl("biomarker", rownames(coefs_onehot)), ])
+
+cat("\n=== Verification ===\n")
+cat("Region levels in model:", sum(grepl("trt:region", rownames(coefs_onehot))), "/ 3 expected\n")
+cat("Biomarker levels in model:", sum(grepl("trt:biomarker", rownames(coefs_onehot))), "/ 3 expected\n")
+```
+
+### 7b. Custom Contrasts - User-Specified Encoding
+
+**NEW FEATURE:** You can specify your own contrasts before calling `prepare_formula_model`,
+and they will be preserved. This gives you complete control over the encoding scheme.
+
+```{r example7b-custom-contrasts}
+# Create a fresh copy of data for this example
+custom_data <- sim_data
+
+# Set custom contrasts BEFORE calling prepare_formula_model
+# Example 1: Sum contrasts (effects coding) for region
+contrasts(custom_data$region) <- contr.sum(levels(custom_data$region))
+cat("=== Custom Sum Contrasts for Region ===\n")
+print(contrasts(custom_data$region))
+
+# Example 2: Helmert contrasts for biomarker
+contrasts(custom_data$biomarker) <- contr.helmert(levels(custom_data$biomarker))
+cat("\n=== Custom Helmert Contrasts for Biomarker ===\n")
+print(contrasts(custom_data$biomarker))
+
+# Prepare the model - custom contrasts should be preserved
+prepared_custom <- prepare_formula_model(
+  data = custom_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ biomarker + age,
+  shrunk_predictive_formula = ~ 0 + trt:region + trt:biomarker,
+  response_type = "continuous"
+)
+
+cat("\n=== After prepare_formula_model ===\n")
+cat("Region contrasts (should still be sum contrasts):\n")
+print(contrasts(prepared_custom$data$region))
+
+cat("\nBiomarker contrasts (should still be Helmert):\n")
+print(contrasts(prepared_custom$data$biomarker))
+
+# Fit the model with custom contrasts
+fit_custom <- fit_brms_model(
+  prepared_model = prepared_custom,
+  sigma_ref = sd(sim_data$continuous_outcome),  # Computed from outcome SD
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = NULL,  # No shrunk prognostic
+  shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+cat("\n=== Model Coefficients with Custom Contrasts ===\n")
+coefs_custom <- fixef(fit_custom)
+cat("\nRegion interactions (using sum contrasts):\n")
+print(coefs_custom[grepl("region", rownames(coefs_custom)), ])
+
+cat("\nBiomarker interactions (using Helmert contrasts):\n")
+print(coefs_custom[grepl("biomarker", rownames(coefs_custom)), ])
+
+cat("\n=== Interpretation ===\n")
+cat("Sum contrasts: Each coefficient represents deviation from grand mean\n")
+cat("Helmert contrasts: Each level compared to mean of previous levels\n")
+```
+
+### 7c. Multiple Continuous Variables
+
+```{r example7c-continuous-vars}
+# Test with multiple continuous covariates
+prepared_continuous <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  unshrunk_prognostic_formula = ~ scale(age) + bmi + baseline_score,  # Multiple continuous
+  shrunk_prognostic_formula = ~ 0 + biomarker + trt,  # Fixed: added ~
+  response_type = "continuous"
+)
+
+prepared_continuous$formula
+
+# Fit the model
+fit_continuous <- fit_brms_model(
+  prepared_model = prepared_continuous,
+  sigma_ref = sd(sim_data$continuous_outcome),  # Computed from outcome SD
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+  shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+# Check coefficients for continuous variables
+cat("\n=== Continuous Variable Coefficients ===\n")
+coefs_cont <- fixef(fit_continuous)
+print(coefs_cont[grepl("age|bmi|baseline_score", rownames(coefs_cont)), ])
+```
+
+### 7e. Count Variables as Covariates
+
+```{r example7d-count-vars}
+# Test with count variables
+prepared_count <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ num_comorbidities + num_prior_treatments,  # Count variables
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  response_type = "continuous"
+)
+
+prepared_count$formula
+
+# Fit the model
+fit_count <- fit_brms_model(
+  prepared_model = prepared_count,
+  sigma_ref = sd(sim_data$continuous_outcome),  # Computed from outcome SD
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = "normal(0, 3 * sigma_ref)",  # Tighter prior for count effects
+  shrunk_prognostic_prior = NULL,  # No shrunk prognostic
+  shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+# Check coefficients
+cat("\n=== Count Variable Coefficients ===\n")
+coefs_count <- fixef(fit_count)
+print(coefs_count[grepl("comorbidities|prior_treatments", rownames(coefs_count)), ])
+```
+
+### 7f. Mixed Variable Types
+
+```{r example7c-mixed-types}
+# Test with mixed variable types: continuous, count, binary, and factor
+prepared_mixed <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ age + bmi + num_comorbidities + is_smoker + sex,
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  # age, bmi: continuous
+  # num_comorbidities: count
+  # is_smoker: binary (0/1)
+  # sex: factor
+  response_type = "continuous"
+)
+
+prepared_mixed$formula
+
+# Fit the model
+fit_mixed <- fit_brms_model(
+  prepared_model = prepared_mixed,
+  sigma_ref = sd(sim_data$continuous_outcome),  # Computed from outcome SD
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = NULL,  # No shrunk prognostic
+  shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+# Check all coefficients
+cat("\n=== Mixed Variable Type Coefficients ===\n")
+print(fixef(fit_mixed))
+
+# Summary
+cat("\n=== Model Summary ===\n")
+cat("Continuous vars: age, bmi\n")
+cat("Count vars: num_comorbidities\n")
+cat("Binary vars: is_smoker\n")
+cat("Factor vars: sex\n")
+```
+
+### 7g. Survival Model with Mixed Covariates
+
+```{r example7d-survival-mixed}
+# Test survival model with mixed variable types
+prepared_surv_mixed <- prepare_formula_model(
+  data = sim_data,
+  response_formula = Surv(time, status) ~ trt,
+  unshrunk_terms_formula = ~ age + num_comorbidities + is_smoker,
+  shrunk_prognostic_formula = ~ region,  # Factor in shrunk
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  response_type = "survival"
+)
+
+prepared_surv_mixed$formula
+
+# Fit (commented out to save time, uncomment to run)
+# fit_surv_mixed <- fit_brms_model(
+#   prepared_model = prepared_surv_mixed,
+#   prognostic_effect_priors = list(
+#     shrunk = "horseshoe(1)",
+#     unshrunk = "normal(0, 2)"
+#   ),
+#   predictive_effect_priors = list(
+#     shrunk = "horseshoe(1)"
+#   ),
+#   chains = 2,
+#   iter = 1000,
+#   warmup = 500,
+#   cores = 2
+# )
+```
+
+### 7h. Testing Nonlinear Terms (Splines)
+
+```{r example7e-splines}
+# You can also use spline terms for continuous variables
+library(splines)
+
+prepared_spline <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ ns(age, df = 3) + bmi,  # Natural spline for age
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  response_type = "continuous"
+)
+
+prepared_spline$formula
+
+# Fit the model
+fit_spline <- fit_brms_model(
+  prepared_model = prepared_spline,
+  sigma_ref = sd(sim_data$continuous_outcome),  # Computed from outcome SD
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = NULL,  # No shrunk prognostic
+  shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+cat("\n=== Spline Coefficients ===\n")
+coefs_spline <- fixef(fit_spline)
+print(coefs_spline[grepl("ns\\(age", rownames(coefs_spline)), ])
+```
+
+## Example 9: Variable Types Summary Table
+
+```{r example8-summary-table}
+# Create a summary of how different variable types are handled
+variable_summary <- data.frame(
+  Variable = c("age", "bmi", "baseline_score", 
+               "num_comorbidities", "num_prior_treatments",
+               "is_smoker", "sex", "region", "biomarker"),
+  Type = c("Continuous", "Continuous", "Continuous",
+           "Count", "Count",
+           "Binary", "Factor", "Factor", "Factor"),
+  Range_or_Levels = c(
+    paste0(round(range(sim_data$age), 1), collapse = " - "),
+    paste0(round(range(sim_data$bmi), 1), collapse = " - "),
+    paste0(round(range(sim_data$baseline_score), 1), collapse = " - "),
+    paste0(range(sim_data$num_comorbidities), collapse = " - "),
+    paste0(range(sim_data$num_prior_treatments), collapse = " - "),
+    "0, 1",
+    "M, F",
+    "North, South, East",
+    "Low, Medium, High"
+  ),
+  Handling = c(
+    "Direct (numeric)", "Direct (numeric)", "Direct (numeric)",
+    "Direct (integer)", "Direct (integer)",
+    "Direct (numeric)", "Contrast coding", "Contrast coding", "Contrast coding"
+  ),
+  stringsAsFactors = FALSE
+)
+
+knitr::kable(variable_summary, caption = "Variable Types in bonsaiforest2")
+```
+
+## Example 10: Coefficient-Specific Priors
+
+**ADVANCED FEATURE:** You can set different priors for specific coefficients!
+
+In this example, we'll:
+- Set `normal(0, 5*sigma_ref)` for all unshrunk terms (general prior)
+- Override with `normal(0, 1*sigma_ref)` specifically for `trt:biomarker` interactions (tighter prior)
+
+**Key insight:** Pass a `brmsprior` object (created with `c()`) to the existing `unshrunk_prior` 
+parameter. This object can contain multiple prior specifications - a general one for the class 
+and specific ones for individual coefficients.
+
+```{r example9-specific-priors}
+# Prepare model with biomarker:trt interaction in unshrunk terms
+prepared_specific <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ age + sex + trt*biomarker,  # Biomarker interaction here
+  shrunk_prognostic_formula = ~ 0 + region,
+  response_type = "continuous"
+)
+
+cat("\n=== Model Formula ===\n")
+print(prepared_specific$formula)
+
+# Compute sigma_ref
+sigma_ref <- sd(sim_data$continuous_outcome)
+
+cat("\n=== Prior Strategy ===\n")
+cat("General unshrunk prior: normal(0,", round(5 * sigma_ref, 2), ")\n")
+cat("Specific for trt:biomarker: normal(0,", round(1 * sigma_ref, 2), ")\n")
+
+
+unshrunk_priors_combined <- c(
+  brms::set_prior("normal(0, 5 * sigma_ref)", class = "b"),
+  brms::set_prior("normal(0, 1 * sigma_ref)", class = "b", coef = "trt:biomarkerLow"),
+  brms::set_prior("normal(0, 1 * sigma_ref)", class = "b", coef = "trt:biomarkerMedium")
+)
+
+cat("=== Combined Prior Object ===\n")
+print(unshrunk_priors_combined)
+cat("\nNote: fit_brms_model() will:\n")
+cat("  1. Substitute sigma_ref with the actual value\n")
+cat("  2. Add nlpar='unshrunktermeffect' to all rows\n")
+cat("  3. Preserve coefficient-specific priors\n\n")
+
+cat("=== Combined Prior Object ===\n")
+print(unshrunk_priors_combined)
+
+# Fit the model using the EXISTING unshrunk_prior parameter
+# No need for a new custom_priors parameter!
+fit_specific <- fit_brms_model(
+  prepared_model = prepared_specific,
+  sigma_ref = sigma_ref,
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = unshrunk_priors_combined,  # Pass the combined brmsprior object
+  shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+  shrunk_predictive_prior = NULL,  # No predictive terms
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+# Verify the priors were applied correctly
+cat("\n=== Priors Used in Model ===\n")
+prior_summary <- prior_summary(fit_specific)
+print(prior_summary)
+
+# Look at the coefficient estimates
+cat("\n=== Coefficient Estimates ===\n")
+coefs_specific <- fixef(fit_specific)
+
+cat("\nAge coefficient (general prior: normal(0, 5*sigma_ref)):\n")
+print(coefs_specific["unshrunktermeffect_age", ])
+
+cat("\nSex coefficient (general prior: normal(0, 5*sigma_ref)):\n")
+print(coefs_specific[grepl("^unshrunktermeffect_sex", rownames(coefs_specific)), ])
+
+cat("\nTreatment:biomarker interactions (specific prior: normal(0, 1*sigma_ref)):\n")
+print(coefs_specific[grepl("trt:biomarker", rownames(coefs_specific)), ])
+
+cat("\n=== Interpretation ===\n")
+cat("The tighter prior (normal(0, 1*sigma_ref)) on trt:biomarker interactions\n")
+cat("will shrink these estimates more toward zero compared to other unshrunk terms.\n")
+cat("This is appropriate if you believe treatment effects are small or homogeneous.\n")
+```
+
+### Alternative: Using One-Hot Encoding with Specific Priors
+
+If you want to set priors for ALL biomarker levels (not just k-1):
+
+```{r example9b-onehot-specific}
+# Use one-hot encoding to get all biomarker levels
+prepared_specific_onehot <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ age + sex + 0 + trt:biomarker,  # One-hot encoding
+  shrunk_prognostic_formula = ~ 0 + region,
+  response_type = "continuous"
+)
+
+# With one-hot encoding, all three biomarker levels appear
+# Create priors for all three levels
+# IMPORTANT: Check get_prior() output for EXACT coefficient names!
+unshrunk_priors_onehot <- c(
+  # General prior for all unshrunk terms
+  brms::set_prior("normal(0, 5 * sigma_ref)", class = "b"),
+  
+  # Specific priors for ALL three biomarker levels
+  # sigma_ref will be automatically substituted!
+  # Use EXACT names from get_prior() - typically "trt:biomarkerX" format
+  brms::set_prior("normal(0, 1 * sigma_ref)", class = "b", coef = "trt:biomarkerLow"),
+  brms::set_prior("normal(0, 1 * sigma_ref)", class = "b", coef = "trt:biomarkerMedium"),
+  brms::set_prior("normal(0, 1 * sigma_ref)", class = "b", coef = "trt:biomarkerHigh")
+)
+
+cat("\n=== One-Hot Encoding: Priors for All Biomarker Levels ===\n")
+cat("Setting normal(0, 1*sigma_ref) for ALL three biomarker:trt interactions\n\n")
+
+# Fit the model
+fit_specific_onehot <- fit_brms_model(
+  prepared_model = prepared_specific_onehot,
+  sigma_ref = sigma_ref,
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = unshrunk_priors_onehot,  # Pass the combined brmsprior object
+  shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 1000,
+  warmup = 500,
+  cores = 2,
+  refresh = 0
+)
+
+cat("\n=== All Biomarker Levels with Specific Priors ===\n")
+coefs_onehot <- fixef(fit_specific_onehot)
+print(coefs_onehot[grepl("trt:biomarker", rownames(coefs_onehot)), ])
+
+cat("\n=== Advantage of One-Hot Encoding ===\n")
+cat("All biomarker levels treated symmetrically - no arbitrary reference category\n")
+cat("Same tight prior applied to all three levels\n")
+```
+
+## Example 11: Correlated Priors via Shared Variance (stanvars)
+
+**VERY ADVANCED FEATURE:** You can create correlated priors by sharing a common variance parameter!
+
+This example demonstrates how to use `stanvars` to define a hierarchical prior structure where
+multiple coefficients share a common variance, creating dependence between them.
+
+**Use case:** When you believe treatment effects across biomarker subgroups should be similar
+(exchangeable), you can pool information by giving them a shared variance parameter.
+
+```{r example11-correlated-priors}
+# Prepare model with biomarker interactions
+prepared_corr <- prepare_formula_model(
+  data = sim_data,
+  response_formula = continuous_outcome ~ trt,
+  unshrunk_terms_formula = ~ age + sex + trt:biomarker,
+  shrunk_prognostic_formula = ~ 0 + region,
+  response_type = "continuous"
+)
+
+sigma_ref <- sd(sim_data$continuous_outcome)
+
+cat("\n=== Hierarchical Prior Structure ===\n")
+cat("Instead of independent priors:\n")
+cat("  beta_Low ~ N(0, 1*sigma_ref)\n")
+cat("  beta_Medium ~ N(0, 1*sigma_ref)\n\n")
+cat("We'll use a shared variance (inducing correlation):\n")
+cat("  tau ~ half-normal(0, 1)  [shared variance parameter]\n")
+cat("  beta_Low ~ N(0, tau)\n")
+cat("  beta_Medium ~ N(0, tau)\n\n")
+cat("This creates exchangeability: the two coefficients share information\n")
+cat("through their common variance parameter tau.\n\n")
+
+# Step 1: Define custom variance parameter using stanvar
+# CORRECT APPROACH: Declare in data block, pass value from R
+shared_variance <- brms::stanvar(
+  x = 1.0,  # Value to use
+  name = "biomarker_tau_prior",  # Name in Stan
+  block = "data"  # Where to place in Stan code
+)
+
+# The stanvar() function automatically generates the correct Stan code:
+# In data block: real<lower=0> biomarker_tau_prior;
+# And passes x = 1.0 as the data value
+
+cat("=== Stan Variable Created ===\n")
+cat("This will add to the Stan data block:\n")
+cat("  real<lower=0> biomarker_tau_prior;\n")
+cat("And pass the value 1.0 from R\n\n")
+
+# Step 2: Create priors using the shared variance
+# IMPORTANT: Reference the stanvar in the prior string
+unshrunk_priors_corr <- c(
+  # General prior for other coefficients
+  brms::set_prior("normal(0, 5 * sigma_ref)", class = "b"),
+  
+  # Correlated priors using shared variance
+  # These both reference 'biomarker_tau_prior', creating correlation
+  brms::set_prior("normal(0, biomarker_tau_prior)", class = "b", coef = "trt:biomarkerLow"),
+  brms::set_prior("normal(0, biomarker_tau_prior)", class = "b", coef = "trt:biomarkerMedium")
+)
+
+cat("\n=== Prior Specifications ===\n")
+print(unshrunk_priors_corr)
+
+# Step 3: Fit the model with stanvars
+fit_corr <- fit_brms_model(
+  prepared_model = prepared_corr,
+  sigma_ref = sigma_ref,
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = unshrunk_priors_corr,
+  shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 2000,
+  warmup = 1000,
+  cores = 2,
+  refresh = 0,
+  stanvars = shared_variance  # Pass the stanvar!
+)
+
+cat("\n=== Model Summary ===\n")
+cat("The model now uses a shared variance (tau = 1.0) for biomarker interactions\n\n")
+
+# Check the biomarker coefficients
+cat("=== Biomarker Coefficients ===\n")
+coefs_corr <- fixef(fit_corr)
+print(coefs_corr[grepl("trt:biomarker", rownames(coefs_corr)), ])
+
+cat("\n=== Key Insight ===\n")
+cat("By sharing the variance parameter:\n")
+cat("1. Both coefficients use the same prior scale (tau = 1.0)\n")
+cat("2. This creates a form of coupling between them\n")
+cat("3. In this simple version, tau is fixed at 1.0\n")
+cat("4. See Example 11b below for estimating tau from data\n")
+```
+
+### Alternative: Hierarchical Prior with Estimated Tau
+
+For a fully Bayesian approach where tau is estimated from the data:
+
+```{r example11b-hierarchical-tau}
+cat("\n=== Fully Hierarchical Approach: Estimating Tau ===\n\n")
+
+# To estimate tau, we declare it as a parameter (not data)
+# and add a prior for it in the model block
+
+# Step 1: Create stanvar for tau parameter declaration
+tau_parameter <- brms::stanvar(
+  scode = "  real<lower=0> biomarker_tau;  // Shared variance to be estimated",
+  block = "parameters"
+)
+
+# Step 2: Create stanvar for tau prior
+tau_prior <- brms::stanvar(
+  scode = "  biomarker_tau ~ normal(0, 1);  // Hyperprior on shared variance",
+  block = "model"
+)
+
+# Combine stanvars
+hierarchical_stanvars <- tau_parameter + tau_prior
+
+cat("=== Stan Code Generated ===\n")
+cat("In parameters block:\n")
+cat("  real<lower=0> biomarker_tau;\n\n")
+cat("In model block:\n")
+cat("  biomarker_tau ~ normal(0, 1);\n\n")
+
+# Step 3: Create priors referencing the estimated tau
+unshrunk_priors_hier <- c(
+  brms::set_prior("normal(0, 5 * sigma_ref)", class = "b"),
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:biomarkerLow"),
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:biomarkerMedium")
+)
+
+# Step 4: Fit the hierarchical model
+fit_hier <- fit_brms_model(
+  prepared_model = prepared_corr,
+  sigma_ref = sigma_ref,
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = unshrunk_priors_hier,
+  shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+  chains = 2,
+  iter = 2000,
+  warmup = 1000,
+  cores = 2,
+  refresh = 0,
+  stanvars = hierarchical_stanvars
+)
+
+cat("\n=== Hierarchical Model Results ===\n")
+
+# Extract the estimated tau parameter
+cat("\n=== Estimated Shared Variance (biomarker_tau) ===\n")
+tau_samples <- as.data.frame(fit_hier)$biomarker_tau
+
+if (!is.null(tau_samples) && length(tau_samples) > 0) {
+  cat("Posterior mean:", round(mean(tau_samples), 3), "\n")
+  cat("Posterior SD:", round(sd(tau_samples), 3), "\n")
+  cat("95% CI: [", round(quantile(tau_samples, 0.025), 3), ",", 
+      round(quantile(tau_samples, 0.975), 3), "]\n\n")
+  
+  cat("Interpretation:\n")
+  cat("- If tau is small (~0.5): Effects are tightly clustered around zero\n")
+  cat("- If tau is large (~2+): Effects show substantial variability\n")
+  cat("- Data-driven: tau adapts to observed treatment heterogeneity\n\n")
+} else {
+  cat("Note: Check model output for biomarker_tau parameter\n\n")
+}
+
+# Check biomarker coefficients
+cat("=== Biomarker Coefficients (with Adaptive Shrinkage) ===\n")
+coefs_hier <- fixef(fit_hier)
+print(coefs_hier[grepl("trt:biomarker", rownames(coefs_hier)), ])
+
+cat("\n=== Advantages of Hierarchical Approach ===\n")
+cat("1. Tau adapts to the data automatically\n")
+cat("2. Strong shrinkage when effects are truly similar\n")
+cat("3. Minimal shrinkage when effects are truly different\n")
+cat("4. More efficient borrowing of information\n")
+cat("5. Uncertainty in tau propagates to coefficient estimates\n")
+```
+
+### Comparison: Independent vs Correlated Priors
+
+```{r example11c-comparison, eval=FALSE}
+# Compare three approaches:
+
+# 1. Independent priors (Example 10)
+cat("=== Approach 1: Independent Priors ===\n")
+cat("beta_Low ~ N(0, 1*sigma_ref)\n")
+cat("beta_Medium ~ N(0, 1*sigma_ref)\n")
+cat("- No information sharing\n")
+cat("- More flexible but less efficient\n\n")
+
+# 2. Correlated via shared fixed variance (Example 11)
+cat("=== Approach 2: Shared Fixed Variance ===\n")
+cat("beta_Low ~ N(0, tau=1)\n")
+cat("beta_Medium ~ N(0, tau=1)\n")
+cat("- Coefficients use same scale\n")
+cat("- tau is fixed (not estimated)\n\n")
+
+# 3. Hierarchical with estimated variance (advanced)
+cat("=== Approach 3: Hierarchical with Estimated Tau ===\n")
+cat("tau ~ half-normal(0, 1)\n")
+cat("beta_Low ~ N(0, tau)\n")
+cat("beta_Medium ~ N(0, tau)\n")
+cat("- Full information sharing\n")
+cat("- tau adapts to data\n")
+cat("- Most efficient when effects are truly exchangeable\n")
+```
+
+## Testing Backward Compatibility
+
+The old string interface still works:
+
+```{r backward-compat}
+# Old string-based interface (still supported)
+prepared_strings <- prepare_formula_model(
+  data = sim_data,
+  response_formula = "Surv(time, status) ~ trt",
+  unshrunk_terms_formula = "~ age + sex",
+  shrunk_predictive_formula = "~ trt:biomarker",
+  response_type = "survival"
+)
+
+prepared_strings$formula
+```
+
+## Summary of Changes
+
+### 1. Formula Interface
+- **Before**: `response_formula_str = "Surv(time, status) ~ trt"`
+- **After**: `response_formula = Surv(time, status) ~ trt`
+- Cleaner, more natural R syntax
+- Backward compatible with strings
+
+### 1b. Automatic Parameter Flow
+- **NEW**: `trt_var`, `data`, and `response_type` flow automatically through the pipeline!
+- `prepare_formula_model()` extracts and returns `trt_var`
+- `fit_brms_model()` gets `trt_var` from prepared model and saves it with `data` and `response_type` as attributes
+- `estimate_subgroup_effects()` and `summary_subgroup_effects()` automatically extract all needed parameters from the fitted model
+- **Result**: Cleaner code with fewer parameters to track!
+
+**Example of the new workflow:**
+```r
+# Step 1: Prepare (extracts and returns trt_var)
+prepared <- prepare_formula_model(
+  data = my_data,
+  response_formula = outcome ~ trt,
+  ...
+)
+
+# Step 2: Fit (automatically gets trt_var, saves everything as attributes)
+fit <- fit_brms_model(
+  prepared_model = prepared,  # trt_var extracted automatically!
+  sigma_ref = 0.5,
+  ...
+)
+
+# Step 3: Estimate (automatically gets trt_var, data, and response_type)
+results <- estimate_subgroup_effects(fit)  # No parameters needed!
+```
+
+### 2. Relaxed Checking
+- **Treatment auto-addition**: Now just a message, not enforced
+- **Marginality principle**: Now just a message, not enforced  
+- **Intercept defaults**: Now just a message, uses default if not specified
+
+### 3. New Prior API
+- **Before**: Nested lists `prognostic_effect_priors = list(shrunk = ..., unshrunk = ...)` and `predictive_effect_priors = list(shrunk = ...)`
+- **After**: Separate parameters for each component:
+  - `sigma_ref`: Reference scale (REQUIRED - must be user-provided)
+  - `intercept_prior`: Prior for model intercept
+  - `unshrunk_prior`: Prior for unshrunk terms (unshrunktermeffect)
+  - `shrunk_prognostic_prior`: Prior for shrunk prognostic effects
+  - `shrunk_predictive_prior`: Prior for shrunk predictive effects
+- **Key Features**:
+  - `sigma_ref` is **REQUIRED** and must be computed by the user from their data
+  - For continuous/count outcomes: use `sd(outcome_variable)`
+  - For binary/survival outcomes: typically use 1
+  - Can use `sigma_ref` in prior expressions: `"normal(0, 2.5 * sigma_ref)"`
+  - More flexible and intuitive prior specification
+  - Each component gets its own prior for better control
+
+**Example:**
+```r
+# Old API (deprecated):
+# fit_brms_model(
+#   prepared_model = prepared,
+#   prognostic_effect_priors = list(
+#     shrunk = "horseshoe(1)",
+#     unshrunk = "normal(0, 5)"
+#   ),
+#   predictive_effect_priors = list(
+#     shrunk = "horseshoe(1)"
+#   )
+# )
+
+# New API:
+# Step 1: Compute sigma_ref from your data
+sigma_ref <- sd(sim_data$continuous_outcome)  # For continuous outcomes
+# sigma_ref <- 1  # For binary/survival outcomes
+
+# Step 2: Use it in fit_brms_model
+fit_brms_model(
+  prepared_model = prepared,
+  sigma_ref = sigma_ref,  # REQUIRED parameter
+  intercept_prior = "normal(50, 10 * sigma_ref)",
+  unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
+  shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)"
+)
+```
+
+### 4. One-Hot Encoding for Interactions
+- **NEW**: Using `~ 0 + trt:factor_var` applies one-hot encoding
+- **Result**: ALL factor levels appear in interactions (not k-1)
+- **Use case**: Full control over parameterization, useful for:
+  - Comparing all subgroups (not just vs reference)
+  - Avoiding arbitrary reference category choices
+  - Horseshoe/regularization priors that work on all levels equally
+
+**Example:**
+```r
+# Standard (k-1 levels): ~ trt:region
+# One-hot (all levels): ~ 0 + trt:region
+```
+
+### 5. Benefits
+- More control over your model specification
+- Clear messages about statistical best practices
+- No surprising automatic changes to your model
+- Full factor-level representation when desired
+- Flexible prior specification with automatic reference scaling

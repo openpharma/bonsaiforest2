@@ -1,0 +1,405 @@
+---
+title: "brms_lf_contrast"
+output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Solution and new problem
+```{r}
+dfpred <- data.frame(a = 1:10, b = factor(c("b", "a")), z = factor(rep(c("z1", "z2", "z3"), length = 10)))
+df <- data.frame(a = 1:10, b = factor(c("a", "b")), z = factor(rep(c("z1", "z2", "z3"), length = 10)))
+contrasts(df$b) <- contr.treatment(levels(df$b))
+contrasts(df$z, nlevels(df$z)) <- contr.treatment(levels(df$z), contrasts = FALSE)
+model.matrix(a~1+b+z, data = df)
+
+str(df)
+
+model.matrix(a~0+b+z, data = df, 
+             contrasts.arg = list(
+                 b = contr.treatment(levels(df$b), contrasts = FALSE),
+                 z = contr.treatment(levels(df$z), contrasts = FALSE))
+             )
+
+a.lm <- lm(a~1+b+z, data = df)
+summary(a.lm)
+predict(a.lm, newdata = df)
+model.matrix(a.lm, data = dfpred)
+predict(a.lm, newdata = dfpred)
+
+# - recommend user to always put ~ 0 to remove intercept for everything except unshrunken prognostic
+# - by default all shrunken factor terms get one-hot encoding and unshrunken get dummy encoding and this applies to prognostic and predictive
+# - if user wants some different contrasts they should specify these in the data frame. Code should check which factor variables have contrasts and add if missing as described in 1. and 2.
+
+
+# test if this manual specified contrasts are somehow encoded in the model and work automatically for prediction.
+```
+
+## Problem: same encoding with interaction!
+
+```{r}
+df <- data.frame(
+  a = 1:10,
+  b = factor(c("a", "b")),
+  z = factor(rep(c("z1", "z2", "z3"), length = 10)), 
+  trt = as.numeric(sample(0:1, 10, replace = TRUE))
+)
+contrasts(df$z) <- contr.treatment(levels(df$z))
+contrasts(df$b, nlevels(df$b)-1) <- contr.treatment(levels(df$b), contrasts = TRUE)
+#contrasts(df$trt, nlevels(df$trt)-1) <- contr.treatment(levels(df$trt), contrasts = TRUE)
+model.matrix(a~0+b:trt, data = df)
+model.matrix(a~0+z:trt, data = df)
+model.matrix(a~0+b, data = df)
+model.matrix(a~1+b, data = df)
+
+summary(lm(a~1+b:trt, data = df))
+
+contrasts(df$b) <- contr.treatment(levels(df$b))
+model.matrix(a~1+b:trt, data = df)
+
+model.matrix(a~1+b, data = df)
+```
+
+
+```{r}
+#Put unshrunk terms together!
+contrasts(df$b) <- contr.treatment(levels(df$b))
+model.matrix(a~1+trt+b*trt, data = df)
+
+model.matrix(a~1+b, data = df)
+
+
+mm <- model.matrix(~ 0 + I((b == "b") * trt), data = df)
+
+head(mm)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# PROBLEM STATEMENT
+
+## Background
+When fitting linear models with categorical predictors (factors) in R, the model always includes at least as many parameters as the factor has levels, regardless of the contrast coding scheme used. This behavior is consistent across both `lm()` and `brms`.
+
+### Easy Example
+```{r}
+# --- 1. Generate Synthetic Data ---
+set.seed(123)
+N <- 300
+data_lm <- data.frame(
+  y= rnorm(N),
+  Fac1 = sample(c("A", "B"), N, replace = TRUE)
+)
+
+# --- 2. Fit a Linear Model using default contrasts ---
+fit_lm <- lm(y~  Fac1, data=data_lm)
+print(fit_lm$coefficients)
+
+# --- 3. Fit a Linear Model using treatment contrasts (or other types) ---
+
+# Example A: Explicitly specifying treatment contrasts (Default behavior)
+fit_lm_treat <- lm(y ~ Fac1, data = data_lm, 
+                   contrasts = list(Fac1 = "contr.treatment"))
+print(fit_lm_treat$coefficients)
+
+# Example B: Using Sum contrasts (Comparing groups to the grand mean)
+fit_lm_sum <- lm(y ~ 0+Fac1, data = data_lm, 
+                 contrasts = list(Fac1 = "contr.sum"))
+
+print(fit_lm_sum$coefficients)
+
+```
+
+## Why is this a problem for us?
+In our Bayesian subgroup analysis framework, we allow users to specify different types of effects with different prior specifications:
+
+| Effect Type           | With Shrinkage  | Without Shrinkage |
+|:----------------------|:----------------|:------------------|
+| **Prognostic Effect** | `~ Fac2`        | `~ 1 + Fac1`      |
+| **Predictive Effect** | `~ Fac1:trt`    | `~ Fac2:trt`      |
+
+Assuming both Fac1 and Fac2 have 2 levels (A and B), the desired global model should be:
+
+$$
+Y= \underbrace{\alpha}_\text{Intercept} + \underbrace{\beta_{prog,Fac1\_B}Fac1\_B+\beta_{prog,Fac2\_B}Fac2\_B}_\text{Prognostic with dummy coding} + \underbrace{\beta_{pred,Fac1\_A}Fac1\_A\cdot Trt+ \beta_{pred,Fac1\_B}Fac1\_B\cdot Trt + \beta_{pred,Fac2\_A}Fac2\_A\cdot Trt + \beta_{pred,Fac2\_B}Fac2\_B\cdot Trt}_\text{Predictive with one-hot encoding}
+$$
+
+**The Problem:** To assign different priors to each formula type, we use `brms`'s non-linear syntax with separate linear functions (`lf()`) for each component. However, when combining formulas with and without intercepts (e.g., shrunk vs. unshrunk prognostic effects), `brms` creates **multiple intercepts**—one for each linear function—leading to model identifiability issues.
+
+## Showing the Problem
+```{r}
+library(brms)
+library(dplyr)
+
+# 1. Synthetic Data
+N <- 300
+data <- data.frame(
+  y = rnorm(N, 10, 2),
+  Fac1 = sample(c("A", "B"), N, replace = TRUE), 
+  Fac2 = sample(c("A", "B"), N, replace = TRUE), 
+  trt  = sample(c("trt", "cont"), N, replace = TRUE)
+)
+# 2. The Formula
+f_auto <- bf(y ~ eta1 + eta2, nl = TRUE) +
+  lf(eta1 ~ 1 + Fac1) + 
+  lf(eta2 ~ 0+ Fac2)
+
+# 3. The prior definition
+priors_auto <- c(
+  prior(normal(0, 5), nlpar = "eta1"),
+  prior(normal(0, 5), nlpar = "eta2")
+)
+
+# 4. Fit
+fit <- brm(
+  f_auto, 
+  data = data, 
+  prior = priors_auto, 
+  chains = 2, iter = 2000, refresh = 0
+)
+# ISSUE: Observe that we get an Intercept for BOTH eta1 and eta2
+# This creates identifiability problems: which intercept represents the baseline?
+```
+
+---
+
+# PROPOSED SOLUTIONS
+
+We have identified two approaches to resolve this issue. Each has distinct trade-offs in terms of implementation complexity, user experience, and maintainability.
+
+## Option 1: Constrain Redundant Intercepts with Fixed Priors
+
+**Approach:** Allow `brms` to create multiple intercepts but constrain all but one to exactly zero using a `constant(0)` prior.
+
+### Implementation
+
+There is an option for setting the second intercept to 0 by giving it a constant 0 prior.
+```{r}
+# 3. Redefine the priors
+# We allow eta1 to have a free Intercept (Global Baseline).
+# We force eta2's Intercept to be exactly 0.
+priors_auto <- c(
+  prior(normal(0, 5), nlpar = "eta1"),
+  prior(normal(0, 5), nlpar = "eta2"),
+  prior(constant(0), class = "b", coef = "Intercept", nlpar = "eta2")
+)
+
+# 4. Fit
+fit <- brm(
+  f_auto, 
+  data = data, 
+  prior = priors_auto, 
+  chains = 2, iter = 2000, refresh = 0
+)
+
+print(fit)
+# SUCCESS: Only eta1 has a free intercept; eta2's intercept is fixed at 0
+```
+
+### Pros and Cons
+
+**Advantages:**
+- **Minimal code changes:** Works directly with existing `brms` infrastructure
+- **No data manipulation:** Original data remains unchanged
+- **Automatic handling:** `brms` manages the design matrix internally
+- **Cleaner workflow:** Users don't need to worry about dummy variable creation
+
+**Disadvantages:**
+- **Less transparent:** The constraint on intercepts is "hidden" in prior specifications
+- **Potential confusion:** Model output still shows the constrained intercept (value = 0)
+- **Prior specification complexity:** Requires careful tracking of which linear functions need intercept constraints
+- **Limited flexibility:** If model structure changes, prior constraints must be manually updated
+
+---
+
+## Option 2: Manual Dummy Variable Creation
+
+**Approach:** Pre-process the data to create explicit dummy variables, giving complete control over the design matrix.
+
+### Implementation 2
+
+```{r}
+# Helper function to automatically create dummy variables for all factors
+create_factor_dummies <- function(data, exclude_cols = NULL) {
+  # Convert all character columns to factors
+  for (col in names(data)) {
+    if (is.character(data[[col]])) {
+      data[[col]] <- as.factor(data[[col]])
+    }
+  }
+  
+  # Identify factor columns (excluding those in exclude_cols)
+  factor_cols <- names(data)[sapply(data, is.factor)]
+  factor_cols <- setdiff(factor_cols, exclude_cols)
+  
+  # For each factor column, create dummy variables for non-reference levels
+  for (col in factor_cols) {
+    factor_levels <- levels(data[[col]])
+    # Skip the reference level (first level)
+    non_ref_levels <- factor_levels[-1]
+    
+    for (level in non_ref_levels) {
+      new_col_name <- paste0(col, "_", level)
+      data[[new_col_name]] <- as.numeric(data[[col]] == level)
+    }
+  }
+  
+  return(data)
+}
+
+
+# --- 1. Generate Synthetic Data ---
+# Use the previous one
+
+# --- 2. Create Explicit Dummy Columns ---
+dummy_data <- create_factor_dummies(data, exclude_cols = "y")
+
+# --- 3. Define the brms Model ---
+f_sum <- bf(y ~ eta1 + eta2, nl = TRUE) +
+  lf(eta1 ~ 1 + Fac1_B) +
+  lf(eta2 ~ 0 + Fac2_B)
+
+# --- 4. Define Priors ---
+priors <- c(
+  prior(normal(0, 10), nlpar = "eta1"),
+  prior(normal(0, 10), nlpar = "eta2")
+)
+
+# --- 5. Fit the Model ---
+fit <- brm(
+  formula = f_sum,
+  data = dummy_data,
+  prior = priors,
+  chains = 2,   
+  iter = 2000,
+  refresh = 0, 
+  seed = 123
+)
+
+# --- 6. View Results ---
+print(summary(fit))
+# SUCCESS: We have explicit control over which dummy variables are included
+```
+
+### Pros and Cons
+
+**Advantages:**
+- **Complete transparency:** The design matrix is explicit and visible
+- **Full control:** Exact specification of which parameters appear in the model
+- **No prior tricks:** Straightforward model specification without constraint priors
+- **Easier debugging:** Users can inspect dummy variables directly in the data
+- **Consistent with traditional modeling:** Familiar approach for users with classical statistics background
+
+**Disadvantages:**
+- **Data manipulation required:** Must transform data before modeling
+- **Increased complexity:** Additional data preprocessing step
+- **Prediction complications:** New data must undergo the same dummy variable creation
+- **Potential errors:** Risk of inconsistent dummy coding between training and prediction data
+- **Less elegant:** More manual bookkeeping compared to letting `brms` handle contrasts
+- **Memory overhead:** Explicitly stores dummy variables that `brms` would otherwise create internally
+
+---
+
+# RECOMMENDATIONS
+
+## For Our Use Case
+
+**Recommendation: Option 1 (Constrained Intercepts)**
+
+**Rationale:**
+1. **Maintainability:** Less prone to errors in the data preprocessing pipeline
+2. **User experience:** Users work with original factor variables, not dummy columns
+3. **Consistency:** Predictions automatically use the correct contrasts
+4. **Scalability:** Easier to extend when adding new features or formula types
+
+**Implementation Plan:**
+1. Automatically detect when multiple linear functions would create intercepts
+2. Apply `constant(0)` priors to all intercepts except the first (global baseline)
+3. Document this behavior clearly for users
+4. Add diagnostic warnings if unusual intercept patterns are detected
+
+## Alternative Scenarios Where Option 2 Might Be Preferred
+
+Option 2 could be advantageous if:
+- Users need to inspect or validate the exact design matrix
+- The package will be used in educational contexts where transparency is critical
+- There are concerns about `brms` version compatibility with constraint priors
+- Fine-grained control over contrast coding is essential for specific applications
+
+---
+
+# NEXT STEPS
+
+1. **Implement Option 1** as the default approach
+2. **Create comprehensive unit tests** to verify correct intercept handling across different formula combinations
+3. **Document the behavior** in package vignettes with clear examples
+4. **Consider adding Option 2** as an advanced feature for users who prefer explicit control
+5. **Validate** that both approaches produce equivalent posterior inferences on test datasets
+
+---
+
+# APPENDIX: Testing Equivalence
+
+To verify both approaches yield equivalent results, we should:
+
+```{r eval=FALSE}
+# Compare posterior distributions from both methods
+# (Code to be added after implementation)
+  seed = 123
+)
+
+# --- 6. View Results ---
+print(summary(fit))
+
+# --- 7. Prediction on New Data ---
+set.seed(456)
+new_data <- data.frame(
+  Fac1 = sample(c("A", "B"), 50, replace = TRUE),
+  Fac2 = sample(c("A", "B"), 50, replace = TRUE)
+)
+
+# Create dummy variables for new data using the same function
+dummy_new_data <- create_factor_dummies(new_data, exclude_cols = NULL)
+
+# Generate predictions
+predictions <- posterior_epred(fit, newdata = dummy_new_data)
+
+# View summary of predictions
+cat("Prediction summary (first 10 rows):\n")
+print(head(predictions, 10))
+
+cat("\nMean predictions:\n")
+print(head(colMeans(predictions), 10))
+
+cat("\nCredible intervals (first 5 samples):\n")
+print(apply(predictions[, 1:5], 2, function(x) quantile(x, c(0.025, 0.5, 0.975))))
+```
+
