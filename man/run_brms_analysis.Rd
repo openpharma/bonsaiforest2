@@ -22,54 +22,72 @@ run_brms_analysis(
 )
 }
 \arguments{
-\item{data}{`data.frame`. Dataset containing all necessary variables.}
+\item{data}{A data frame. Dataset containing all necessary variables including response,
+treatment, and covariates. This is passed to \code{prepare_formula_model()} for preprocessing.}
 
-\item{response_formula}{`formula`. Response specification (e.g., `outcome ~ trt` or `Surv(time, status) ~ trt`).}
+\item{response_formula}{A formula object. Response specification defining the outcome and
+treatment. Examples: \code{outcome ~ trt} for continuous, or \code{Surv(time, status) ~ trt} for
+survival. Passed to \code{prepare_formula_model()}.}
 
-\item{response_type}{`character(1)`. Outcome type: `"binary"`, `"count"`, `"continuous"`, or `"survival"`.}
+\item{response_type}{A character string. Outcome type, one of \code{"binary"}, \code{"count"},
+\code{"continuous"}, or \code{"survival"}. Determines the likelihood function and link used.
+Passed to \code{prepare_formula_model()}.}
 
-\item{unshrunk_terms_formula}{`formula` or `NULL`. Unshrunk terms specification (`unshrunktermeffect`).
-May include main effects and treatment interactions without regularization (e.g., `~ age + sex + trt*region`).}
+\item{unshrunk_terms_formula}{A formula object or \code{NULL}. Unshrunk terms specification for
+the \code{unshrunktermeffect} component. May include main effects and treatment interactions
+without regularization (e.g., \code{~ age + sex + trt*region}). Passed to \code{prepare_formula_model()}.}
 
-\item{shrunk_prognostic_formula}{`formula` or `NULL`. Prognostic effects for strong regularization
-(`shprogeffect`). Must use `~ 0 + ...` syntax (e.g., `~ 0 + biomarker1 + biomarker2`).}
+\item{shrunk_prognostic_formula}{A formula object or \code{NULL}. Prognostic effects for strong
+regularization in the \code{shprogeffect} component. Must use \code{~ 0 + ...} syntax for one-hot
+encoding (e.g., \code{~ 0 + biomarker1 + biomarker2}). Passed to \code{prepare_formula_model()}.}
 
-\item{shrunk_predictive_formula}{`formula` or `NULL`. Treatment interactions for strong regularization
-(`shpredeffect`). Must use `~ 0 + ...` syntax (e.g., `~ 0 + trt:subgroup` or `~ (0 + trt || subgroup)`).}
+\item{shrunk_predictive_formula}{A formula object or \code{NULL}. Treatment interactions for strong
+regularization in the \code{shpredeffect} component. Must use \code{~ 0 + ...} syntax for one-hot
+encoding (e.g., \code{~ 0 + trt:subgroup} or \code{~ (0 + trt || subgroup)}). Passed to
+\code{prepare_formula_model()}.}
 
-\item{stratification_formula}{`formula` or `NULL`. Stratification variable specification (e.g., `~ strata_var`).}
+\item{stratification_formula}{A formula object or \code{NULL}. Stratification variable specification
+(e.g., \code{~ strata_var}). For survival models, estimates separate baseline hazards per stratum.
+For other models, models varying distributional parameters. Passed to \code{prepare_formula_model()}.}
 
-\item{sigma_ref}{`numeric(1)`. Reference scale for priors (REQUIRED). For continuous/count outcomes,
-typically `sd(outcome_variable)`. For binary/survival, typically 1. Referenced in prior
-expressions (e.g., `"normal(0, 2.5 * sigma_ref)"`).}
+\item{sigma_ref}{A numeric scalar (REQUIRED). Reference scale for priors. For continuous and
+count outcomes, typically \code{sd(outcome_variable)} or protocol-specified value. For binary
+and survival, typically 1. Referenced in prior expressions (e.g., \code{"normal(0, 2.5 * sigma_ref)"}).
+Passed to \code{fit_brms_model()}.}
 
-\item{intercept_prior}{`character(1)` or `brmsprior` or `NULL`. Intercept prior for `unshrunktermeffect`.
-Not used for survival models. Example: `"normal(0, 10 * sigma_ref)"`.}
+\item{intercept_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Intercept prior for
+\code{unshrunktermeffect} component. Not used for survival models. Example:
+\code{"normal(0, 10 * sigma_ref)"}. Passed to \code{fit_brms_model()}.}
 
-\item{unshrunk_prior}{`character(1)` or `brmsprior` or `NULL`. Prior for unshrunk terms
-(non-intercept coefficients in `unshrunktermeffect`). Example: `"normal(0, 2.5 * sigma_ref)"`.}
+\item{unshrunk_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior for unshrunk
+terms (non-intercept coefficients in \code{unshrunktermeffect} component). Example:
+\code{"normal(0, 2.5 * sigma_ref)"}. Passed to \code{fit_brms_model()}.}
 
-\item{shrunk_prognostic_prior}{`character(1)` or `brmsprior` or `NULL`. Prior for regularized
-prognostic effects. Typically strong regularization. Example: `"horseshoe(scale_global = sigma_ref)"`.}
+\item{shrunk_prognostic_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior for
+regularized prognostic effects in \code{shprogeffect} component. Typically strong regularization.
+Example: \code{"horseshoe(scale_global = sigma_ref)"}. Passed to \code{fit_brms_model()}.}
 
-\item{shrunk_predictive_prior}{`character(1)` or `brmsprior` or `NULL`. Prior for regularized
-predictive effects (treatment interactions). Example: `"horseshoe(scale_global = 0.5 * sigma_ref)"`.}
+\item{shrunk_predictive_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior for
+regularized predictive effects (treatment interactions) in \code{shpredeffect} component.
+Example: \code{"horseshoe(scale_global = 0.5 * sigma_ref)"}. Passed to \code{fit_brms_model()}.}
 
-\item{stanvars}{`stanvars` or `NULL`. Custom Stan code via `brms::stanvar()` for hierarchical priors.}
+\item{stanvars}{A \code{stanvars} object or \code{NULL}. Custom Stan code via \code{brms::stanvar()} for
+hierarchical priors or advanced functionality. Passed to \code{fit_brms_model()}.}
 
-\item{...}{Additional arguments for `brms::brm()` (e.g., `chains`, `iter`, `cores`, `backend`).}
+\item{...}{Additional arguments passed to \code{brms::brm()} via \code{fit_brms_model()}. Common
+arguments include \code{chains}, \code{iter}, \code{cores}, \code{backend}, and \code{refresh}.}
 }
 \value{
-`brmsfit`. Fitted Bayesian model object with stored attributes for downstream analysis.
+\code{brmsfit}. Fitted Bayesian model object with stored attributes for downstream analysis.
 }
 \description{
 This high-level wrapper function streamlines the entire process of preparing
-and fitting a complex Bayesian hierarchical model with `brms`.
+and fitting a complex Bayesian hierarchical model with \code{brms}.
 }
 \details{
 This function is the main user-facing entry point. It first calls
-`prepare_formula_model` to build the `brmsformula` and process the data,
-then passes the results to `fit_brms_model` to run the analysis.
+\code{prepare_formula_model} to build the \code{brmsformula} and process the data,
+then passes the results to \code{fit_brms_model} to run the analysis.
 }
 \examples{
 if (require("brms") && require("survival")) {

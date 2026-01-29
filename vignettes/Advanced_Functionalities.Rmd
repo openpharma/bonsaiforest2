@@ -78,7 +78,6 @@ count_model_fit <- run_brms_analysis(
 
 # Customizing Prior Distributions
 
-
 The choice of prior is central to Bayesian shrinkage. `bonsaiforest2` provides sensible defaults, but it allows for full customization using the `prognostic_effect_priors` and `predictive_effect_priors` arguments.
 
 ## Prior Specification Mechanics
@@ -86,7 +85,7 @@ The choice of prior is central to Bayesian shrinkage. `bonsaiforest2` provides s
 **NEW API:** Priors are now specified using separate parameters for each component, with a **required** `sigma_ref` parameter that serves as the reference scale.
 
 | Prior Component | Parameter Name | Default Prior | Notes |
-|:-----------------|:-----------------|:-----------------|:------------------|
+|:---|:---|:---|:---|
 | **Reference Scale** | `sigma_ref` | **REQUIRED** | Must be user-specified: `sd(outcome)` for continuous/count, typically `1` for binary/survival |
 | **Intercept** | `intercept_prior` | `normal(mean(outcome), 5*sigma_ref)` | Automatically centered at observed mean |
 | **Unshrunk Terms** | `unshrunk_prior` | `normal(0, 5*sigma_ref)` | Weakly informative |
@@ -102,11 +101,12 @@ For non-shrunk (fixed) effects, choosing a **weakly informative prior** is criti
 $$\sigma_{outcome} = \text{SD}(\text{Outcome})$$
 
 | Parameter | Recommended Prior Scale | Justification |
-|:-----------------------|:-----------------------|:-----------------------|
+|:---|:---|:---|
 | **Intercept** | $\text{Normal}(0, 10 \times \sigma_{outcome})$ | Wide enough to cover the range of outcomes if all predictors are zero. |
 | **Unshrunk Prognostic** | $\text{Normal}(0, \sigma_{outcome})$ | Assumes a typical coefficient's impact is roughly comparable to the magnitude of the outcome's variability. |
 
 ## Practical Examples of Prior Setting
+
 To provide a functional example, we will generate a **synthetic dataset** that mirrors the structure of the **Tirzepatide (SURPASS-2) trial** case study described in Wang et al. (2024). This study used a **continuous endpoint** (change in HbA1c), which fits perfectly with your code snippet calculating the standard deviation (`sd`).
 
 ### Dataset Generation and Model Preparation (Synthetic SURPASS-2)
@@ -173,8 +173,7 @@ print(prepared_model$formula)
 head(prepared_model$data)
 ```
 
-### Model Preparation 
-
+### Model Preparation
 
 ### Example 2: Using Default Priors (Recommended)
 
@@ -433,7 +432,7 @@ if (!is.null(tau_samples) && length(tau_samples) > 0) {
 }
 ```
 
-#Stratification for Nuisance Parameters 
+#Stratification for Nuisance Parameters
 
 In many trials, parameters like the observation error variance ($\sigma^2$ for continuous outcomes) or the baseline hazard function ($h_0(t)$ for survival outcomes) are known to vary by site, country, or other factors. Stratification models this known heterogeneity by fitting these nuisance parameters separately for each level of a grouping variable.
 
@@ -477,7 +476,6 @@ fit_continuous_stratified <- run_brms_analysis(
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 ```
-
 
 ```{r}
 strat_continuous_summary <- summary_subgroup_effects(
@@ -543,11 +541,11 @@ plot(strat_surv_summary, title = "Stratified Survival: Subgroup Effects (AHR)")
 
 This vignette demonstrated advanced functionalities in `bonsaiforest2`:
 
-1. **Offset variables** for count outcomes with varying exposure times
-2. **Custom prior specification** with the new `sigma_ref` API
-3. **One-hot encoding** for full factor representation in interactions
-4. **Coefficient-specific priors** for fine-grained control
-5. **Hierarchical priors** with shared variance using `stanvars`
-6. **Stratification** for nuisance parameters that vary by groups
+1.  **Offset variables** for count outcomes with varying exposure times
+2.  **Custom prior specification** with the new `sigma_ref` API
+3.  **One-hot encoding** for full factor representation in interactions
+4.  **Coefficient-specific priors** for fine-grained control
+5.  **Hierarchical priors** with shared variance using `stanvars`
+6.  **Stratification** for nuisance parameters that vary by groups
 
 These features provide researchers with powerful tools for complex trial analyses while maintaining the principled Bayesian shrinkage framework.
