@@ -264,7 +264,7 @@ global_model <- run_brms_analysis(
 #> shpredeffect ~ 0 + trt:region + trt:comorbidity + trt:age_group + trt:sex + trt:diabetes
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 1 finished in 3.3 seconds.
 ```
 
 ### 4.2 Global Model: Summary of Subgroup Effects
