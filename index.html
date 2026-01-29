@@ -148,8 +148,8 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1: Gradient evaluation took 6.9e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.69 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1: Gradient evaluation took 6.7e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.67 seconds.</span></span>
 <span><span class="co">#&gt; Chain 1: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
@@ -166,15 +166,15 @@
 <span><span class="co">#&gt; Chain 1: Iteration: 900 / 1000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 1: Iteration: 1000 / 1000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
-<span><span class="co">#&gt; Chain 1:  Elapsed Time: 0.997 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 1:                0.937 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 1:                1.934 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 1:  Elapsed Time: 1.047 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 1:                0.981 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1:                2.028 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 1: </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2: Gradient evaluation took 3.5e-05 seconds</span></span>
-<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.35 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2: Gradient evaluation took 3.6e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.36 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2: Adjust your expectations accordingly!</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
@@ -191,9 +191,9 @@
 <span><span class="co">#&gt; Chain 2: Iteration: 900 / 1000 [ 90%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 2: Iteration: 1000 / 1000 [100%]  (Sampling)</span></span>
 <span><span class="co">#&gt; Chain 2: </span></span>
-<span><span class="co">#&gt; Chain 2:  Elapsed Time: 1.008 seconds (Warm-up)</span></span>
-<span><span class="co">#&gt; Chain 2:                0.711 seconds (Sampling)</span></span>
-<span><span class="co">#&gt; Chain 2:                1.719 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 2:  Elapsed Time: 1.061 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 2:                0.752 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2:                1.813 seconds (Total)</span></span>
 <span><span class="co">#&gt; Chain 2:</span></span>
 <span><span class="co">#&gt; Warning: There were 2 divergent transitions after warmup. See</span></span>
 <span><span class="co">#&gt; https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup</span></span>
@@ -218,9 +218,6 @@
 <span><span class="co">#&gt; Using data from model attributes</span></span>
 <span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
 <span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model...</span></span>
-<span><span class="co">#&gt; Model data has 200 rows and 5 columns</span></span>
-<span><span class="co">#&gt; Column names: outcome, trt, age_cat, region, biomarker</span></span>
-<span><span class="co">#&gt; Treatment variable: 'trt'</span></span>
 <span><span class="co">#&gt; All coefficient names:</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_Intercept</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_age_cat&gt;EQ65</span></span>
@@ -246,11 +243,6 @@
 <span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionEU'</span></span>
 <span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionUS'</span></span>
 <span><span class="co">#&gt; Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerPos'</span></span>
-<span><span class="co">#&gt; Checking for random effects parameters...</span></span>
-<span><span class="co">#&gt; Retrieved 21 total parameters from model</span></span>
-<span><span class="co">#&gt; Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'</span></span>
-<span><span class="co">#&gt; Found 0 matching random effect parameters</span></span>
-<span><span class="co">#&gt; No random effect parameters matching the pattern were found</span></span>
 <span><span class="co">#&gt; ...detected subgroup variable(s): age_cat, region, biomarker</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.</span></span>
@@ -266,7 +258,7 @@
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
 <span><span class="co">#&gt; Done.</span></span></code></pre></div>
-<p><img src="reference/figures/README-unnamed-chunk-3-1.png" width="100%"></p>
+<p><img src="reference/figures/README-example-1-1.png" width="100%"></p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

@@ -100,8 +100,8 @@ fit <- run_brms_analysis(
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
 #> Chain 1: 
-#> Chain 1: Gradient evaluation took 6.9e-05 seconds
-#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.69 seconds.
+#> Chain 1: Gradient evaluation took 6.7e-05 seconds
+#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.67 seconds.
 #> Chain 1: Adjust your expectations accordingly!
 #> Chain 1: 
 #> Chain 1: 
@@ -118,15 +118,15 @@ fit <- run_brms_analysis(
 #> Chain 1: Iteration: 900 / 1000 [ 90%]  (Sampling)
 #> Chain 1: Iteration: 1000 / 1000 [100%]  (Sampling)
 #> Chain 1: 
-#> Chain 1:  Elapsed Time: 0.997 seconds (Warm-up)
-#> Chain 1:                0.937 seconds (Sampling)
-#> Chain 1:                1.934 seconds (Total)
+#> Chain 1:  Elapsed Time: 1.047 seconds (Warm-up)
+#> Chain 1:                0.981 seconds (Sampling)
+#> Chain 1:                2.028 seconds (Total)
 #> Chain 1: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).
 #> Chain 2: 
-#> Chain 2: Gradient evaluation took 3.5e-05 seconds
-#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.35 seconds.
+#> Chain 2: Gradient evaluation took 3.6e-05 seconds
+#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.36 seconds.
 #> Chain 2: Adjust your expectations accordingly!
 #> Chain 2: 
 #> Chain 2: 
@@ -143,9 +143,9 @@ fit <- run_brms_analysis(
 #> Chain 2: Iteration: 900 / 1000 [ 90%]  (Sampling)
 #> Chain 2: Iteration: 1000 / 1000 [100%]  (Sampling)
 #> Chain 2: 
-#> Chain 2:  Elapsed Time: 1.008 seconds (Warm-up)
-#> Chain 2:                0.711 seconds (Sampling)
-#> Chain 2:                1.719 seconds (Total)
+#> Chain 2:  Elapsed Time: 1.061 seconds (Warm-up)
+#> Chain 2:                0.752 seconds (Sampling)
+#> Chain 2:                1.813 seconds (Total)
 #> Chain 2:
 #> Warning: There were 2 divergent transitions after warmup. See
 #> https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
@@ -170,9 +170,6 @@ subgroup_effects <- summary_subgroup_effects(
 #> Using data from model attributes
 #> Step 1: Identifying subgroups and creating counterfactuals...
 #> `subgroup_vars` set to 'auto'. Detecting from model...
-#> Model data has 200 rows and 5 columns
-#> Column names: outcome, trt, age_cat, region, biomarker
-#> Treatment variable: 'trt'
 #> All coefficient names:
 #> unshrunktermeffect_Intercept
 #> unshrunktermeffect_age_cat>EQ65
@@ -198,11 +195,6 @@ subgroup_effects <- summary_subgroup_effects(
 #> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionEU'
 #> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionUS'
 #> Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerPos'
-#> Checking for random effects parameters...
-#> Retrieved 21 total parameters from model
-#> Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'
-#> Found 0 matching random effect parameters
-#> No random effect parameters matching the pattern were found
 #> ...detected subgroup variable(s): age_cat, region, biomarker
 #> Step 2: Generating posterior predictions...
 #> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
@@ -220,4 +212,4 @@ plot(subgroup_effects)
 #> Done.
 ```
 
-![](reference/figures/README-unnamed-chunk-3-1.png)
+![](reference/figures/README-example-1-1.png)
