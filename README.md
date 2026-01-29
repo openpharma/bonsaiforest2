@@ -101,8 +101,8 @@ fit <- run_brms_analysis(
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
 #> Chain 1: 
-#> Chain 1: Gradient evaluation took 6.7e-05 seconds
-#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.67 seconds.
+#> Chain 1: Gradient evaluation took 7.6e-05 seconds
+#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.76 seconds.
 #> Chain 1: Adjust your expectations accordingly!
 #> Chain 1: 
 #> Chain 1: 
@@ -119,9 +119,9 @@ fit <- run_brms_analysis(
 #> Chain 1: Iteration: 900 / 1000 [ 90%]  (Sampling)
 #> Chain 1: Iteration: 1000 / 1000 [100%]  (Sampling)
 #> Chain 1: 
-#> Chain 1:  Elapsed Time: 1.047 seconds (Warm-up)
-#> Chain 1:                0.981 seconds (Sampling)
-#> Chain 1:                2.028 seconds (Total)
+#> Chain 1:  Elapsed Time: 1.05 seconds (Warm-up)
+#> Chain 1:                0.986 seconds (Sampling)
+#> Chain 1:                2.036 seconds (Total)
 #> Chain 1: 
 #> 
 #> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).
@@ -144,9 +144,9 @@ fit <- run_brms_analysis(
 #> Chain 2: Iteration: 900 / 1000 [ 90%]  (Sampling)
 #> Chain 2: Iteration: 1000 / 1000 [100%]  (Sampling)
 #> Chain 2: 
-#> Chain 2:  Elapsed Time: 1.061 seconds (Warm-up)
-#> Chain 2:                0.752 seconds (Sampling)
-#> Chain 2:                1.813 seconds (Total)
+#> Chain 2:  Elapsed Time: 1.059 seconds (Warm-up)
+#> Chain 2:                0.77 seconds (Sampling)
+#> Chain 2:                1.829 seconds (Total)
 #> Chain 2:
 #> Warning: There were 2 divergent transitions after warmup. See
 #> https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
