@@ -30,7 +30,7 @@ remotes::install_github("openpharma/bonsaiforest2")
 
 This example demonstrates the usage of `bonsaiforest2` for subgroup treatment effect estimation across multiple overlapping subgroups (Age, Region, and Biomarker) using a Global Modeling approach with a Regularized Horseshoe prior.
 
-```{r example-1}
+```{r example-1, message=FALSE, warning=FALSE, results='hide'}
 library(bonsaiforest2)
 
 # 1. Simulate trial data
@@ -59,6 +59,11 @@ fit <- run_brms_analysis(
 subgroup_effects <- summary_subgroup_effects(
   brms_fit = fit
 )
+```
+
+```{r}
+# Print summary
+print(subgroup_effects)
 
 # 4. Visualize Results
 plot(subgroup_effects)
