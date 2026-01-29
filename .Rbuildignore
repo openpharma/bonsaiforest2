@@ -23,3 +23,6 @@ TODO
 ^ESTIMATE_SUBGROUP_EFFECTS_DETAILED_GUIDE\.Rmd$
 ^FIT_BRMS_MODEL_DETAILED_GUIDE\.Rmd$
 ^PREPARE_FORMULA_MODEL_DETAILED_GUIDE\.Rmd$
+^Detailed_functions_explanation_for_software_developers\.Rmd$
+^brms_lf_contrast\.Rmd$
+^test_new_interface\.Rmd$

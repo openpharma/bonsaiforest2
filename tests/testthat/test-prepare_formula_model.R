@@ -212,7 +212,7 @@ test_that("Star notation excludes from marginality check", {
     regexp = "Marginality principle not followed.*subgroup1",
     all = TRUE
   )
-  
+
   # Should NOT get warning about region (it's in star notation)
   # Should get warning about subgroup1 (it's in colon notation)
   expect_equal(res_star_no_warn$response_type, "continuous")
@@ -250,6 +250,9 @@ test_that("Survival models work (basic, stratified, fallback)", {
   # Knot calculation fallback (create data with few unique times)
   sparse_data <- test_data[1:5, ]
   sparse_data$time <- c(10, 10, 20, 20, 30) # Only 3 unique times
+  # Ensure trt has both levels to avoid validation error
+  sparse_data$trt <- factor(c("Control", "Treatment", "Control", "Treatment", "Control"),
+                             levels = c("Control", "Treatment"))
   expect_warning(
     res_surv_sparse <- prepare_formula_model(
       data = sparse_data,
