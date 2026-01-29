@@ -212,7 +212,7 @@ ovat_diabetes <- run_brms_analysis(
 #> shpredeffect ~ 0 + (0 + trt || diabetes)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 1 finished in 3.3 seconds.
 
 summary_ovat_diabetes <- summary_subgroup_effects(brms_fit = ovat_diabetes)
 ```

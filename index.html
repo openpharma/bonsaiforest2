@@ -61,17 +61,15 @@
 <a class="anchor" aria-label="anchor" href="#bonsaiforest2-"></a>
 </h1>
 </div>
-<p>The goal of <code>bonsaiforest2</code> is to <strong>simplify fitting and interpreting Bayesian models for subgroup analysis</strong> in clinical trials. It leverages the power of the <code>brms</code> package to:</p>
-<ul>
-<li>Distinguish between <strong>prognostic</strong> (baseline predictors) and <strong>predictive</strong> (treatment effect modifiers) factors.</li>
-<li>Apply differential <strong>shrinkage priors</strong> (like Horseshoe or R2D2) to explore subgroup effects robustly.</li>
-<li>Calculate interpretable <strong>marginal treatment effects</strong> using a counterfactual approach.</li>
-<li>Generate publication-ready <strong>forest plots</strong>.</li>
-</ul>
+<div class="section level2">
+<h2 id="overview">Overview<a class="anchor" aria-label="anchor" href="#overview"></a>
+</h2>
+<p>The <code>bonsaiforest2</code> package is used for Bayesian shrinkage estimation of subgroup treatment effects in randomized clinical trials. It supports both One-Variable-at-a-Time (OVAT) and Global modeling approaches for estimating treatment-by-subgroup interactions, with built-in support for continuous, binary, time-to-event (Cox), and count outcomes. The package implements state-of-the-art shrinkage priors including Regularized Horseshoe and R2D2, combined with standardization (G-computation) to provide interpretable marginal treatment effects. By leveraging <code>brms</code> and <code>Stan</code>, <code>bonsaiforest2</code> provides a practical tool for obtaining more stable and reliable subgroup effect estimates in exploratory analyses.</p>
+</div>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>You can install the development version of <code>bonsaiforest2</code> from its GitLab repository:</p>
+<p><strong>UPDATE TO USUAL INSTALLATION</strong> You can install the development version of <code>bonsaiforest2</code> from its GitLab repository:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("remotes") </span></span>
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"openpharma/bonsaiforest2"</span><span class="op">)</span></span></code></pre></div>
@@ -79,51 +77,196 @@
 <div class="section level2">
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
 </h2>
-<p>This is a basic example showing the main workflow: fitting a simple continuous outcome model with shrinkage on a subgroup interaction.</p>
+<p>This example demonstrates the usage of <code>bonsaiforest2</code> for subgroup treatment effect estimation across multiple overlapping subgroups (Age, Region, and Biomarker) using a Global Modeling approach with a Regularized Horseshoe prior.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span> <span class="co"># Needed for backend</span></span>
 <span></span>
-<span><span class="co"># 1. Minimal data setup</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
-<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">50</span> <span class="co"># Small n for README example</span></span>
-<span><span class="va">sim_data_readme</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  outcome <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span>,</span>
-<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  age <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">50</span>, <span class="fl">10</span><span class="op">)</span>,</span>
-<span>  region <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># 1. Simulate trial data</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
+<span><span class="va">trial_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  outcome  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span>,</span>
+<span>  trt      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Control"</span>, <span class="st">"Active"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  age_cat  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"&lt;65"</span>, <span class="st">"&gt;=65"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  region   <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"US"</span>, <span class="st">"EU"</span>, <span class="st">"Asia"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  biomarker <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Pos"</span>, <span class="st">"Neg"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># 2. Fit a simple model (use very few iterations for speed!)</span></span>
-<span><span class="co"># Shrink the treatment:region interaction</span></span>
+<span><span class="co"># 2. Fit a Global Model with default priors</span></span>
 <span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">sim_data_readme</span>,</span>
-<span>  response_formula_str <span class="op">=</span> <span class="st">"outcome ~ trt"</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">trial_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
-<span>  unshrunk_prognostic_formula_str <span class="op">=</span> <span class="st">"~ age"</span>,     <span class="co"># Adjust for age</span></span>
-<span>  shrunk_predictive_formula_str <span class="op">=</span> <span class="st">"~ trt:region"</span>, <span class="co"># Explore region interaction</span></span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">50</span>, warmup <span class="op">=</span> <span class="fl">25</span>, refresh <span class="op">=</span> <span class="fl">0</span>, <span class="co"># Keep it FAST</span></span>
-<span>  backend <span class="op">=</span> <span class="st">"cmdstanr"</span> <span class="co"># Optional: Specify backend if needed</span></span>
+<span>  response_formula <span class="op">=</span> <span class="va">outcome</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age_cat</span> <span class="op">+</span> <span class="va">region</span> <span class="op">+</span> <span class="va">biomarker</span>, </span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">age_cat</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">region</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">biomarker</span>, </span>
+<span>  sigma_ref <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span> <span class="co">#</span></span>
 <span><span class="op">)</span></span>
+<span><span class="co">#&gt; Step 1: Preparing formula and data...</span></span>
+<span><span class="co">#&gt; Converting treatment variable 'trt' to numeric binary (0/1). 'Active' = 0, 'Control' = 1</span></span>
+<span><span class="co">#&gt; Note: Treatment 'trt' automatically added to unshrunk terms.</span></span>
+<span><span class="co">#&gt; Note: Applied one-hot encoding to shrunken factor 'age_cat' (will be used with ~ 0 + ...)</span></span>
+<span><span class="co">#&gt; Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)</span></span>
+<span><span class="co">#&gt; Note: Applied one-hot encoding to shrunken factor 'biomarker' (will be used with ~ 0 + ...)</span></span>
+<span><span class="co">#&gt; Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'age_cat'</span></span>
+<span><span class="co">#&gt; Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'region'</span></span>
+<span><span class="co">#&gt; Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'biomarker'</span></span>
+<span><span class="co">#&gt; DEBUG: Creating sub-formulas...</span></span>
+<span><span class="co">#&gt;   - all_unshrunk_terms: age_cat, region, biomarker, trt</span></span>
+<span><span class="co">#&gt;   - shrunk_prog_terms:</span></span>
+<span><span class="co">#&gt;   - shrunk_pred_formula: trt:age_cat + trt:region + trt:biomarker</span></span>
+<span><span class="co">#&gt; DEBUG: Final formula object:</span></span>
+<span><span class="co">#&gt; outcome ~ unshrunktermeffect + shpredeffect </span></span>
+<span><span class="co">#&gt; unshrunktermeffect ~ age_cat + region + biomarker + trt</span></span>
+<span><span class="co">#&gt; shpredeffect ~ 0 + trt:age_cat + trt:region + trt:biomarker</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
+<span><span class="co">#&gt; Using trt_var from prepared_model: trt</span></span>
+<span><span class="co">#&gt; Using sigma_ref = 3</span></span>
+<span><span class="co">#&gt; Computed outcome mean: -0.027</span></span>
+<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
+<span><span class="co">#&gt;   - intercept: normal(-0.027484445779618, 15)</span></span>
+<span><span class="co">#&gt;   - unshrunk terms: normal(0, 15)</span></span>
+<span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
+<span><span class="co">#&gt; Adding sigma prior: normal(0, 3)</span></span>
+<span><span class="co">#&gt; Fitting brms model...</span></span>
+<span><span class="co">#&gt; Compiling Stan program...</span></span>
+<span><span class="co">#&gt; Trying to compile a simple C file</span></span>
+<span><span class="co">#&gt; Running /usr/lib/R/bin/R CMD SHLIB foo.c</span></span>
+<span><span class="co">#&gt; using C compiler: ‘gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0’</span></span>
+<span><span class="co">#&gt; gcc -I"/usr/share/R/include" -DNDEBUG   -I"/usr/local/lib/R/site-library/Rcpp/include/"  -I"/usr/local/lib/R/site-library/RcppEigen/include/"  -I"/usr/local/lib/R/site-library/RcppEigen/include/unsupported"  -I"/usr/local/lib/R/site-library/BH/include" -I"/home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/StanHeaders/include/src/"  -I"/home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/StanHeaders/include/"  -I"/usr/local/lib/R/site-library/RcppParallel/include/"  -I"/home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/rstan/include" -DEIGEN_NO_DEBUG  -DBOOST_DISABLE_ASSERTS  -DBOOST_PENDING_INTEGER_LOG2_HPP  -DSTAN_THREADS  -DUSE_STANC3 -DSTRICT_R_HEADERS  -DBOOST_PHOENIX_NO_VARIADIC_EXPRESSION  -D_HAS_AUTO_PTR_ETC=0  -include '/home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/StanHeaders/include/stan/math/prim/fun/Eigen.hpp'  -D_REENTRANT -DRCPP_PARALLEL_USE_TBB=1       -fpic  -g -O2 -ffile-prefix-map=/build/r-base-JpkSDg/r-base-4.4.3=. -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2  -c foo.c -o foo.o</span></span>
+<span><span class="co">#&gt; In file included from /usr/local/lib/R/site-library/RcppEigen/include/Eigen/Core:19,</span></span>
+<span><span class="co">#&gt;                  from /usr/local/lib/R/site-library/RcppEigen/include/Eigen/Dense:1,</span></span>
+<span><span class="co">#&gt;                  from /home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/StanHeaders/include/stan/math/prim/fun/Eigen.hpp:22,</span></span>
+<span><span class="co">#&gt;                  from &lt;command-line&gt;:</span></span>
+<span><span class="co">#&gt; /usr/local/lib/R/site-library/RcppEigen/include/Eigen/src/Core/util/Macros.h:679:10: fatal error: cmath: No such file or directory</span></span>
+<span><span class="co">#&gt;   679 | #include &lt;cmath&gt;</span></span>
+<span><span class="co">#&gt;       |          ^~~~~~~</span></span>
+<span><span class="co">#&gt; compilation terminated.</span></span>
+<span><span class="co">#&gt; make: *** [/usr/lib/R/etc/Makeconf:195: foo.o] Error 1</span></span>
+<span><span class="co">#&gt; Start sampling</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1: Gradient evaluation took 6.9e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.69 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1: Adjust your expectations accordingly!</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1: Iteration:   1 / 1000 [  0%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 100 / 1000 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 200 / 1000 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 300 / 1000 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 400 / 1000 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 500 / 1000 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 501 / 1000 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 600 / 1000 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 700 / 1000 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 800 / 1000 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 900 / 1000 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: Iteration: 1000 / 1000 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; Chain 1:  Elapsed Time: 0.997 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 1:                0.937 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 1:                1.934 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 1: </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).</span></span>
+<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 2: Gradient evaluation took 3.5e-05 seconds</span></span>
+<span><span class="co">#&gt; Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.35 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2: Adjust your expectations accordingly!</span></span>
+<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 2: Iteration:   1 / 1000 [  0%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 100 / 1000 [ 10%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 200 / 1000 [ 20%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 300 / 1000 [ 30%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 400 / 1000 [ 40%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 500 / 1000 [ 50%]  (Warmup)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 501 / 1000 [ 50%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 600 / 1000 [ 60%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 700 / 1000 [ 70%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 800 / 1000 [ 80%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 900 / 1000 [ 90%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: Iteration: 1000 / 1000 [100%]  (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2: </span></span>
+<span><span class="co">#&gt; Chain 2:  Elapsed Time: 1.008 seconds (Warm-up)</span></span>
+<span><span class="co">#&gt; Chain 2:                0.711 seconds (Sampling)</span></span>
+<span><span class="co">#&gt; Chain 2:                1.719 seconds (Total)</span></span>
+<span><span class="co">#&gt; Chain 2:</span></span>
+<span><span class="co">#&gt; Warning: There were 2 divergent transitions after warmup. See</span></span>
+<span><span class="co">#&gt; https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup</span></span>
+<span><span class="co">#&gt; to find out why this is a problem and how to eliminate them.</span></span>
+<span><span class="co">#&gt; Warning: Examine the pairs() plot to diagnose sampling problems</span></span>
+<span><span class="co">#&gt; Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.</span></span>
+<span><span class="co">#&gt; Running the chains for more iterations may help. See</span></span>
+<span><span class="co">#&gt; https://mc-stan.org/misc/warnings.html#bulk-ess</span></span>
+<span><span class="co">#&gt; Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.</span></span>
+<span><span class="co">#&gt; Running the chains for more iterations may help. See</span></span>
+<span><span class="co">#&gt; https://mc-stan.org/misc/warnings.html#tail-ess</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Analysis complete.</span></span>
 <span></span>
-<span><span class="co"># 3. Summarize marginal effects (will auto-detect 'region')</span></span>
-<span><span class="va">effect_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span></span>
-<span>  brms_fit <span class="op">=</span> <span class="va">fit</span>,</span>
-<span>  original_data <span class="op">=</span> <span class="va">sim_data_readme</span>,</span>
-<span>  trt_var <span class="op">=</span> <span class="st">"trt"</span>,</span>
-<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span></span>
+<span><span class="co"># 3. Derive Marginal Treatment Effects</span></span>
+<span><span class="va">subgroup_effects</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span></span>
+<span>  brms_fit <span class="op">=</span> <span class="va">fit</span></span>
 <span><span class="op">)</span></span>
+<span><span class="co">#&gt; Using trt_var from model attributes: trt</span></span>
+<span><span class="co">#&gt; Using response_type from model attributes: continuous</span></span>
+<span><span class="co">#&gt; --- Calculating specific subgroup effects... ---</span></span>
+<span><span class="co">#&gt; Using data from model attributes</span></span>
+<span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
+<span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model...</span></span>
+<span><span class="co">#&gt; Model data has 200 rows and 5 columns</span></span>
+<span><span class="co">#&gt; Column names: outcome, trt, age_cat, region, biomarker</span></span>
+<span><span class="co">#&gt; Treatment variable: 'trt'</span></span>
+<span><span class="co">#&gt; All coefficient names:</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_Intercept</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_age_cat&gt;EQ65</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_regionEU</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_regionUS</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_biomarkerPos</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_trt</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_cat&lt;65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_cat&gt;EQ65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionEU</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionUS</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:biomarkerPos</span></span>
+<span><span class="co">#&gt; Looking for treatment interactions with pattern: 'trt:'</span></span>
+<span><span class="co">#&gt; Found 5 treatment interaction coefficients</span></span>
+<span><span class="co">#&gt; Treatment interaction coefficients found:</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_cat&lt;65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_cat&gt;EQ65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionEU</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:regionUS</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:biomarkerPos</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'age_cat' from coefficient 'shpredeffect_trt:age_cat&lt;65'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'age_cat' from coefficient 'shpredeffect_trt:age_cat&gt;EQ65'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionEU'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionUS'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerPos'</span></span>
+<span><span class="co">#&gt; Checking for random effects parameters...</span></span>
+<span><span class="co">#&gt; Retrieved 21 total parameters from model</span></span>
+<span><span class="co">#&gt; Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'</span></span>
+<span><span class="co">#&gt; Found 0 matching random effect parameters</span></span>
+<span><span class="co">#&gt; No random effect parameters matching the pattern were found</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): age_cat, region, biomarker</span></span>
+<span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
+<span><span class="co">#&gt; ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.</span></span>
+<span><span class="co">#&gt; ... (predicting expected outcomes)...</span></span>
+<span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
+<span><span class="co">#&gt; ... processing age_cat</span></span>
+<span><span class="co">#&gt; ... processing region</span></span>
+<span><span class="co">#&gt; ... processing biomarker</span></span>
+<span><span class="co">#&gt; Done.</span></span>
 <span></span>
-<span><span class="co"># 4. Plot the results</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">effect_summary</span><span class="op">)</span> <span class="co"># Display plot</span></span></code></pre></div>
-<p><img src="reference/figures/README-example-1.png" width="100%"></p>
-<p><strong>Summarized Effects:</strong></p>
-<div class="sourceCode" id="cb3"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co">#&gt; # A tibble: 3 × 4</span></span>
-<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co">#&gt;   Subgroup  Median CI_Lower CI_Upper</span></span>
-<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="co">#&gt;   &lt;chr&gt;      &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;</span></span>
-<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="co">#&gt; 1 Overall    0.346  -0.0276    0.837</span></span>
-<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="co">#&gt; 2 region: A  0.260  -0.569     0.776</span></span>
-<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="co">#&gt; 3 region: B  0.457   0.0312    1.45</span></span></code></pre></div>
+<span><span class="co"># 4. Visualize Results</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">subgroup_effects</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Preparing data for plotting...</span></span>
+<span><span class="co">#&gt; Generating plot...</span></span>
+<span><span class="co">#&gt; Done.</span></span></code></pre></div>
+<p><img src="reference/figures/README-unnamed-chunk-3-1.png" width="100%"></p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

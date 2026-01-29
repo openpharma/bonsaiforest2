@@ -1,21 +1,22 @@
 # bonsaiforest2
 
-The goal of `bonsaiforest2` is to **simplify fitting and interpreting
-Bayesian models for subgroup analysis** in clinical trials. It leverages
-the power of the `brms` package to:
+## Overview
 
-- Distinguish between **prognostic** (baseline predictors) and
-  **predictive** (treatment effect modifiers) factors.
-- Apply differential **shrinkage priors** (like Horseshoe or R2D2) to
-  explore subgroup effects robustly.
-- Calculate interpretable **marginal treatment effects** using a
-  counterfactual approach.
-- Generate publication-ready **forest plots**.
+The `bonsaiforest2` package is used for Bayesian shrinkage estimation of
+subgroup treatment effects in randomized clinical trials. It supports
+both One-Variable-at-a-Time (OVAT) and Global modeling approaches for
+estimating treatment-by-subgroup interactions, with built-in support for
+continuous, binary, time-to-event (Cox), and count outcomes. The package
+implements state-of-the-art shrinkage priors including Regularized
+Horseshoe and R2D2, combined with standardization (G-computation) to
+provide interpretable marginal treatment effects. By leveraging `brms`
+and `Stan`, `bonsaiforest2` provides a practical tool for obtaining more
+stable and reliable subgroup effect estimates in exploratory analyses.
 
 ## Installation
 
-You can install the development version of `bonsaiforest2` from its
-GitLab repository:
+**UPDATE TO USUAL INSTALLATION** You can install the development version
+of `bonsaiforest2` from its GitLab repository:
 
 ``` r
 # install.packages("remotes") 
@@ -24,56 +25,199 @@ remotes::install_github("openpharma/bonsaiforest2")
 
 ## Example
 
-This is a basic example showing the main workflow: fitting a simple
-continuous outcome model with shrinkage on a subgroup interaction.
+This example demonstrates the usage of `bonsaiforest2` for subgroup
+treatment effect estimation across multiple overlapping subgroups (Age,
+Region, and Biomarker) using a Global Modeling approach with a
+Regularized Horseshoe prior.
 
 ``` r
 library(bonsaiforest2)
-library(brms) # Needed for backend
 
-# 1. Minimal data setup
-set.seed(123)
-n <- 50 # Small n for README example
-sim_data_readme <- data.frame(
-  outcome = rnorm(n),
-  trt = factor(sample(0:1, n, replace = TRUE)),
-  age = rnorm(n, 50, 10),
-  region = factor(sample(c("A", "B"), n, replace = TRUE))
+# 1. Simulate trial data
+set.seed(42)
+n <- 200
+trial_data <- data.frame(
+  outcome  = rnorm(n),
+  trt      = factor(sample(c("Control", "Active"), n, replace = TRUE)),
+  age_cat  = factor(sample(c("<65", ">=65"), n, replace = TRUE)),
+  region   = factor(sample(c("US", "EU", "Asia"), n, replace = TRUE)),
+  biomarker = factor(sample(c("Pos", "Neg"), n, replace = TRUE))
 )
 
-# 2. Fit a simple model (use very few iterations for speed!)
-# Shrink the treatment:region interaction
+# 2. Fit a Global Model with default priors
 fit <- run_brms_analysis(
-  data = sim_data_readme,
-  response_formula_str = "outcome ~ trt",
+  data = trial_data,
   response_type = "continuous",
-  unshrunk_prognostic_formula_str = "~ age",     # Adjust for age
-  shrunk_predictive_formula_str = "~ trt:region", # Explore region interaction
-  chains = 1, iter = 50, warmup = 25, refresh = 0, # Keep it FAST
-  backend = "cmdstanr" # Optional: Specify backend if needed
+  response_formula = outcome ~ trt,
+  unshrunk_terms_formula = ~ age_cat + region + biomarker, 
+  shrunk_predictive_formula = ~ 0 + trt:age_cat + trt:region + trt:biomarker, 
+  sigma_ref = 3,
+  chains = 2, iter = 1000, warmup = 500 #
 )
+#> Step 1: Preparing formula and data...
+#> Converting treatment variable 'trt' to numeric binary (0/1). 'Active' = 0, 'Control' = 1
+#> Note: Treatment 'trt' automatically added to unshrunk terms.
+#> Note: Applied one-hot encoding to shrunken factor 'age_cat' (will be used with ~ 0 + ...)
+#> Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)
+#> Note: Applied one-hot encoding to shrunken factor 'biomarker' (will be used with ~ 0 + ...)
+#> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'age_cat'
+#> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'region'
+#> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'biomarker'
+#> DEBUG: Creating sub-formulas...
+#>   - all_unshrunk_terms: age_cat, region, biomarker, trt
+#>   - shrunk_prog_terms:
+#>   - shrunk_pred_formula: trt:age_cat + trt:region + trt:biomarker
+#> DEBUG: Final formula object:
+#> outcome ~ unshrunktermeffect + shpredeffect 
+#> unshrunktermeffect ~ age_cat + region + biomarker + trt
+#> shpredeffect ~ 0 + trt:age_cat + trt:region + trt:biomarker
+#> 
+#> Step 2: Fitting the brms model...
+#> Using trt_var from prepared_model: trt
+#> Using sigma_ref = 3
+#> Computed outcome mean: -0.027
+#> Using default priors for unspecified effects:
+#>   - intercept: normal(-0.027484445779618, 15)
+#>   - unshrunk terms: normal(0, 15)
+#>   - shrunk predictive: horseshoe(1)
+#> Adding sigma prior: normal(0, 3)
+#> Fitting brms model...
+#> Compiling Stan program...
+#> Trying to compile a simple C file
+#> Running /usr/lib/R/bin/R CMD SHLIB foo.c
+#> using C compiler: ‘gcc (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0’
+#> gcc -I"/usr/share/R/include" -DNDEBUG   -I"/usr/local/lib/R/site-library/Rcpp/include/"  -I"/usr/local/lib/R/site-library/RcppEigen/include/"  -I"/usr/local/lib/R/site-library/RcppEigen/include/unsupported"  -I"/usr/local/lib/R/site-library/BH/include" -I"/home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/StanHeaders/include/src/"  -I"/home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/StanHeaders/include/"  -I"/usr/local/lib/R/site-library/RcppParallel/include/"  -I"/home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/rstan/include" -DEIGEN_NO_DEBUG  -DBOOST_DISABLE_ASSERTS  -DBOOST_PENDING_INTEGER_LOG2_HPP  -DSTAN_THREADS  -DUSE_STANC3 -DSTRICT_R_HEADERS  -DBOOST_PHOENIX_NO_VARIADIC_EXPRESSION  -D_HAS_AUTO_PTR_ETC=0  -include '/home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/StanHeaders/include/stan/math/prim/fun/Eigen.hpp'  -D_REENTRANT -DRCPP_PARALLEL_USE_TBB=1       -fpic  -g -O2 -ffile-prefix-map=/build/r-base-JpkSDg/r-base-4.4.3=. -fstack-protector-strong -Wformat -Werror=format-security -Wdate-time -D_FORTIFY_SOURCE=2  -c foo.c -o foo.o
+#> In file included from /usr/local/lib/R/site-library/RcppEigen/include/Eigen/Core:19,
+#>                  from /usr/local/lib/R/site-library/RcppEigen/include/Eigen/Dense:1,
+#>                  from /home/pedreram/R/x86_64-pc-linux-gnu-library/4.4/StanHeaders/include/stan/math/prim/fun/Eigen.hpp:22,
+#>                  from <command-line>:
+#> /usr/local/lib/R/site-library/RcppEigen/include/Eigen/src/Core/util/Macros.h:679:10: fatal error: cmath: No such file or directory
+#>   679 | #include <cmath>
+#>       |          ^~~~~~~
+#> compilation terminated.
+#> make: *** [/usr/lib/R/etc/Makeconf:195: foo.o] Error 1
+#> Start sampling
+#> 
+#> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 1).
+#> Chain 1: 
+#> Chain 1: Gradient evaluation took 6.9e-05 seconds
+#> Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0.69 seconds.
+#> Chain 1: Adjust your expectations accordingly!
+#> Chain 1: 
+#> Chain 1: 
+#> Chain 1: Iteration:   1 / 1000 [  0%]  (Warmup)
+#> Chain 1: Iteration: 100 / 1000 [ 10%]  (Warmup)
+#> Chain 1: Iteration: 200 / 1000 [ 20%]  (Warmup)
+#> Chain 1: Iteration: 300 / 1000 [ 30%]  (Warmup)
+#> Chain 1: Iteration: 400 / 1000 [ 40%]  (Warmup)
+#> Chain 1: Iteration: 500 / 1000 [ 50%]  (Warmup)
+#> Chain 1: Iteration: 501 / 1000 [ 50%]  (Sampling)
+#> Chain 1: Iteration: 600 / 1000 [ 60%]  (Sampling)
+#> Chain 1: Iteration: 700 / 1000 [ 70%]  (Sampling)
+#> Chain 1: Iteration: 800 / 1000 [ 80%]  (Sampling)
+#> Chain 1: Iteration: 900 / 1000 [ 90%]  (Sampling)
+#> Chain 1: Iteration: 1000 / 1000 [100%]  (Sampling)
+#> Chain 1: 
+#> Chain 1:  Elapsed Time: 0.997 seconds (Warm-up)
+#> Chain 1:                0.937 seconds (Sampling)
+#> Chain 1:                1.934 seconds (Total)
+#> Chain 1: 
+#> 
+#> SAMPLING FOR MODEL 'anon_model' NOW (CHAIN 2).
+#> Chain 2: 
+#> Chain 2: Gradient evaluation took 3.5e-05 seconds
+#> Chain 2: 1000 transitions using 10 leapfrog steps per transition would take 0.35 seconds.
+#> Chain 2: Adjust your expectations accordingly!
+#> Chain 2: 
+#> Chain 2: 
+#> Chain 2: Iteration:   1 / 1000 [  0%]  (Warmup)
+#> Chain 2: Iteration: 100 / 1000 [ 10%]  (Warmup)
+#> Chain 2: Iteration: 200 / 1000 [ 20%]  (Warmup)
+#> Chain 2: Iteration: 300 / 1000 [ 30%]  (Warmup)
+#> Chain 2: Iteration: 400 / 1000 [ 40%]  (Warmup)
+#> Chain 2: Iteration: 500 / 1000 [ 50%]  (Warmup)
+#> Chain 2: Iteration: 501 / 1000 [ 50%]  (Sampling)
+#> Chain 2: Iteration: 600 / 1000 [ 60%]  (Sampling)
+#> Chain 2: Iteration: 700 / 1000 [ 70%]  (Sampling)
+#> Chain 2: Iteration: 800 / 1000 [ 80%]  (Sampling)
+#> Chain 2: Iteration: 900 / 1000 [ 90%]  (Sampling)
+#> Chain 2: Iteration: 1000 / 1000 [100%]  (Sampling)
+#> Chain 2: 
+#> Chain 2:  Elapsed Time: 1.008 seconds (Warm-up)
+#> Chain 2:                0.711 seconds (Sampling)
+#> Chain 2:                1.719 seconds (Total)
+#> Chain 2:
+#> Warning: There were 2 divergent transitions after warmup. See
+#> https://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
+#> to find out why this is a problem and how to eliminate them.
+#> Warning: Examine the pairs() plot to diagnose sampling problems
+#> Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
+#> Running the chains for more iterations may help. See
+#> https://mc-stan.org/misc/warnings.html#bulk-ess
+#> Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
+#> Running the chains for more iterations may help. See
+#> https://mc-stan.org/misc/warnings.html#tail-ess
+#> 
+#> Analysis complete.
 
-# 3. Summarize marginal effects (will auto-detect 'region')
-effect_summary <- summary_subgroup_effects(
-  brms_fit = fit,
-  original_data = sim_data_readme,
-  trt_var = "trt",
-  response_type = "continuous"
+# 3. Derive Marginal Treatment Effects
+subgroup_effects <- summary_subgroup_effects(
+  brms_fit = fit
 )
+#> Using trt_var from model attributes: trt
+#> Using response_type from model attributes: continuous
+#> --- Calculating specific subgroup effects... ---
+#> Using data from model attributes
+#> Step 1: Identifying subgroups and creating counterfactuals...
+#> `subgroup_vars` set to 'auto'. Detecting from model...
+#> Model data has 200 rows and 5 columns
+#> Column names: outcome, trt, age_cat, region, biomarker
+#> Treatment variable: 'trt'
+#> All coefficient names:
+#> unshrunktermeffect_Intercept
+#> unshrunktermeffect_age_cat>EQ65
+#> unshrunktermeffect_regionEU
+#> unshrunktermeffect_regionUS
+#> unshrunktermeffect_biomarkerPos
+#> unshrunktermeffect_trt
+#> shpredeffect_trt:age_cat<65
+#> shpredeffect_trt:age_cat>EQ65
+#> shpredeffect_trt:regionEU
+#> shpredeffect_trt:regionUS
+#> shpredeffect_trt:biomarkerPos
+#> Looking for treatment interactions with pattern: 'trt:'
+#> Found 5 treatment interaction coefficients
+#> Treatment interaction coefficients found:
+#> shpredeffect_trt:age_cat<65
+#> shpredeffect_trt:age_cat>EQ65
+#> shpredeffect_trt:regionEU
+#> shpredeffect_trt:regionUS
+#> shpredeffect_trt:biomarkerPos
+#> Detected subgroup variable 'age_cat' from coefficient 'shpredeffect_trt:age_cat<65'
+#> Detected subgroup variable 'age_cat' from coefficient 'shpredeffect_trt:age_cat>EQ65'
+#> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionEU'
+#> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionUS'
+#> Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerPos'
+#> Checking for random effects parameters...
+#> Retrieved 21 total parameters from model
+#> Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'
+#> Found 0 matching random effect parameters
+#> No random effect parameters matching the pattern were found
+#> ...detected subgroup variable(s): age_cat, region, biomarker
+#> Step 2: Generating posterior predictions...
+#> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
+#> ... (predicting expected outcomes)...
+#> Step 3: Calculating marginal effects...
+#> ... processing age_cat
+#> ... processing region
+#> ... processing biomarker
+#> Done.
 
-# 4. Plot the results
-plot(effect_summary) # Display plot
+# 4. Visualize Results
+plot(subgroup_effects)
+#> Preparing data for plotting...
+#> Generating plot...
+#> Done.
 ```
 
-![](reference/figures/README-example-1.png)
-
-**Summarized Effects:**
-
-``` R
-#> # A tibble: 3 × 4
-#>   Subgroup  Median CI_Lower CI_Upper
-#>   <chr>      <dbl>    <dbl>    <dbl>
-#> 1 Overall    0.346  -0.0276    0.837
-#> 2 region: A  0.260  -0.569     0.776
-#> 3 region: B  0.457   0.0312    1.45
-```
+![](reference/figures/README-unnamed-chunk-3-1.png)
