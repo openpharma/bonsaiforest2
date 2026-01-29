@@ -86,23 +86,38 @@
 #'     across levels of the stratification variable.
 #' }
 #'
-#' @param data `data.frame`. A dataset containing all necessary variables for model fitting.
-#' @param response_formula `formula`. The response specification (e.g., `outcome ~ trt` for continuous,
-#'   `n_events + offset(log(days)) ~ trt` for count, or `Surv(time, status) ~ trt` for survival models).
-#' @param unshrunk_terms_formula `formula` or `NULL`. Formula specifying unshrunk terms (`unshrunktermeffect`).
-#'   May include main effects and treatment interactions. Supports colon notation (e.g., `~ age + sex + trt:biomarker`),
-#'   star notation (e.g., `~ age + trt*biomarker`), or random effects notation (e.g., `~ age + (trt || biomarker)`).
-#'   Different syntaxes may be combined.
-#' @param shrunk_prognostic_formula `formula` or `NULL`. Formula specifying prognostic main effects to be regularized
-#'   (`shprogeffect`). These are covariates where shrinkage/regularization is desired.
-#' @param shrunk_predictive_formula `formula` or `NULL`. Formula specifying predictive terms to be regularized
-#'   (`shpredeffect`). Typically treatment interactions. Supports colon notation (e.g., `~ 0 + trt:region`),
-#'   star notation (e.g., `~ 0 + trt*region`), or random effects notation (e.g., `~ (0 + trt || region)`).
-#'   Different syntaxes may be combined.
-#' @param response_type `character(1)`. Type of outcome variable: one of `"binary"`, `"count"`,
-#'   `"continuous"`, or `"survival"`.
-#' @param stratification_formula `formula` or `NULL`. Formula specifying stratification variable
-#'   (e.g., `~ strata_var`) for modeling baseline hazard (survival) or distributional parameters.
+#' @param data A data frame. Dataset containing all necessary variables for model fitting.
+#'   Must include the response variable, treatment variable, and all covariates specified
+#'   in the formula arguments. This data will be modified (contrast coding applied) and
+#'   returned for use in model fitting.
+#' @param response_formula A formula object. The response specification defining the outcome
+#'   variable and treatment. Examples: `outcome ~ trt` for continuous outcomes,
+#'   `n_events + offset(log(days)) ~ trt` for count outcomes, or `Surv(time, status) ~ trt`
+#'   for survival models. The treatment variable (right-hand side) will be automatically
+#'   extracted and converted to a numeric binary variable (0/1).
+#' @param unshrunk_terms_formula A formula object or `NULL`. Formula specifying unshrunk terms
+#'   for the `unshrunktermeffect` component. May include main effects and treatment interactions
+#'   without regularization. Supports three syntaxes that can be combined: colon notation
+#'   (e.g., `~ age + sex + trt:biomarker`), star notation (e.g., `~ age + trt*biomarker`),
+#'   or random effects notation (e.g., `~ age + (trt || biomarker)`).
+#' @param shrunk_prognostic_formula A formula object or `NULL`. Formula specifying prognostic
+#'   main effects to be regularized in the `shprogeffect` component. These are covariates
+#'   where shrinkage/regularization is desired. Should use `~ 0 + ...` syntax to apply
+#'   one-hot encoding for symmetric regularization across all levels without privileging
+#'   a reference group.
+#' @param shrunk_predictive_formula A formula object or `NULL`. Formula specifying predictive
+#'   terms (treatment interactions) to be regularized in the `shpredeffect` component.
+#'   Supports three syntaxes that can be combined: colon notation (e.g., `~ 0 + trt:region`),
+#'   star notation (e.g., `~ 0 + trt*region`), or random effects notation
+#'   (e.g., `~ (0 + trt || region)`). Should use `~ 0 + ...` syntax for one-hot encoding.
+#' @param response_type A character string. Type of outcome variable, one of `"binary"`,
+#'   `"count"`, `"continuous"`, or `"survival"`. This determines the appropriate likelihood
+#'   function and link function for the model.
+#' @param stratification_formula A formula object or `NULL`. Formula specifying stratification
+#'   variable (e.g., `~ strata_var`) for modeling baseline hazard (survival models) or
+#'   distributional parameters (other models). For survival models, estimates separate baseline
+#'   hazard functions (`bhaz`) for each stratum. For continuous models, models varying residual
+#'   standard deviation (`sigma`). For count models, models varying overdispersion (`shape`).
 #'
 #' @return `list` with six named elements:
 #'   \describe{

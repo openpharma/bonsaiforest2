@@ -3,14 +3,19 @@
 #' This function orchestrates calls to `estimate_subgroup_effects` to generate
 #' a summary table for specific subgroups.
 #'
-#' @param brms_fit `brmsfit`. Fitted model object.
-#' @param trt_var `character(1)` or `NULL`. Treatment variable name (coded 0/1). If `NULL`,
-#'   extracted from model attributes (set by `fit_brms_model()`).
-#' @param response_type `character(1)` or `NULL`. Outcome type: `"binary"`, `"count"`,
-#'   `"continuous"`, or `"survival"`. If `NULL`, extracted from model attributes.
-#' @param subgroup_vars `character` or `"auto"`. Subgrouping variable names. Defaults to `"auto"`,
-#'   which automatically detects treatment interactions from all formula components
-#'   (`unshrunktermeffect`, `shprogeffect`, `shpredeffect`). Cannot be `NULL`.
+#' @param brms_fit A `brmsfit` object. Fitted model object from `fit_brms_model()` or
+#'   `run_brms_analysis()`. Must contain the necessary attributes for extracting treatment
+#'   variable and response type information.
+#' @param trt_var A character string or `NULL`. Treatment variable name (coded 0/1). If `NULL`,
+#'   automatically extracted from model attributes (set by `fit_brms_model()`). This should
+#'   match the treatment variable used in model fitting.
+#' @param response_type A character string or `NULL`. Outcome type, one of `"binary"`, `"count"`,
+#'   `"continuous"`, or `"survival"`. If `NULL`, automatically extracted from model attributes
+#'   (set by `fit_brms_model()`). This determines the appropriate scale for summarizing effects.
+#' @param subgroup_vars A character vector or `"auto"`. Subgrouping variable names for which
+#'   to generate summaries. Defaults to `"auto"`, which automatically detects treatment
+#'   interactions from all formula components (`unshrunktermeffect`, `shprogeffect`,
+#'   `shpredeffect`). Cannot be `NULL`.
 #'
 #' @return `subgroup_summary`. S3 object containing:
 #'   \describe{

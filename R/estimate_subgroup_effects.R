@@ -8,18 +8,26 @@
 #' predictive distribution. It averages over all other covariates to provide
 #' robust estimates of subgroup-specific effects.
 #'
-#' @param brms_fit `brmsfit`. Fitted model object from `fit_brms_model()` or `run_brms_analysis()`.
-#' @param trt_var `character(1)` or `NULL`. Treatment variable name. If `NULL`, extracted from
-#'   model attributes (set by `fit_brms_model()`).
-#' @param data `data.frame` or `NULL`. Dataset used for model fitting. If `NULL`, extracted from
-#'   model attributes (set by `fit_brms_model()`).
-#' @param subgroup_vars `character` or `"auto"`. Subgroup variable names. If `"auto"`, automatically
-#'   detects treatment interaction terms (colon syntax) and random effect grouping factors (pipe syntax)
-#'   from all formula components.
-#' @param response_type `character(1)` or `NULL`. Outcome type: `"binary"`, `"count"`, `"continuous"`,
-#'   or `"survival"`. If `NULL`, extracted from model attributes (set by `fit_brms_model()`).
-#' @param ndraws `integer(1)` or `NULL`. Number of posterior draws to use. If `NULL` (default),
-#'   all available draws are used.
+#' @param brms_fit A `brmsfit` object. Fitted model object from `fit_brms_model()` or
+#'   `run_brms_analysis()`. Must contain the necessary attributes for extracting treatment
+#'   variable and response type information.
+#' @param trt_var A character string or `NULL`. Treatment variable name. If `NULL`, automatically
+#'   extracted from model attributes (set by `fit_brms_model()`). Must be a binary variable
+#'   coded as 0/1 in the dataset.
+#' @param data A data frame or `NULL`. Dataset used for model fitting. If `NULL`, automatically
+#'   extracted from model attributes (set by `fit_brms_model()`). This dataset is used for
+#'   generating counterfactual predictions.
+#' @param subgroup_vars A character vector or `"auto"`. Subgroup variable names for which
+#'   to estimate treatment effects. If `"auto"` (default), automatically detects treatment
+#'   interaction terms (colon syntax) and random effect grouping factors (pipe syntax) from
+#'   all formula components (`unshrunktermeffect`, `shprogeffect`, `shpredeffect`).
+#' @param response_type A character string or `NULL`. Outcome type, one of `"binary"`,
+#'   `"count"`, `"continuous"`, or `"survival"`. If `NULL`, automatically extracted from
+#'   model attributes (set by `fit_brms_model()`). This determines the appropriate scale
+#'   for effect estimation.
+#' @param ndraws An integer or `NULL`. Number of posterior draws to use for estimation.
+#'   If `NULL` (default), all available posterior draws are used. Reducing this can speed
+#'   up computation at the cost of precision.
 #'
 #' @return `list` with two named elements:
 #'   \describe{
