@@ -74,11 +74,11 @@
 <li>
 <code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> - Prepares the model formula and fits the Bayesian model using <code>brms</code>.</li>
 <li>
-<code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> - Calculates the marginal overall and subgroup treatment effects.</li>
+<code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> - Calculates the marginal subgroup treatment effects.</li>
 <li>
 <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> - Creates a forest plot from the summary object.</li>
 </ol>
-<p>The package enables the implementation of both a <strong>global modeling approach</strong> <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>, that estimates all main (prognostic) and interaction (predictive) effects in a single model, and a <strong>One-Variable-At-a-Time (OVAT)</strong> approach <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span>, that estimates the interaction effects using a different model for each subgrouping variable.</p>
+<p>The package enables the implementation of both a <strong>global modeling approach</strong> <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>, that estimates all prognostic and predictive effects in a single model, and a <strong>One-Variable-At-a-Time (OVAT)</strong> approach <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span>, that estimates the predictive effects using a different model for each subgrouping variable.</p>
 <p>This vignette demonstrates how to use the package to fit and compare these different modeling formulas. You’ll learn how to:</p>
 <ul>
 <li>Fit OVAT models (one model per subgroup variable)</li>
@@ -127,7 +127,6 @@
 <span>  diabetes <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Yes"</span>, <span class="st">"No"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, prob <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.3</span>, <span class="fl">0.7</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># `bonsaiforest2` expects the treatment variable to be a factor</span></span>
 <span><span class="va">continuous_data</span><span class="op">$</span><span class="va">trt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">continuous_data</span><span class="op">$</span><span class="va">trt</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">continuous_data</span><span class="op">)</span><span class="op">)</span></span>
@@ -269,7 +268,7 @@
 <span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || diabetes)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.3 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_diabetes</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_diabetes</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -310,7 +309,7 @@
 <span>  data <span class="op">=</span> <span class="va">continuous_data</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span><span class="op">+</span><span class="va">region</span> <span class="op">+</span><span class="va">comorbidity</span> <span class="op">+</span> <span class="va">age_group</span> <span class="op">+</span> <span class="va">sex</span> <span class="op">+</span><span class="va">diabetes</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span> <span class="op">+</span> <span class="va">region</span> <span class="op">+</span> <span class="va">comorbidity</span> <span class="op">+</span> <span class="va">age_group</span> <span class="op">+</span> <span class="va">sex</span> <span class="op">+</span> <span class="va">diabetes</span>,</span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">region</span><span class="op">+</span><span class="va">trt</span><span class="op">:</span><span class="va">comorbidity</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">age_group</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">sex</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">diabetes</span>,</span>
 <span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(1)"</span>,</span>
 <span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>

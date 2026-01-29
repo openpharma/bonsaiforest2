@@ -70,7 +70,7 @@
 <span class="header-section-number">1</span> Scope of this document<a class="anchor" aria-label="anchor" href="#scope-of-this-document"></a>
 </h2>
 <p>This document describes the statistical methods implemented in the <code>bonsaiforest2</code> R package for Bayesian subgroup analysis of continuous, binary, count, and time-to-event outcomes in randomized clinical trials (RCTs).</p>
-<p>The package unable the implementation of both a <strong>global modeling approach</strong> <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>, that estimates all main (prognostic) and interaction (predictive) effects in a single model, and a <strong>One-variable-at a time</strong> <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span>, that estimates the interaction effects using a different model for each subgrouping variable.</p>
+<p>The package enable the implementation of both a <strong>global modeling approach</strong> <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>, that estimates all prognostic and predictive effects in a single model, and a <strong>One-variable-at a time</strong> <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span>, that estimates the predictive effects using a different model for each subgrouping variable.</p>
 <p>The core features described in this document are:</p>
 <ol style="list-style-type: decimal">
 <li>
@@ -79,13 +79,13 @@
 <li>
 <strong>Prognostic</strong> (main) vs. <strong>Predictive</strong> (interaction) effects.</li>
 <li>
-<strong>Shrunk</strong> vs. <strong>Unshrunk</strong> coefficients. Users can specify unshrunk terms (with weakly informative priors), and optionally add shrunk prognostic effects and/or shrunk predictive effects (with strong regularization priors) as needed for their analysis.</li>
+<strong>Shrunk</strong> vs. <strong>Unshrunk</strong> coefficients. Users can specify unshrunk terms (with weakly informative priors), and add shrunk prognostic effects and/or shrunk predictive effects (with strong regularization priors) as needed for their analysis.</li>
 <li>
-<strong>Customizable Priors:</strong> Users can specify custom priors for individual coefficients or coefficient groups when domain expertise is available. If no custom priors are specified, the package applies automatic, well-calibrated default priors based on established best practices.</li>
+<strong>Customizable Priors:</strong> Users can specify custom priors for individual coefficients or coefficient groups when domain expertise is available. If no custom priors are specified, the package applies automatic, well-calibrated default priors.</li>
 </ul>
 </li>
 <li>
-<strong>Advanced Shrinkage Priors:</strong> Supports state-of-the-art shrinkage priors, including the <strong>Regularized Horseshoe</strong> <span class="citation">(<a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>; <a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span> and <strong>R2D2</strong> <span class="citation">(<a href="#ref-zhang2022bayesian">Zhang et al. 2022</a>)</span>, to provide robust control of false-positive findings while identifying potential heterogeneity.</li>
+<strong>Advanced Shrinkage Priors:</strong> Supports state-of-the-art shrinkage priors, including the <strong>Regularized Horseshoe</strong> <span class="citation">(<a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>; <a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span> and <strong>R2D2</strong> <span class="citation">(<a href="#ref-zhang2022bayesian">Zhang et al. 2022</a>)</span>.</li>
 <li>
 <strong>Marginal Effect Estimation:</strong> Use of <strong>standardization (G-computation)</strong> to derive interpretable <em>marginal</em> subgroup treatment effects, which average over the covariate distributions within each subgroup <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>. This is implemented through:
 <ul>
@@ -96,7 +96,7 @@
 </ul>
 </li>
 </ol>
-<p>This document is structured as follows: <a href="#sec-intro">Section 2</a> provides a conceptual introduction to subgroup analysis challenges and the Bayesian shrinkage solution. <a href="#sec-methodology">Section 3</a> details the statistical methodology, including notation, the global and the one-variable at a time models, endpoint-specific likelihoods, prior specifications, and the standardization procedure. <a href="#sec-functions">Section 4</a> maps these statistical methods to the core functions in the <code>bonsaiforest2</code> package.</p>
+<p>This document is structured as follows: Section <a href="#sec-intro">2</a> provides a conceptual introduction to subgroup analysis challenges and the Bayesian shrinkage solution. Section <a href="#sec-methodology">3</a> details the statistical methodology, including notation, the global and the one-variable at a time models, endpoint-specific likelihoods, prior specifications, and the standardization procedure. Section <a href="#sec-functions">4</a> maps these statistical methods to the core functions in the <code>bonsaiforest2</code> package.</p>
 </div>
 <div class="section level2" number="2">
 <h2 id="sec-intro">
@@ -149,7 +149,7 @@
 <p>When covariates are included in a non-linear model (like a logistic or Cox model), the resulting coefficients represent <strong>conditional</strong> effects. For example, the treatment effect is the effect for a patient with a <em>specific set</em> of covariate values (e.g., the reference values).</p>
 <p>This is problematic for forest plots, where we want to know the <strong>marginal</strong> effect: “What is the average treatment effect for <em>all patients</em> in the ‘Female’ subgroup, averaging over their different ages, regions, etc.?”.</p>
 <p>Because different subgroups have different covariate distributions (e.g., the <code>age &gt;= 65</code> subgroup will have a different health status profile than the <code>age &lt; 65</code> group), these conditional coefficients are not directly comparable.</p>
-<p><code>bonsaiforest2</code> solves this by using <strong>Standardization (G-computation)</strong> <span class="citation">(<a href="#ref-wolbers2024shrinkage"><strong>wolbers2024shrinkage?</strong></a>)</span>. This procedure correctly averages over the specific covariate distribution of each subgroup to estimate a valid marginal treatment effect, ensuring all subgroups are compared on the same interpretable scale. (See <a href="#sec-standardization">Section 3.8</a> for a detailed explanation of how this standardization is performed in the package.)</p>
+<p><code>bonsaiforest2</code> solves this by using <strong>Standardization (G-computation)</strong> <span class="citation">(<a href="#ref-wolbers2024shrinkage"><strong>wolbers2024shrinkage?</strong></a>)</span>. This procedure correctly averages over the specific covariate distribution of each subgroup to estimate a valid marginal treatment effect, ensuring all subgroups are compared on the same interpretable scale. (See Section <a href="#sec-standardization">3.10</a> for a detailed explanation of how this standardization is performed in the package.)</p>
 </div>
 </div>
 <div class="section level2" number="3">
@@ -179,7 +179,7 @@
 <li>
 <span class="math inline">\(\boldsymbol{\mu}\)</span>: The <span class="math inline">\(N \times 1\)</span> vector of expected outcomes.</li>
 <li>
-<span class="math inline">\(g(\cdot)\)</span>: A link function. In <a href="#sec-endpoint">Section x</a> we define the used link function for each type of endpoint.</li>
+<span class="math inline">\(g(\cdot)\)</span>: A link function. In Section <a href="#sec-endpoint">3.7</a> we define the used link function for each type of endpoint.</li>
 <li>
 <span class="math inline">\(\boldsymbol{\eta}\)</span>: The <span class="math inline">\(N \times 1\)</span> vector of the linear predictor.</li>
 </ul>
@@ -188,32 +188,42 @@
 <h3 id="design-matrix-considerations">
 <span class="header-section-number">3.2</span> Design Matrix Considerations<a class="anchor" aria-label="anchor" href="#design-matrix-considerations"></a>
 </h3>
-<p>A critical implementation detail is the construction of the design matrix for the subgroup-by-treatment interactions.</p>
-<p>The package treats prognostic effects and predictive effects differently, as they serve different purposes in the model:</p>
+<p>A critical implementation detail is the construction of the design matrix, which varies based on whether coefficients are subject to shrinkage.</p>
+<p>The package applies different contrast coding schemes for <strong>shrunk</strong> versus <strong>unshrunk</strong> terms:</p>
 <ul>
-<li><p><strong>For prognostic effects:</strong> The goal is interpretability and avoiding collinearity with the intercept. Here, standard treatment (dummy) coding is used. For each of the J subgrouping variables, one level is treated as reference, resulting in L−J total columns for the subgroup main effects.</p></li>
 <li>
-<p><strong>For predictive effects:</strong> The package creates explicit dummy variables for each treatment-by-subgroup combination. For a subgrouping variable with levels {A, B, C}, the package creates interaction dummies <code>trt_subgroupA</code>, <code>trt_subgroupB</code>, <code>trt_subgroupC</code>, where each dummy equals 1 when the patient is both in the treatment group AND in that specific subgroup level. This approach ensures:</p>
+<p><strong>For unshrunk terms</strong> (prognostic or predictive): Standard <strong>dummy coding</strong> is used, where one level per factor is treated as the reference category and omitted from the design matrix. This approach:</p>
 <ul>
-<li>All subgroup levels are treated symmetrically under the exchangeability assumption</li>
-<li>Each subgroup has an interpretable parameter directly representing its treatment effect modification</li>
-<li>Predictions work correctly through G-computation (see Section 3.8)</li>
+<li>Ensures interpretability of coefficients relative to a baseline</li>
+<li>Avoids collinearity with the intercept</li>
+<li>Results in L−J total columns for J subgrouping variables with L total levels</li>
+<li>Is appropriate when coefficients are given weakly informative priors without strong regularization</li>
+</ul>
+</li>
+<li>
+<p><strong>For shrunk terms</strong> (prognostic or predictive): <strong>One-hot encoding</strong> is used, creating explicit dummy variables for <em>all</em> levels of each factor, with no reference level omitted. For example, a subgrouping variable with levels {A, B, C} creates three columns: <code>subgroupA</code>, <code>subgroupB</code>, <code>subgroupC</code> (for prognostic effects) or <code>trt:subgroupA</code>, <code>trt:subgroupB</code>, <code>trt:subgroupC</code> (for predictive effects). This approach ensures:</p>
+<ul>
+<li>All subgroup levels are treated <strong>symmetrically</strong> under the exchangeability assumption of the shrinkage prior</li>
+<li>No single level serves as an anchor point toward which other levels are shrunk</li>
+<li>Each level has its own interpretable parameter that can be independently regularized</li>
+<li>Predictions work correctly through G-computation (see Section <a href="#sec-standardization">3.10</a>)</li>
 </ul>
 </li>
 </ul>
+<p>The rationale for one-hot encoding in shrunk terms is that shrinkage priors assume exchangeability among coefficients—all levels are drawn from the same prior distribution. Having a reference level would break this symmetry and bias the shrinkage process.</p>
 </div>
 <div class="section level3" number="3.3">
 <h3 id="the-principle-of-model-hierarchy">
 <span class="header-section-number">3.3</span> The Principle of Model Hierarchy<a class="anchor" aria-label="anchor" href="#the-principle-of-model-hierarchy"></a>
 </h3>
 <p>A fundamental concept in regression modeling is the <strong>principle of model hierarchy</strong> (or marginality). This principle states that if a model includes an interaction term (e.g., <code>A:B</code>), it should also include the corresponding main effects (e.g., <code>A</code> and <code>B</code>).</p>
-<p>In the context of <code>bonsaiforest2</code>, this means that any subgrouping variable included as <strong>predictive</strong> (i.e., in an interaction with treatment, like <code>trt:subgroup</code>) <em>must</em> also be included as <strong>prognostic</strong> (i.e., as a main effect, <code>subgroup</code>).</p>
+<p>In the context of <code>bonsaiforest2</code>, this means that any subgrouping variable included as <strong>predictive</strong> (i.e., in an interaction with treatment, like <code>trt:subgroup</code>) <em>should</em> also be included as <strong>prognostic</strong> (i.e., as a main effect, <code>subgroup</code>).</p>
 <p>Including the main effect ensures that the interaction term purely captures the <em>modification</em> of the treatment effect, rather than a mix of the main prognostic effect and the interaction, leading to a more stable and interpretable model.</p>
-<p>The <code>bonsaiforest2</code> package enforces this principle automatically. The <code>prepare_formula_model</code> function checks if a main effect is specified as prognostic for every variable included in a predictive term. If it is not, the function automatically adds the main effect to the list of unshrunk prognostic terms to ensure the model hierarchy is respected.</p>
+<p>The <code>bonsaiforest2</code> package checks adherence to this principle during model specification. The <code>prepare_formula_model</code> function examines whether a main effect is specified as prognostic for every variable included in a predictive term. If it is not, the function issues a <strong>warning</strong> recommending that the user include the corresponding main effect to ensure proper model hierarchy. However, the package does not enforce this automatically, allowing users the flexibility to override this recommendation if justified by domain knowledge or specific modeling goals.</p>
 </div>
 <div class="section level3" number="3.4">
-<h3 id="the-global-model">
-<span class="header-section-number">3.4</span> The Global Model<a class="anchor" aria-label="anchor" href="#the-global-model"></a>
+<h3 id="sec-global">
+<span class="header-section-number">3.4</span> The Global Model<a class="anchor" aria-label="anchor" href="#sec-global"></a>
 </h3>
 <p>The package enables the implementation of a global model <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span> where all effects are estimated in a single, comprehensive regression formula.</p>
 <div class="section level4" number="3.4.1">
@@ -234,15 +244,21 @@
 <li>
 <p><span class="math inline">\(\mathbf{X}= [\mathbf{X_p} \;\;  \mathbf{X}_n]\)</span> is the <span class="math inline">\(N \times M\)</span> design matrix for the <strong>prognostic effects</strong>. It typically includes:</p>
 <ul>
-<li><p>An intercept column. In <a href="#sec-intercept">Section x</a> we discuss the inclusion and the prior we give to the intercept in detail</p></li>
+<li><p>An intercept column. In Section <a href="#sec-intercept">3.6</a> we discuss the inclusion and the prior we give to the intercept in detail</p></li>
 <li><p>A column for the main treatment effect.</p></li>
 <li>
-<p>Columns for the prognostic effects of each subgroup level (using dummy coding, so one reference level per factor is dropped). Each prognostic effect will be contained in <span class="math inline">\(\mathbf{X}_n\)</span> or <span class="math inline">\(\mathbf{X}_p\)</span> depending if we want to shrink or not the effect.</p>
+<p>Columns for the prognostic effects of each subgroup level. The contrast coding depends on shrinkage status:</p>
+<ul>
+<li>
+<strong>Unshrunk terms</strong> (<span class="math inline">\(\mathbf{X}_n\)</span>): Use dummy coding (one reference level per factor is dropped)</li>
+<li>
+<strong>Shrunk terms</strong> (<span class="math inline">\(\mathbf{X}_p\)</span>): Use one-hot encoding (all levels included to maintain exchangeability)</li>
+</ul>
 <p>Example:</p>
 </li>
 </ul>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># 1. Create your data as a data frame</span></span>
+<code class="sourceCode R"><span><span class="co"># Example: Unshrunk prognostic effects using dummy coding</span></span>
 <span><span class="va">design_matrix_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  Patient    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span>, <span class="fl">3</span>, <span class="fl">4</span><span class="op">)</span>,</span>
 <span>  Intercept  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span>, <span class="fl">1</span><span class="op">)</span>,</span>
@@ -252,15 +268,14 @@
 <span>  regionAsia <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># 2. Use knitr::kable() to format and print the table</span></span>
 <span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span></span>
 <span>  <span class="va">design_matrix_df</span>,</span>
-<span>  caption <span class="op">=</span> <span class="st">"An example design matrix for a global subgroup model."</span>,</span>
-<span>  align <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'l'</span>, <span class="st">'c'</span>, <span class="st">'c'</span>, <span class="st">'c'</span>, <span class="st">'c'</span><span class="op">)</span> <span class="co"># Align columns (l=left, c=center)</span></span>
+<span>  caption <span class="op">=</span> <span class="st">"Example design matrix for unshrunk prognostic effects (dummy coding)."</span>,</span>
+<span>  align <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">'l'</span>, <span class="st">'c'</span>, <span class="st">'c'</span>, <span class="st">'c'</span>, <span class="st">'c'</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <table class="table">
 <caption>
-<span id="tab:unnamed-chunk-2">Table 3.1: </span>An example design matrix for a global subgroup model.</caption>
+<span id="tab:unnamed-chunk-2">Table 3.1: </span>Example design matrix for unshrunk prognostic effects (dummy coding).</caption>
 <thead><tr class="header">
 <th align="left">Patient</th>
 <th align="center">Intercept</th>
@@ -304,14 +319,22 @@
 </tr>
 </tbody>
 </table>
-<p><em>Note:</em> M=1+1+L-J= 1 degree for the intercept+ 1 for the treatment effect + L (Number of subgroups) - J(Number of variables) because we get the reference levels out.</p>
+<p><em>Note:</em> For unshrunk terms, M=1+1+L-J= 1 for intercept + 1 for treatment + L (total subgroup levels) - J (number of subgrouping variables) because reference levels are dropped. For shrunk terms, all L levels are included (no reference level dropped).</p>
 </li>
 <li><p><span class="math inline">\(\boldsymbol{\beta_{1,p}}\)</span> is the <span class="math inline">\(P \times 1\)</span> vector of coefficients for the prognostic effects that we want to shrink. We will give an shrinkage prior to this coefficients.</p></li>
 <li><p><span class="math inline">\(\boldsymbol{\beta_{1,n}}\)</span> is the <span class="math inline">\((M-P) \times 1\)</span> vector of coefficients for the prognostic effects that we don’t want to shrink.</p></li>
-<li><p><span class="math inline">\(\mathbf{Z}= [\mathbf{Z_p} \;\;  \mathbf{Z}_n]\)</span> is the <span class="math inline">\(N \times L\)</span> design matrix for the <strong>predictive effects</strong>. Its columns represent explicit dummy variables for the interaction between treatment and each of the <span class="math inline">\(L\)</span> subgroup levels. Each column <code>trt_subgroupLEVEL</code> equals 1 when patient <span class="math inline">\(i\)</span> is both on treatment (<span class="math inline">\(s_i = 1\)</span>) AND belongs to that specific subgroup level, and 0 otherwise. This ensures all subgroups are treated symmetrically.</p></li>
+<li>
+<p><span class="math inline">\(\mathbf{Z}= [\mathbf{Z_p} \;\;  \mathbf{Z}_n]\)</span> is the design matrix for the <strong>predictive effects</strong>. The contrast coding depends on shrinkage status:</p>
+<ul>
+<li>
+<strong>Unshrunk predictive terms</strong> (<span class="math inline">\(\mathbf{Z}_n\)</span>): Use dummy coding (one reference interaction per factor is dropped)</li>
+<li>
+<strong>Shrunk predictive terms</strong> (<span class="math inline">\(\mathbf{Z}_p\)</span>): Use one-hot encoding where each column <code>trt_subgroupLEVEL</code> equals 1 when patient <span class="math inline">\(i\)</span> is both on treatment (<span class="math inline">\(s_i = 1\)</span>) AND belongs to that specific subgroup level, and 0 otherwise. All <span class="math inline">\(L\)</span> interaction dummies are included to ensure all subgroups are treated symmetrically under the exchangeability assumption.</li>
+</ul>
+</li>
 </ul>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Manually creating the interaction matrix for clarity</span></span>
+<code class="sourceCode R"><span><span class="co"># Example: Shrunk predictive effects using one-hot encoding</span></span>
 <span><span class="co"># Each column represents trt_subgroupLEVEL (1 if treated AND in that level, 0 otherwise)</span></span>
 <span><span class="va">interaction_matrix</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  Patient           <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">6</span>,</span>
@@ -322,16 +345,15 @@
 <span>  `trt_regionAsia`  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span>, <span class="fl">0</span>, <span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Using knitr::kable for a nice output</span></span>
 <span><span class="fu">knitr</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/knitr/man/kable.html" class="external-link">kable</a></span><span class="op">(</span></span>
 <span>  <span class="va">interaction_matrix</span>,</span>
 <span>  align <span class="op">=</span> <span class="st">'c'</span>,</span>
 <span>  col.names <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Patient"</span>, <span class="st">"trt_sexM"</span>, <span class="st">"trt_sexF"</span>, <span class="st">"trt_regionEU"</span>, <span class="st">"trt_regionUS"</span>, <span class="st">"trt_regionAsia"</span><span class="op">)</span>,</span>
-<span>  caption <span class="op">=</span> <span class="st">"Interaction design matrix using explicit dummy variables"</span></span>
+<span>  caption <span class="op">=</span> <span class="st">"Example design matrix for shrunk predictive effects (one-hot encoding)"</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <table style="width:100%;" class="table">
 <caption>
-<span id="tab:unnamed-chunk-3">Table 3.2: </span>Interaction design matrix using explicit dummy variables</caption>
+<span id="tab:unnamed-chunk-3">Table 3.2: </span>Example design matrix for shrunk predictive effects (one-hot encoding)</caption>
 <colgroup>
 <col width="12%">
 <col width="13%">
@@ -478,8 +500,8 @@
 </div>
 </div>
 <div class="section level3" number="3.5">
-<h3 id="one-variable-at-a-time-model">
-<span class="header-section-number">3.5</span> One-Variable-at-a-Time Model<a class="anchor" aria-label="anchor" href="#one-variable-at-a-time-model"></a>
+<h3 id="sec-one-var">
+<span class="header-section-number">3.5</span> One-Variable-at-a-Time Model<a class="anchor" aria-label="anchor" href="#sec-one-var"></a>
 </h3>
 <p>The <strong>one-variable-at-a-time model</strong> <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span> is a Bayesian hierarchical model (BHM) that improves upon standard subgroup analysis by borrowing information across subgroup levels to produce more stable and reliable estimates. Instead of analyzing each subgroup level in isolation, it analyzes all levels <em>within a single subgrouping variable</em> (e.g., all age groups) together in one model.</p>
 <p>For example, for the variable <em>Sex</em> (with levels Male and Female), you would fit one hierarchical model. In this single model, the treatment effects for Male (<span class="math inline">\(\beta_{2,\text{sex,male}}\)</span>) and Female (<span class="math inline">\(\beta_{2,\text{sex,female}}\)</span>) are treated as exchangeable and are linked by a common prior distribution. Then, a completely separate hierarchical model would be fit for the variable <em>Region</em>.</p>
@@ -524,34 +546,21 @@
 <h3 id="sec-intercept">
 <span class="header-section-number">3.6</span> The Logic of the Intercept<a class="anchor" aria-label="anchor" href="#sec-intercept"></a>
 </h3>
-<p>While the intercept (<span class="math inline">\(\beta_0\)</span>) is not subject to shrinkage (it is a fixed effect within the <code>unprogeffect</code> component), specifying its prior requires care to ensure the model remains weakly informative without introducing bias or numerical instability.</p>
-<p><strong>Default Specification:</strong> By default, <code>bonsaiforest</code> assigns a weakly informative Normal prior centered at 0 with a standard deviation of 5: <span class="math display">\[
-\beta_0 \sim \mathcal{N}(0, 5^2)
-\]</span> This choice is aligned with the methodology in Wolbers et al. (2025), where a standard deviation of 5 on the log-hazard or logit scale covers a wide range of plausible effect sizes (e.g., ratios from 0.08 to 12) while still penalizing extreme, unrealistic values.</p>
-<p><strong>Linking Prior Scale to Trial Design:</strong> For a more principled choice, users can adjust the scale parameter (<span class="math inline">\(\sigma_{prior}\)</span>) based on assumptions made during the <strong>trial design and sample size calculation phase</strong>.</p>
+<p>While the intercept (<span class="math inline">\(\beta_0\)</span>) is not subject to shrinkage (it is a fixed effect within the <code>unshrunktermeffect</code> component), specifying its prior requires care to ensure the model remains weakly informative without introducing bias or numerical instability.</p>
+<p><strong>Default Specification:</strong> The package automatically scales the intercept prior based on the reference scale parameter (<code>sigma_ref</code>) provided by the user:</p>
 <ol style="list-style-type: decimal">
-<li>
-<strong>For Continuous Endpoints:</strong> The trial protocol typically assumes a population standard deviation, <span class="math inline">\(\sigma_{design}\)</span>, for power calculations.
-<ul>
-<li>
-<strong>Recommendation:</strong> Set the prior standard deviation to a multiple of this design parameter, such as <span class="math inline">\(\sigma_{prior} = 10 \times \sigma_{design}\)</span>. This ensures the prior is wide enough to cover the plausible range of outcomes envisioned during planning.</li>
-</ul>
-</li>
-<li>
-<strong>For Count Endpoints (Log Scale):</strong> The intercept represents the log of the baseline event rate (assuming the offset is handled correctly).
-<ul>
-<li>
-<strong>Recommendation:</strong> The default <span class="math inline">\(\mathcal{N}(0, 5^2)\)</span> is generally appropriate, as it covers a vast multiplicative range of event rates. However, if the trial is designed for very rare events (e.g., <span class="math inline">\(&lt; 0.01\)</span> events/year) or very frequent events, centering the prior on the log of the anticipated event rate from the protocol (<span class="math inline">\(\mu_0 = \log(\lambda_{design})\)</span>) rather than 0 can improve convergence.</li>
-</ul>
-</li>
-<li>
-<strong>For Binary Endpoints (Logit Scale):</strong>
-<ul>
-<li>
-<strong>Recommendation:</strong> Use a prior scaled to the <strong>Unit Information Standard Deviation (UISD)</strong>, or adhere to the default <span class="math inline">\(\sigma=5\)</span>. A variance of 25 covers the entire range of realistic probabilities without concentrating mass on deterministic outcomes (0 or 1).</li>
-</ul>
-</li>
+<li><p><strong>For Continuous Endpoints:</strong> The prior is centered at the observed outcome mean with scale proportional to <code>sigma_ref</code>: <span class="math display">\[
+\beta_0 \sim \mathcal{N}(\bar{y}, (5 \times \sigma_{ref})^2)
+\]</span> where <span class="math inline">\(\bar{y}\)</span> is the sample mean of the outcome variable and <code>sigma_ref</code> is the protocol standard deviation from the trial design. Centering at the outcome mean improves computational efficiency while the scale of <span class="math inline">\(5 \times \sigma_{ref}\)</span> provides sufficient flexibility relative to the trial’s expected variability.</p></li>
+<li><p><strong>For Binary and Count Endpoints:</strong> The prior is centered at 0 and scaled by <code>sigma_ref</code> (typically set to 1): <span class="math display">\[
+\beta_0 \sim \mathcal{N}(0, (5 \times \sigma_{ref})^2)
+\]</span> For binary and count endpoints, <code>sigma_ref</code> is typically set to 1, yielding <code>normal(0, 5)</code>. A standard deviation of 5 on the log-odds or log-rate scale covers a wide range of plausible effect sizes (e.g., ratios from approximately 0.08 to 12) while still penalizing extreme, unrealistic values. This choice is aligned with the methodology in Wolbers et al. (2025).</p></li>
 </ol>
+<p><strong>Linking to Trial Design:</strong></p>
+<ul>
+<li><p><strong>For continuous outcomes:</strong> Set <code>sigma_ref</code> to the population standard deviation assumed during the trial design and sample size calculation phase. This ensures the prior is automatically calibrated to the expected magnitude of effects in the specific trial.</p></li>
+<li><p><strong>For binary, count, and survival outcomes:</strong> Use <code>sigma_ref = 1</code> (the typical default), as these outcomes are modeled on transformed scales (logit, log, or log-hazard) where the original outcome standard deviation is not directly meaningful.</p></li>
+</ul>
 <p><strong>Special Case: Time-to-Event Endpoints.</strong> For Cox proportional hazards models, the intercept is <strong>not identifiable</strong> and is <strong>omitted</strong> from the linear predictor.</p>
 <ul>
 <li><p><strong>Mechanism:</strong> The intercept is effectively absorbed into the non-parametric baseline hazard function, <span class="math inline">\(h_0(t)\)</span>.</p></li>
@@ -614,41 +623,58 @@
 </table>
 </div>
 <div class="section level3" number="3.8">
-<h3 id="prior-specifications">
-<span class="header-section-number">3.8</span> Prior Specifications<a class="anchor" aria-label="anchor" href="#prior-specifications"></a>
+<h3 id="sec-priors">
+<span class="header-section-number">3.8</span> Prior Specifications<a class="anchor" aria-label="anchor" href="#sec-priors"></a>
 </h3>
 <div class="section level4" number="3.8.1">
 <h4 id="default-priors">
 <span class="header-section-number">3.8.1</span> Default Priors<a class="anchor" aria-label="anchor" href="#default-priors"></a>
 </h4>
-<p>If priors are not specified, the function applies the following defaults (as defined in the <code>fit_brms_model</code> code):</p>
+<p>The package requires the user to specify <code>sigma_ref</code>, a reference scale parameter used to calibrate all default priors. The interpretation of <code>sigma_ref</code> depends on the endpoint type:</p>
 <ul>
 <li>
-<strong>Prognostic Shrunk:</strong> <code>horseshoe(1)</code>
+<strong>For continuous outcomes:</strong> <code>sigma_ref</code> represents the protocol standard deviation of the trial (typically obtained from the sample size calculation).</li>
+<li>
+<strong>For binary, count, and survival outcomes:</strong> <code>sigma_ref</code> is typically set to 1, as these outcomes are modeled on transformed scales (logit, log, or log-hazard) where standard deviations are not directly meaningful.</li>
+</ul>
+<p>All default priors are automatically scaled relative to <code>sigma_ref</code> to ensure they are appropriately calibrated:</p>
+<p><strong>For continuous outcomes:</strong></p>
+<ul>
+<li>
+<strong>Intercept:</strong> <code>normal(outcome_mean, 5 * sigma_ref)</code> — centered at the observed outcome mean</li>
+<li>
+<strong>Unshrunk terms:</strong> <code>normal(0, 5 * sigma_ref)</code>
 </li>
 <li>
-<strong>Prognostic Unshrunk:</strong> <code>normal(0, 5)</code>
+<strong>Shrunk prognostic:</strong> <code>horseshoe(1)</code>
 </li>
 <li>
-<strong>Prognostic Intercept:</strong> <code>normal(0, 10)</code>
-</li>
-<li>
-<strong>Predictive Shrunk:</strong> <code>horseshoe(1)</code>
-</li>
-<li>
-<strong>Predictive Unshrunk:</strong> <code>normal(0, 5)</code>
+<strong>Shrunk predictive:</strong> <code>horseshoe(1)</code>
 </li>
 </ul>
-<p><strong>Note:</strong> The intercept prior is <em>not</em> applied for <code>response_type = "survival"</code>, as Cox models do not have a global intercept.</p>
+<p><strong>For binary, count, and survival outcomes:</strong></p>
+<ul>
+<li>
+<strong>Intercept:</strong> <code>normal(0, 5 * sigma_ref)</code> (typically <code>normal(0, 5)</code> when <code>sigma_ref = 1</code>)</li>
+<li>
+<strong>Unshrunk terms:</strong> <code>normal(0, 5 * sigma_ref)</code> (typically <code>normal(0, 5)</code> when <code>sigma_ref = 1</code>)</li>
+<li>
+<strong>Shrunk prognostic:</strong> <code>horseshoe(1)</code>
+</li>
+<li>
+<strong>Shrunk predictive:</strong> <code>horseshoe(1)</code>
+</li>
+</ul>
+<p><strong>Note:</strong> The intercept prior is <em>not</em> applied for <code>response_type = "survival"</code>, as Cox models do not have a global intercept. Additionally, the intercept prior is omitted if the user specifies a formula without an intercept (using <code>~ 0 + ...</code> syntax).</p>
 </div>
 <div class="section level4" number="3.8.2">
 <h4 id="weakly-informative-priors-unshrunk-terms">
 <span class="header-section-number">3.8.2</span> Weakly Informative Priors (Unshrunk Terms)<a class="anchor" aria-label="anchor" href="#weakly-informative-priors-unshrunk-terms"></a>
 </h4>
-<p>For all non-penalized coefficients (<span class="math inline">\(\boldsymbol{\beta_{1,n}}, \boldsymbol{\beta_{2,n}}, \boldsymbol{\beta_{3}}\)</span>), we use weakly informative priors to aid computational stability without strongly influencing the posterior.</p>
+<p>For all unshrunk coefficients (both prognostic and predictive terms in the <code>unshrunktermeffect</code> component, as well as extra covariates <span class="math inline">\(\boldsymbol{\beta_{3}}\)</span>), we use weakly informative priors to aid computational stability without strongly influencing the posterior.</p>
 <ul>
 <li>
-<strong>Default:</strong> <code>normal(0, 10)</code>. This is a common, weakly regularizing prior on the linear predictor scale. Users can specify their own, e.g., <code>student_t(3, 0, 2.5)</code>.</li>
+<strong>Default:</strong> <code>normal(0, 5 * sigma_ref)</code>. This prior is automatically scaled to the trial’s expected effect size, making it weakly regularizing on the linear predictor scale. Users can override this by specifying custom priors using the <code>sigma_ref</code> placeholder (e.g., <code>"normal(0, 2.5 * sigma_ref)"</code>), which will be automatically substituted with the numeric value during model fitting.</li>
 </ul>
 </div>
 <div class="section level4" number="3.8.3">
@@ -963,8 +989,8 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 </div>
 </div>
 <div class="section level3" number="3.9">
-<h3 id="estimation-mcmc">
-<span class="header-section-number">3.9</span> Estimation (MCMC)<a class="anchor" aria-label="anchor" href="#estimation-mcmc"></a>
+<h3 id="sec-estimation">
+<span class="header-section-number">3.9</span> Estimation (MCMC)<a class="anchor" aria-label="anchor" href="#sec-estimation"></a>
 </h3>
 <p>The joint posterior distribution of all parameters is complex and has no closed-form solution. We use Markov Chain Monte Carlo (MCMC) methods to draw samples from this distribution. Specifically, the package uses the <strong>No-U-Turn Sampler (NUTS)</strong>, an efficient variant of Hamiltonian Monte Carlo (HMC), as implemented in <strong>Stan</strong> via the <code>brms</code> package. The output is a set of posterior samples (e.g., 4000 draws) representing the joint posterior distribution.</p>
 </div>
@@ -1013,7 +1039,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <h2 id="sec-functions">
 <span class="header-section-number">4</span> Mapping of Statistical Methods to <code>bonsaiforest2</code> Functions<a class="anchor" aria-label="anchor" href="#sec-functions"></a>
 </h2>
-<p>This section connects the statistical methodology (Section 3) to the package functions. The package provides a three-level architecture: high-level user interface functions, modular worker functions for advanced control, and internal helpers.</p>
+<p>This section connects the statistical methodology (Section <a href="#sec-methodology">3</a>) to the package functions. The package provides a three-level architecture: high-level user interface functions, modular worker functions for advanced control, and internal helpers.</p>
 <div class="section level3" number="4.1">
 <h3 id="high-level-user-interface">
 <span class="header-section-number">4.1</span> High-Level User Interface<a class="anchor" aria-label="anchor" href="#high-level-user-interface"></a>
@@ -1024,7 +1050,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <p><strong><code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code></strong></p>
 <ul>
 <li>
-<strong>Maps to:</strong> Sections 3.2 (Models), 3.3 (Endpoints), 3.4 (Priors), 3.5 (Estimation).</li>
+<strong>Maps to:</strong> Sections <a href="#sec-global">3.4</a> (Global Model), <a href="#sec-one-var">3.5</a> (One-Variable-at-a-Time Model), <a href="#sec-endpoint">3.7</a> (Endpoints), <a href="#sec-priors">3.8</a> (Priors), <a href="#sec-estimation">3.9</a> (Estimation).</li>
 <li>
 <strong>Action:</strong> Main entry point that orchestrates the complete modeling workflow.
 <ul>
@@ -1041,7 +1067,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <p><strong><code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code></strong></p>
 <ul>
 <li>
-<strong>Maps to:</strong> Section 3.6 (Standardization / G-computation).</li>
+<strong>Maps to:</strong> Section <a href="#sec-standardization">3.10</a> (Standardization / G-computation).</li>
 <li>
 <strong>Action:</strong> User-facing wrapper for marginal effect summarization.
 <ul>
@@ -1057,7 +1083,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <p><strong><code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code></strong></p>
 <ul>
 <li>
-<strong>Maps to:</strong> Final visualization of Section 3.6 results.</li>
+<strong>Maps to:</strong> Final visualization of Section <a href="#sec-standardization">3.10</a> results.</li>
 <li>
 <strong>Action:</strong> S3 method for <code>subgroup_summary</code> objects. Generates publication-ready forest plots from marginal effect estimates with median and 95% credible intervals.</li>
 </ul>
@@ -1097,7 +1123,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <strong>Action:</strong> Constructs and validates the three-component <code>brmsformula</code> structure:
 <ul>
 <li>
-<code>unshrunktermeffect</code>: Unshrunk terms with weakly informative priors (intercept, main treatment effect, pre-specified covariates). Specified via <code>unshrunk_terms_formula</code>.</li>
+<code>unshrunktermeffect</code>: Unshrunk terms with weakly informative priors. Can include both prognostic effects (intercept, main treatment effect, pre-specified covariates) and predictive effects (treatment interactions). Specified via <code>unshrunk_terms_formula</code>.</li>
 <li>
 <code>shprogeffect</code>: Shrunk prognostic effects with strong regularization priors. Specified via <code>shrunk_prognostic_formula</code>.</li>
 <li>
@@ -1120,7 +1146,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <li>Takes output from <code><a href="../reference/prepare_formula_model.html">prepare_formula_model()</a></code> or manually specified formula components.</li>
 <li>Assigns priors to each formula component based on user specifications or defaults.</li>
 <li>Calls <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code> to compile Stan code and run MCMC chains.</li>
-<li>Handles endpoint-specific configurations (Section 3.3): likelihood functions, link functions, and stratification.</li>
+<li>Handles endpoint-specific configurations (Section <a href="#sec-endpoint">3.7</a>): likelihood functions, link functions, and stratification.</li>
 <li>Attaches essential metadata as attributes to the fitted model for use by <code><a href="../reference/estimate_subgroup_effects.html">estimate_subgroup_effects()</a></code>.</li>
 </ul>
 </li>
@@ -1130,7 +1156,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <p><strong><code><a href="../reference/estimate_subgroup_effects.html">estimate_subgroup_effects()</a></code></strong></p>
 <ul>
 <li>
-<strong>Action:</strong> Implements the complete G-computation procedure described in Section 3.8:
+<strong>Action:</strong> Implements the complete G-computation procedure described in Section <a href="#sec-standardization">3.10</a>:
 <ol style="list-style-type: decimal">
 <li>For each MCMC draw, creates counterfactual datasets (all patients as treated vs. control).</li>
 <li>Generates posterior predictions using <code><a href="https://mc-stan.org/rstantools/reference/posterior_epred.html" class="external-link">brms::posterior_epred()</a></code> or <code>brms::posterior_survfit()</code>.</li>

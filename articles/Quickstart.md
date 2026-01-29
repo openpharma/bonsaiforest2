@@ -8,16 +8,16 @@ typically called in sequence:
 1.  [`run_brms_analysis()`](https://openpharma.github.io/bonsaiforest2/reference/run_brms_analysis.md) -
     Prepares the model formula and fits the Bayesian model using `brms`.
 2.  [`summary_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/summary_subgroup_effects.md) -
-    Calculates the marginal overall and subgroup treatment effects.
+    Calculates the marginal subgroup treatment effects.
 3.  [`plot()`](https://rdrr.io/r/graphics/plot.default.html) - Creates a
     forest plot from the summary object.
 
 The package enables the implementation of both a **global modeling
 approach** ([Wolbers et al. 2025](#ref-wolbers2025using)), that
-estimates all main (prognostic) and interaction (predictive) effects in
-a single model, and a **One-Variable-At-a-Time (OVAT)** approach ([Wang
-et al. 2024](#ref-wang2024bayesian)), that estimates the interaction
-effects using a different model for each subgrouping variable.
+estimates all prognostic and predictive effects in a single model, and a
+**One-Variable-At-a-Time (OVAT)** approach ([Wang et al.
+2024](#ref-wang2024bayesian)), that estimates the predictive effects
+using a different model for each subgrouping variable.
 
 This vignette demonstrates how to use the package to fit and compare
 these different modeling formulas. You’ll learn how to:
@@ -74,7 +74,6 @@ continuous_data <- data.frame(
   diabetes = factor(sample(c("Yes", "No"), n_patients, replace = TRUE, prob = c(0.3, 0.7)))
 )
 
-# `bonsaiforest2` expects the treatment variable to be a factor
 continuous_data$trt <- factor(continuous_data$trt, levels = c(0, 1))
 
 print(head(continuous_data))
@@ -212,7 +211,7 @@ ovat_diabetes <- run_brms_analysis(
 #> shpredeffect ~ 0 + (0 + trt || diabetes)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.3 seconds.
+#> Chain 1 finished in 3.2 seconds.
 
 summary_ovat_diabetes <- summary_subgroup_effects(brms_fit = ovat_diabetes)
 ```
@@ -253,7 +252,7 @@ global_model <- run_brms_analysis(
   data = continuous_data,
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
-  unshrunk_terms_formula = ~ baseline_sbp+region +comorbidity + age_group + sex +diabetes,
+  unshrunk_terms_formula = ~ baseline_sbp + region + comorbidity + age_group + sex + diabetes,
   shrunk_predictive_formula = ~ 0 + trt:region+trt:comorbidity + trt:age_group + trt:sex + trt:diabetes,
   shrunk_predictive_prior = "horseshoe(1)",
   sigma_ref = sigma_ref,
