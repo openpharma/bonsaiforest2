@@ -187,7 +187,7 @@ ovat_sex <- run_brms_analysis(
 #> shpredeffect ~ 0 + (0 + trt || sex)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.3 seconds.
+#> Chain 1 finished in 3.2 seconds.
 
 summary_ovat_sex <- summary_subgroup_effects(brms_fit = ovat_sex)
 ```
@@ -264,7 +264,7 @@ global_model <- run_brms_analysis(
 #> shpredeffect ~ 0 + trt:region + trt:comorbidity + trt:age_group + trt:sex + trt:diabetes
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.3 seconds.
+#> Chain 1 finished in 3.2 seconds.
 ```
 
 ### 4.2 Global Model: Summary of Subgroup Effects

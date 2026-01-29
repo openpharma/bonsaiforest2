@@ -64,50 +64,58 @@ robust estimates of subgroup-specific effects.</p>
 
 
 <dl><dt id="arg-brms-fit">brms_fit<a class="anchor" aria-label="anchor" href="#arg-brms-fit"></a></dt>
-<dd><p>`brmsfit`. Fitted model object from `fit_brms_model()` or `run_brms_analysis()`.</p></dd>
+<dd><p>A <code>brmsfit</code> object. Fitted model object from <code><a href="fit_brms_model.html">fit_brms_model()</a></code> or
+<code><a href="run_brms_analysis.html">run_brms_analysis()</a></code>. Must contain the necessary attributes for extracting treatment
+variable and response type information.</p></dd>
 
 
 <dt id="arg-trt-var">trt_var<a class="anchor" aria-label="anchor" href="#arg-trt-var"></a></dt>
-<dd><p>`character(1)` or `NULL`. Treatment variable name. If `NULL`, extracted from
-model attributes (set by `fit_brms_model()`).</p></dd>
+<dd><p>A character string or <code>NULL</code>. Treatment variable name. If <code>NULL</code>, automatically
+extracted from model attributes (set by <code><a href="fit_brms_model.html">fit_brms_model()</a></code>). Must be a binary variable
+coded as 0/1 in the dataset.</p></dd>
 
 
 <dt id="arg-data">data<a class="anchor" aria-label="anchor" href="#arg-data"></a></dt>
-<dd><p>`data.frame` or `NULL`. Dataset used for model fitting. If `NULL`, extracted from
-model attributes (set by `fit_brms_model()`).</p></dd>
+<dd><p>A data frame or <code>NULL</code>. Dataset used for model fitting. If <code>NULL</code>, automatically
+extracted from model attributes (set by <code><a href="fit_brms_model.html">fit_brms_model()</a></code>). This dataset is used for
+generating counterfactual predictions.</p></dd>
 
 
 <dt id="arg-subgroup-vars">subgroup_vars<a class="anchor" aria-label="anchor" href="#arg-subgroup-vars"></a></dt>
-<dd><p>`character` or `"auto"`. Subgroup variable names. If `"auto"`, automatically
-detects treatment interaction terms (colon syntax) and random effect grouping factors (pipe syntax)
-from all formula components.</p></dd>
+<dd><p>A character vector or <code>"auto"</code>. Subgroup variable names for which
+to estimate treatment effects. If <code>"auto"</code> (default), automatically detects treatment
+interaction terms (colon syntax) and random effect grouping factors (pipe syntax) from
+all formula components (<code>unshrunktermeffect</code>, <code>shprogeffect</code>, <code>shpredeffect</code>).</p></dd>
 
 
 <dt id="arg-response-type">response_type<a class="anchor" aria-label="anchor" href="#arg-response-type"></a></dt>
-<dd><p>`character(1)` or `NULL`. Outcome type: `"binary"`, `"count"`, `"continuous"`,
-or `"survival"`. If `NULL`, extracted from model attributes (set by `fit_brms_model()`).</p></dd>
+<dd><p>A character string or <code>NULL</code>. Outcome type, one of <code>"binary"</code>,
+<code>"count"</code>, <code>"continuous"</code>, or <code>"survival"</code>. If <code>NULL</code>, automatically extracted from
+model attributes (set by <code><a href="fit_brms_model.html">fit_brms_model()</a></code>). This determines the appropriate scale
+for effect estimation.</p></dd>
 
 
 <dt id="arg-ndraws">ndraws<a class="anchor" aria-label="anchor" href="#arg-ndraws"></a></dt>
-<dd><p>`integer(1)` or `NULL`. Number of posterior draws to use. If `NULL` (default),
-all available draws are used.</p></dd>
+<dd><p>An integer or <code>NULL</code>. Number of posterior draws to use for estimation.
+If <code>NULL</code> (default), all available posterior draws are used. Reducing this can speed
+up computation at the cost of precision.</p></dd>
 
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    <p>`list` with two named elements:</p><dl><dt>`estimates`</dt>
-<dd><p>`tibble` where each row represents a subgroup (or "Overall" effect),
-      with columns for `Subgroup`, `Median`, `CI_Lower`, and `CI_Upper` from posterior distribution</p></dd>
+    <p><code>list</code> with two named elements:</p><dl><dt><code>estimates</code></dt>
+<dd><p><code>tibble</code> where each row represents a subgroup (or "Overall" effect),
+with columns for <code>Subgroup</code>, <code>Median</code>, <code>CI_Lower</code>, and <code>CI_Upper</code> from posterior distribution</p></dd>
 
-    <dt>`draws`</dt>
-<dd><p>`data.frame` containing posterior draws for each subgroup</p></dd>
+<dt><code>draws</code></dt>
+<dd><p><code>data.frame</code> containing posterior draws for each subgroup</p></dd>
 
 
 </dl></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
     <p>This post-processing function estimates marginal treatment effects for
-specified subgroups from a fitted `brmsfit` object.</p>
+specified subgroups from a fitted <code>brmsfit</code> object.</p>
     </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

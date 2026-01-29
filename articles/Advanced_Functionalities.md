@@ -520,7 +520,7 @@ fit_onehot <- fit_brms_model(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 1.1 seconds.
+#> Chain 1 finished in 1.2 seconds.
 #> Warning: 5 of 100 (5.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -970,7 +970,7 @@ fit_surv_stratified <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 7.9 seconds.
+#> Chain 1 finished in 7.8 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 

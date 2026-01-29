@@ -13,12 +13,11 @@ combine_summaries(summary_list)
 
 - summary_list:
 
-  Named list of \`subgroup_summary\` objects.
+  Named list of `subgroup_summary` objects.
 
 ## Value
 
-\`subgroup_summary\`. Combined object with a "Model" column in
-estimates.
+`subgroup_summary`. Combined object with a "Model" column in estimates.
 
 ## Examples
 

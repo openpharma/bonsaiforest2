@@ -87,7 +87,7 @@
 <li>
 <strong>Advanced Shrinkage Priors:</strong> Supports state-of-the-art shrinkage priors, including the <strong>Regularized Horseshoe</strong> <span class="citation">(<a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>; <a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span> and <strong>R2D2</strong> <span class="citation">(<a href="#ref-zhang2022bayesian">Zhang et al. 2022</a>)</span>.</li>
 <li>
-<strong>Marginal Effect Estimation:</strong> Use of <strong>standardization (G-computation)</strong> to derive interpretable <em>marginal</em> subgroup treatment effects, which average over the covariate distributions within each subgroup <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>. This is implemented through:
+<strong>Marginal Effect Estimation:</strong> Use of <strong>standardization (G-computation)</strong> to derive interpretable <em>marginal</em> subgroup treatment effects, which average over the covariate distributions within each subgroup <span class="citation">(<a href="#ref-HernanRobins2023">Hernán and Robins 2023</a>)</span>. This is implemented through:
 <ul>
 <li>
 <code><a href="../reference/estimate_subgroup_effects.html">estimate_subgroup_effects()</a></code> for the computational G-computation workflow.</li>
@@ -149,7 +149,7 @@
 <p>When covariates are included in a non-linear model (like a logistic or Cox model), the resulting coefficients represent <strong>conditional</strong> effects. For example, the treatment effect is the effect for a patient with a <em>specific set</em> of covariate values (e.g., the reference values).</p>
 <p>This is problematic for forest plots, where we want to know the <strong>marginal</strong> effect: “What is the average treatment effect for <em>all patients</em> in the ‘Female’ subgroup, averaging over their different ages, regions, etc.?”.</p>
 <p>Because different subgroups have different covariate distributions (e.g., the <code>age &gt;= 65</code> subgroup will have a different health status profile than the <code>age &lt; 65</code> group), these conditional coefficients are not directly comparable.</p>
-<p><code>bonsaiforest2</code> solves this by using <strong>Standardization (G-computation)</strong> <span class="citation">(<a href="#ref-wolbers2024shrinkage"><strong>wolbers2024shrinkage?</strong></a>)</span>. This procedure correctly averages over the specific covariate distribution of each subgroup to estimate a valid marginal treatment effect, ensuring all subgroups are compared on the same interpretable scale. (See Section <a href="#sec-standardization">3.10</a> for a detailed explanation of how this standardization is performed in the package.)</p>
+<p><code>bonsaiforest2</code> solves this by using <strong>Standardization (G-computation)</strong> <span class="citation">(<a href="#ref-HernanRobins2023">Hernán and Robins 2023</a>)</span>. This procedure correctly averages over the specific covariate distribution of each subgroup to estimate a valid marginal treatment effect, ensuring all subgroups are compared on the same interpretable scale. (See Section <a href="#sec-standardization">3.10</a> for a detailed explanation of how this standardization is performed in the package.)</p>
 </div>
 </div>
 <div class="section level2" number="3">
@@ -681,7 +681,7 @@
 <h4 id="regularized-horseshoe-prior-shrunk-terms">
 <span class="header-section-number">3.8.3</span> Regularized Horseshoe Prior (Shrunk Terms)<a class="anchor" aria-label="anchor" href="#regularized-horseshoe-prior-shrunk-terms"></a>
 </h4>
-<p>This is the default shrinkage prior in <code>bonsaiforest2</code>, recommended for its excellent adaptive shrinkage properties <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>; <a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>)</span>.</p>
+<p>This is the default shrinkage prior in <code>bonsaiforest2</code>, recommended for its excellent adaptive shrinkage properties <span class="citation">(<a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>)</span>.</p>
 <ul>
 <li><p><strong>Concept:</strong> A global-local prior. It has an infinitely tall spike at zero (to aggressively shrink noise) and heavy tails (to leave true, large signals unshrunk).</p></li>
 <li>
@@ -698,7 +698,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <p><strong>Hyperparameter Justification</strong>: The package supports two ways to set the crucial global scale <span class="math inline">\(\tau_0\)</span>:</p>
 <ol style="list-style-type: decimal">
 <li>
-<strong>Fixed Default (<code>scale_global</code>):</strong> <code>horseshoe(scale_global = 1)</code>. This is the package default, a robust, general-purpose choice <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>.</li>
+<strong>Fixed Default (<code>scale_global</code>):</strong> <code>horseshoe(scale_global = 1)</code>. This is the package default, a robust, general-purpose choice.</li>
 <li>
 <strong>Elicited Prior (<code>par_ratio</code>):</strong> Sets <span class="math inline">\(\tau_0\)</span> based on the <em>prior</em> belief about the number of effective (non-zero) subgroups, <span class="math inline">\(p_{eff}\)</span>, out of the total <span class="math inline">\(L\)</span> <span class="citation">(<a href="#ref-bornkamp2025benchmarking">Bornkamp 2025</a>; <a href="#ref-piironen2017sparsity">Piironen and Vehtari 2017</a>)</span>. This is specified via <span class="math inline">\(\text{par\_ratio} = \frac{p_{eff}}{L - p_{eff}}\)</span>. This scales the prior based on sample size (<span class="math inline">\(N\)</span>) and the expected sparsity.</li>
 </ol>
@@ -781,7 +781,7 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <p><strong>Elicited Sparsity (</strong><span class="math inline">\(\mathbf{par\_ratio}\)</span>):</p>
 <ul>
 <li>
-<strong>Calculation:</strong> <span class="math inline">\(\text{par\_ratio} = \frac{p_{eff}}{L - p_{eff}}\)</span>, where <span class="math inline">\(p_{eff}\)</span> is the expected number of non-zero coefficients and <span class="math inline">\(L\)</span> is the total number of coefficients.</li>
+<strong>Calculation:</strong> <span class="math inline">\(\mathbf{par\_ratio} = \frac{p_{eff}}{L - p_{eff}}\)</span>, where <span class="math inline">\(p_{eff}\)</span> is the expected number of non-zero coefficients and <span class="math inline">\(L\)</span> is the total number of coefficients.</li>
 <li>
 <strong>Use when:</strong> You have a strong prior belief about the number of relevant effects. This is generally preferred for adaptive shrinkage as it scales <span class="math inline">\(\tau_0\)</span> appropriately.</li>
 </ul>
@@ -1177,20 +1177,6 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 </li>
 </ul>
 </div>
-<div class="section level3" number="4.3">
-<h3 id="internal-helper-functions">
-<span class="header-section-number">4.3</span> Internal Helper Functions<a class="anchor" aria-label="anchor" href="#internal-helper-functions"></a>
-</h3>
-<p>These functions support the main workflow but are not typically called directly by users:</p>
-<ul>
-<li>
-<strong><code>.prepare_subgroup_vars()</code></strong>: Detects subgroup variables from model formula by identifying treatment interaction terms.</li>
-<li>
-<strong><code>.create_counterfactual_data()</code></strong>: Generates counterfactual datasets for G-computation.</li>
-<li>
-<strong><code>.compute_effect_measure()</code></strong>: Calculates appropriate effect measure based on response type.</li>
-</ul>
-</div>
 </div>
 <div class="section level2">
 <h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
@@ -1198,6 +1184,9 @@ c^2 &amp;\sim \text{Inverse-Gamma}(\nu/2, \nu s^2/2)
 <div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0">
 <div id="ref-bornkamp2025benchmarking" class="csl-entry">
 Bornkamp, Björn. 2025. <span>“<span class="nocase">Benchmarking Bayesian subgroup shrinkage methods on clinical data</span>.”</span> In <em>PSI Conference 2025</em>. London, UK.
+</div>
+<div id="ref-HernanRobins2023" class="csl-entry">
+Hernán, Miguel A., and James M. Robins. 2023. <em>Causal Inference: What If</em>. Boca Raton: CRC Press.
 </div>
 <div id="ref-piironen2017sparsity" class="csl-entry">
 Piironen, J., and A. Vehtari. 2017. <span>“<span class="nocase">Sparsity information and regularization in the horseshoe and other shrinkage priors</span>.”</span> <em>Electronic Journal of Statistics</em> 11: 5018–51.

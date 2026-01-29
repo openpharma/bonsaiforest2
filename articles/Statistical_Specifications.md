@@ -35,8 +35,8 @@ The core features described in this document are:
 3.  **Marginal Effect Estimation:** Use of **standardization
     (G-computation)** to derive interpretable *marginal* subgroup
     treatment effects, which average over the covariate distributions
-    within each subgroup ([Wolbers et al. 2025](#ref-wolbers2025using)).
-    This is implemented through:
+    within each subgroup ([Hernán and Robins
+    2023](#ref-HernanRobins2023)). This is implemented through:
     - [`estimate_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/estimate_subgroup_effects.md)
       for the computational G-computation workflow.
     - [`summary_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/summary_subgroup_effects.md)
@@ -131,7 +131,7 @@ profile than the `age < 65` group), these conditional coefficients are
 not directly comparable.
 
 `bonsaiforest2` solves this by using **Standardization (G-computation)**
-([**wolbers2024shrinkage?**](#ref-wolbers2024shrinkage)). This procedure
+([Hernán and Robins 2023](#ref-HernanRobins2023)). This procedure
 correctly averages over the specific covariate distribution of each
 subgroup to estimate a valid marginal treatment effect, ensuring all
 subgroups are compared on the same interpretable scale. (See Section
@@ -661,8 +661,7 @@ computational stability without strongly influencing the posterior.
 #### 3.8.3 Regularized Horseshoe Prior (Shrunk Terms)
 
 This is the default shrinkage prior in `bonsaiforest2`, recommended for
-its excellent adaptive shrinkage properties ([Wolbers et al.
-2025](#ref-wolbers2025using); [Piironen and Vehtari
+its excellent adaptive shrinkage properties ([Piironen and Vehtari
 2017](#ref-piironen2017sparsity)).
 
 - **Concept:** A global-local prior. It has an infinitely tall spike at
@@ -682,8 +681,7 @@ its excellent adaptive shrinkage properties ([Wolbers et al.
   the crucial global scale \\\tau_0\\:
 
   1.  **Fixed Default (`scale_global`):** `horseshoe(scale_global = 1)`.
-      This is the package default, a robust, general-purpose choice
-      ([Wolbers et al. 2025](#ref-wolbers2025using)).
+      This is the package default, a robust, general-purpose choice.
   2.  **Elicited Prior (`par_ratio`):** Sets \\\tau_0\\ based on the
       *prior* belief about the number of effective (non-zero) subgroups,
       \\p\_{eff}\\, out of the total \\L\\ ([Bornkamp
@@ -747,7 +745,7 @@ horseshoe(df = 1, scale_global = 1, df_global = 1, scale_slab = 2, df_slab = 4, 
 
   - **Elicited Sparsity (**\\\mathbf{par\\ratio}\\):
 
-    - **Calculation:** \\\text{par\\ratio} = \frac{p\_{eff}}{L -
+    - **Calculation:** \\\mathbf{par\\ratio} = \frac{p\_{eff}}{L -
       p\_{eff}}\\, where \\p\_{eff}\\ is the expected number of non-zero
       coefficients and \\L\\ is the total number of coefficients.
     - **Use when:** You have a strong prior belief about the number of
@@ -1131,22 +1129,13 @@ package exposes intermediate worker functions:
   - Returns raw posterior draws and summary statistics (median, credible
     intervals).
 
-### 4.3 Internal Helper Functions
-
-These functions support the main workflow but are not typically called
-directly by users:
-
-- **`.prepare_subgroup_vars()`**: Detects subgroup variables from model
-  formula by identifying treatment interaction terms.
-- **`.create_counterfactual_data()`**: Generates counterfactual datasets
-  for G-computation.
-- **`.compute_effect_measure()`**: Calculates appropriate effect measure
-  based on response type.
-
 ## References
 
 Bornkamp, Björn. 2025. “Benchmarking Bayesian subgroup shrinkage methods
 on clinical data.” In *PSI Conference 2025*. London, UK.
+
+Hernán, Miguel A., and James M. Robins. 2023. *Causal Inference: What
+If*. Boca Raton: CRC Press.
 
 Piironen, J., and A. Vehtari. 2017. “Sparsity information and
 regularization in the horseshoe and other shrinkage priors.” *Electronic
