@@ -7,10 +7,10 @@
 combine_summaries(summary_list)
 }
 \arguments{
-\item{summary_list}{Named list of `subgroup_summary` objects.}
+\item{summary_list}{Named list of \code{subgroup_summary} objects.}
 }
 \value{
-`subgroup_summary`. Combined object with a "Model" column in estimates.
+\code{subgroup_summary}. Combined object with a "Model" column in estimates.
 }
 \description{
 Combines estimates from multiple subgroup summary objects into a single

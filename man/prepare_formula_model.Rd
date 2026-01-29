@@ -15,44 +15,59 @@ prepare_formula_model(
 )
 }
 \arguments{
-\item{data}{`data.frame`. A dataset containing all necessary variables for model fitting.}
+\item{data}{A data frame. Dataset containing all necessary variables for model fitting.
+Must include the response variable, treatment variable, and all covariates specified
+in the formula arguments. This data will be modified (contrast coding applied) and
+returned for use in model fitting.}
 
-\item{response_formula}{`formula`. The response specification (e.g., `outcome ~ trt` for continuous,
-`n_events + offset(log(days)) ~ trt` for count, or `Surv(time, status) ~ trt` for survival models).}
+\item{response_formula}{A formula object. The response specification defining the outcome
+variable and treatment. Examples: \code{outcome ~ trt} for continuous outcomes,
+\code{n_events + offset(log(days)) ~ trt} for count outcomes, or \code{Surv(time, status) ~ trt}
+for survival models. The treatment variable (right-hand side) will be automatically
+extracted and converted to a numeric binary variable (0/1).}
 
-\item{unshrunk_terms_formula}{`formula` or `NULL`. Formula specifying unshrunk terms (`unshrunktermeffect`).
-May include main effects and treatment interactions. Supports colon notation (e.g., `~ age + sex + trt:biomarker`),
-star notation (e.g., `~ age + trt*biomarker`), or random effects notation (e.g., `~ age + (trt || biomarker)`).
-Different syntaxes may be combined.}
+\item{unshrunk_terms_formula}{A formula object or \code{NULL}. Formula specifying unshrunk terms
+for the \code{unshrunktermeffect} component. May include main effects and treatment interactions
+without regularization. Supports three syntaxes that can be combined: colon notation
+(e.g., \code{~ age + sex + trt:biomarker}), star notation (e.g., \code{~ age + trt*biomarker}),
+or random effects notation (e.g., \code{~ age + (trt || biomarker)}).}
 
-\item{shrunk_prognostic_formula}{`formula` or `NULL`. Formula specifying prognostic main effects to be regularized
-(`shprogeffect`). These are covariates where shrinkage/regularization is desired.}
+\item{shrunk_prognostic_formula}{A formula object or \code{NULL}. Formula specifying prognostic
+main effects to be regularized in the \code{shprogeffect} component. These are covariates
+where shrinkage/regularization is desired. Should use \code{~ 0 + ...} syntax to apply
+one-hot encoding for symmetric regularization across all levels without privileging
+a reference group.}
 
-\item{shrunk_predictive_formula}{`formula` or `NULL`. Formula specifying predictive terms to be regularized
-(`shpredeffect`). Typically treatment interactions. Supports colon notation (e.g., `~ 0 + trt:region`),
-star notation (e.g., `~ 0 + trt*region`), or random effects notation (e.g., `~ (0 + trt || region)`).
-Different syntaxes may be combined.}
+\item{shrunk_predictive_formula}{A formula object or \code{NULL}. Formula specifying predictive
+terms (treatment interactions) to be regularized in the \code{shpredeffect} component.
+Supports three syntaxes that can be combined: colon notation (e.g., \code{~ 0 + trt:region}),
+star notation (e.g., \code{~ 0 + trt*region}), or random effects notation
+(e.g., \code{~ (0 + trt || region)}). Should use \code{~ 0 + ...} syntax for one-hot encoding.}
 
-\item{response_type}{`character(1)`. Type of outcome variable: one of `"binary"`, `"count"`,
-`"continuous"`, or `"survival"`.}
+\item{response_type}{A character string. Type of outcome variable, one of \code{"binary"},
+\code{"count"}, \code{"continuous"}, or \code{"survival"}. This determines the appropriate likelihood
+function and link function for the model.}
 
-\item{stratification_formula}{`formula` or `NULL`. Formula specifying stratification variable
-(e.g., `~ strata_var`) for modeling baseline hazard (survival) or distributional parameters.}
+\item{stratification_formula}{A formula object or \code{NULL}. Formula specifying stratification
+variable (e.g., \code{~ strata_var}) for modeling baseline hazard (survival models) or
+distributional parameters (other models). For survival models, estimates separate baseline
+hazard functions (\code{bhaz}) for each stratum. For continuous models, models varying residual
+standard deviation (\code{sigma}). For count models, models varying overdispersion (\code{shape}).}
 }
 \value{
-`list` with six named elements:
-  \describe{
-    \item{`formula`}{`brmsformula` object containing the complete multi-part model specification}
-    \item{`data`}{`data.frame` with modified contrast coding (must be used for model fitting)}
-    \item{`response_type`}{`character(1)` indicating the outcome type (`"binary"`, `"count"`, `"continuous"`, or `"survival"`)}
-    \item{`trt_var`}{`character(1)` name of treatment variable extracted from response formula}
-    \item{`stan_variable_names`}{`list` of character vectors showing Stan parameter names for each model component}
-    \item{`has_intercept`}{`logical(1)` indicating whether the unshrunk formula includes an intercept (`TRUE`) or was specified with `~ 0 + ...` (`FALSE`)}
-  }
+\code{list} with six named elements:
+\describe{
+\item{\code{formula}}{\code{brmsformula} object containing the complete multi-part model specification}
+\item{\code{data}}{\code{data.frame} with modified contrast coding (must be used for model fitting)}
+\item{\code{response_type}}{\code{character(1)} indicating the outcome type (\code{"binary"}, \code{"count"}, \code{"continuous"}, or \code{"survival"})}
+\item{\code{trt_var}}{\code{character(1)} name of treatment variable extracted from response formula}
+\item{\code{stan_variable_names}}{\code{list} of character vectors showing Stan parameter names for each model component}
+\item{\code{has_intercept}}{\code{logical(1)} indicating whether the unshrunk formula includes an intercept (\code{TRUE}) or was specified with \code{~ 0 + ...} (\code{FALSE})}
+}
 }
 \description{
 This function serves as a pre-processor for building complex Bayesian
-models with the `brms` package. It automates the construction of a multi-part,
+models with the \code{brms} package. It automates the construction of a multi-part,
 non-linear formula by classifying covariates into three distinct categories:
 unshrunk terms, shrunk prognostic, and shrunk predictive.
 }
@@ -64,85 +79,85 @@ data using R's contrast coding system for proper factor handling and interaction
 \section{Key Features}{
 
 \itemize{
-  \item \strong{Multi-Part Formula Construction:} It generates a `brmsformula`
-    object with up to four distinct linear components (`unshrunktermeffect`,
-    `shprogeffect`, `shpredeffect`), which are combined in a non-linear model.
-    This allows for assigning different priors to each component.
-  \item \strong{Automated Interaction Handling:} Predictive terms support three syntaxes
-    that can be used together or separately: colon notation (e.g., `~ trt:subgroup`),
-    star notation (e.g., `~ trt*subgroup`), or random effects notation (e.g.,
-    `~ (trt || subgroup)`). You can mix these syntaxes in the same model (e.g.,
-    `~ trt:var1 + trt*var2 + (trt || var3)`). All variables involved in interactions
-    are converted to factors with appropriate contrasts (reference coding for unshrunk,
-    one-hot for shrunk), enabling proper model fitting and prediction on new data
-    without manual dummy variable creation.
-  \item \strong{Hierarchical Integrity Check:} When a predictive term like
-    `trt:subgroup` is specified, the function checks whether the corresponding
-    prognostic effect `subgroup` is included in the model. If missing, it issues
-    a warning message to alert you about the violation of the marginality
-    principle, allowing you to decide whether to add the main effect. Note: Star
-    notation (`*`) automatically includes main effects, so these variables are
-    excluded from the marginality check.
-  \item \strong{Intelligent Defaults:} The main treatment variable is automatically
-    added as an unshrunk prognostic term if not specified elsewhere. It also
-    provides warnings and resolves overlaps if a term is accidentally specified
-    in multiple categories.
+\item \strong{Multi-Part Formula Construction:} It generates a \code{brmsformula}
+object with up to four distinct linear components (\code{unshrunktermeffect},
+\code{shprogeffect}, \code{shpredeffect}), which are combined in a non-linear model.
+This allows for assigning different priors to each component.
+\item \strong{Automated Interaction Handling:} Predictive terms support three syntaxes
+that can be used together or separately: colon notation (e.g., \code{~ trt:subgroup}),
+star notation (e.g., \code{~ trt*subgroup}), or random effects notation (e.g.,
+\code{~ (trt || subgroup)}). You can mix these syntaxes in the same model (e.g.,
+\code{~ trt:var1 + trt*var2 + (trt || var3)}). All variables involved in interactions
+are converted to factors with appropriate contrasts (reference coding for unshrunk,
+one-hot for shrunk), enabling proper model fitting and prediction on new data
+without manual dummy variable creation.
+\item \strong{Hierarchical Integrity Check:} When a predictive term like
+\code{trt:subgroup} is specified, the function checks whether the corresponding
+prognostic effect \code{subgroup} is included in the model. If missing, it issues
+a warning message to alert you about the violation of the marginality
+principle, allowing you to decide whether to add the main effect. Note: Star
+notation (\code{*}) automatically includes main effects, so these variables are
+excluded from the marginality check.
+\item \strong{Intelligent Defaults:} The main treatment variable is automatically
+added as an unshrunk prognostic term if not specified elsewhere. It also
+provides warnings and resolves overlaps if a term is accidentally specified
+in multiple categories.
 }
 }
 
 \section{Survival Model Details (Robust Spline Knot Calculation)}{
 
-For survival models (`response_type = "survival"`), the function explicitly models
-the baseline hazard using B-splines via `brms::bhaz()`. It implements a highly
+For survival models (\code{response_type = "survival"}), the function explicitly models
+the baseline hazard using B-splines via \code{brms::bhaz()}. It implements a highly
 robust method for calculating spline knots to ensure stability:
 \enumerate{
-  \item \strong{Boundary Definition:} It first establishes boundary knots by taking
-    the range of unique event times and adding a small buffer. This creates a
-    "safe" interval for placing internal knots.
-  \item \strong{Internal Knot Placement:} It calculates internal knots using
-    quantiles of the event times that fall strictly within the boundary knots.
-    This prevents knots from being placed at the exact edges of the data, which
-    can cause numerical instability.
-  \item \strong{Fallback for Sparse Data:} If there are too few unique event
-    times to calculate quantile-based knots, it gracefully falls back to placing
-    evenly spaced knots within the defined boundaries.
+\item \strong{Boundary Definition:} It first establishes boundary knots by taking
+the range of unique event times and adding a small buffer. This creates a
+"safe" interval for placing internal knots.
+\item \strong{Internal Knot Placement:} It calculates internal knots using
+quantiles of the event times that fall strictly within the boundary knots.
+This prevents knots from being placed at the exact edges of the data, which
+can cause numerical instability.
+\item \strong{Fallback for Sparse Data:} If there are too few unique event
+times to calculate quantile-based knots, it gracefully falls back to placing
+evenly spaced knots within the defined boundaries.
 }
 }
 
 \section{Data Transformation and Contrast Coding}{
 
-\strong{CRITICAL:} This function returns a modified `data.frame` that must be used
-in subsequent calls to `brms::brm()`, not the original data. The transformations are:
+\strong{CRITICAL:} This function returns a modified \code{data.frame} that must be used
+in subsequent calls to \code{brms::brm()}, not the original data. The transformations are:
 \itemize{
-  \item \strong{Treatment variable:} Converted to numeric binary (0/1) to avoid
-    multi-level factor interactions. The first level (alphabetically or numerically)
-    becomes 0, the second becomes 1.
-  \item \strong{Factor covariates:} Automatic contrast coding based on shrinkage type:
-    \itemize{
-      \item \strong{Shrunk terms:} One-hot encoding (all factor levels represented).
-        For proper regularization, specify these using `~ 0 + var` to explicitly remove
-        the intercept. To treat all subgroups symmetrically without privileging a specific
-        reference group, to ensure the exchangeability assumption.
-      \item \strong{Unshrunk terms:} Dummy encoding (reference level dropped).
-      Use standard formula syntax `~ var` with intercept.
-    }
-  \item \strong{Custom contrasts:} If you have pre-specified contrasts via
-    `contrasts(data$var) <- <matrix>` before calling this function, they will
-    be preserved. Otherwise, defaults are applied based on shrinkage category.
+\item \strong{Treatment variable:} Converted to numeric binary (0/1) to avoid
+multi-level factor interactions. The first level (alphabetically or numerically)
+becomes 0, the second becomes 1.
+\item \strong{Factor covariates:} Automatic contrast coding based on shrinkage type:
+\itemize{
+\item \strong{Shrunk terms:} One-hot encoding (all factor levels represented).
+For proper regularization, specify these using \code{~ 0 + var} to explicitly remove
+the intercept. To treat all subgroups symmetrically without privileging a specific
+reference group, to ensure the exchangeability assumption.
+\item \strong{Unshrunk terms:} Dummy encoding (reference level dropped).
+Use standard formula syntax \code{~ var} with intercept.
+}
+\item \strong{Custom contrasts:} If you have pre-specified contrasts via
+\verb{contrasts(data$var) <- <matrix>} before calling this function, they will
+be preserved. Otherwise, defaults are applied based on shrinkage category.
 }
 }
 
 \section{Stratification}{
 
-The `stratification_formula_str` argument allows for estimating certain parameters
-separately for different groups. Its behavior depends on the `response_type`:
+The \code{stratification_formula_str} argument allows for estimating certain parameters
+separately for different groups. Its behavior depends on the \code{response_type}:
 \itemize{
-  \item \code{survival}: Estimates a separate baseline hazard function (`bhaz`) for
-    each level of the stratification variable.
-  \item \code{continuous}: Models the residual standard deviation (`sigma`) as varying
-    across levels of the stratification variable.
-  \item \code{count}: Models the overdispersion parameter (`shape`) as varying
-    across levels of the stratification variable.
+\item \code{survival}: Estimates a separate baseline hazard function (\code{bhaz}) for
+each level of the stratification variable.
+\item \code{continuous}: Models the residual standard deviation (\code{sigma}) as varying
+across levels of the stratification variable.
+\item \code{count}: Models the overdispersion parameter (\code{shape}) as varying
+across levels of the stratification variable.
 }
 }
 

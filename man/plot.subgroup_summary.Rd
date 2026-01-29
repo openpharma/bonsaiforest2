@@ -7,28 +7,28 @@
 \method{plot}{subgroup_summary}(x, x_lab = NULL, title = NULL, ...)
 }
 \arguments{
-\item{x}{`subgroup_summary` or `list`. Object created by `summary_subgroup_effects()`,
+\item{x}{\code{subgroup_summary} or \code{list}. Object created by \code{summary_subgroup_effects()},
 or a named list of such objects for comparison plots.}
 
-\item{x_lab}{`character(1)` or `NULL`. Custom label for x-axis.}
+\item{x_lab}{\code{character(1)} or \code{NULL}. Custom label for x-axis.}
 
-\item{title}{`character(1)` or `NULL`. Custom title for plot.}
+\item{title}{\code{character(1)} or \code{NULL}. Custom title for plot.}
 
 \item{...}{Additional arguments (currently unused).}
 }
 \value{
-`ggplot`. Forest plot visualization of subgroup treatment effects.
+\code{ggplot}. Forest plot visualization of subgroup treatment effects.
 }
 \description{
-Creates a forest plot from a `subgroup_summary` object or list of objects.
+Creates a forest plot from a \code{subgroup_summary} object or list of objects.
 }
 \details{
 This function creates forest plots for subgroup treatment effects. It supports two modes:
 
-**Single Model Plot**: When `x` is a single `subgroup_summary` object, creates a 
+\strong{Single Model Plot}: When \code{x} is a single \code{subgroup_summary} object, creates a
 traditional forest plot with estimates and confidence intervals displayed as text.
 
-**Multiple Model Comparison**: When `x` is a named list of `subgroup_summary` objects,
+\strong{Multiple Model Comparison}: When \code{x} is a named list of \code{subgroup_summary} objects,
 creates a comparative plot where different models are distinguished by colors and shapes.
 This is useful for comparing OVAT vs global models, different prior specifications, or
 sensitivity analyses.

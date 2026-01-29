@@ -12,28 +12,33 @@ summary_subgroup_effects(
 )
 }
 \arguments{
-\item{brms_fit}{`brmsfit`. Fitted model object.}
+\item{brms_fit}{A \code{brmsfit} object. Fitted model object from \code{fit_brms_model()} or
+\code{run_brms_analysis()}. Must contain the necessary attributes for extracting treatment
+variable and response type information.}
 
-\item{trt_var}{`character(1)` or `NULL`. Treatment variable name (coded 0/1). If `NULL`,
-extracted from model attributes (set by `fit_brms_model()`).}
+\item{trt_var}{A character string or \code{NULL}. Treatment variable name (coded 0/1). If \code{NULL},
+automatically extracted from model attributes (set by \code{fit_brms_model()}). This should
+match the treatment variable used in model fitting.}
 
-\item{response_type}{`character(1)` or `NULL`. Outcome type: `"binary"`, `"count"`,
-`"continuous"`, or `"survival"`. If `NULL`, extracted from model attributes.}
+\item{response_type}{A character string or \code{NULL}. Outcome type, one of \code{"binary"}, \code{"count"},
+\code{"continuous"}, or \code{"survival"}. If \code{NULL}, automatically extracted from model attributes
+(set by \code{fit_brms_model()}). This determines the appropriate scale for summarizing effects.}
 
-\item{subgroup_vars}{`character` or `"auto"`. Subgrouping variable names. Defaults to `"auto"`,
-which automatically detects treatment interactions from all formula components
-(`unshrunktermeffect`, `shprogeffect`, `shpredeffect`). Cannot be `NULL`.}
+\item{subgroup_vars}{A character vector or \code{"auto"}. Subgrouping variable names for which
+to generate summaries. Defaults to \code{"auto"}, which automatically detects treatment
+interactions from all formula components (\code{unshrunktermeffect}, \code{shprogeffect},
+\code{shpredeffect}). Cannot be \code{NULL}.}
 }
 \value{
-`subgroup_summary`. S3 object containing:
-  \describe{
-    \item{`estimates`}{`tibble` with subgroup-specific treatment effect estimates}
-    \item{`response_type`}{`character(1)` indicating outcome type}
-    \item{`ci_level`}{`numeric(1)` credible interval level (default 0.95)}
-    \item{`trt_var`}{`character(1)` treatment variable name}
-  }
+\code{subgroup_summary}. S3 object containing:
+\describe{
+\item{\code{estimates}}{\code{tibble} with subgroup-specific treatment effect estimates}
+\item{\code{response_type}}{\code{character(1)} indicating outcome type}
+\item{\code{ci_level}}{\code{numeric(1)} credible interval level (default 0.95)}
+\item{\code{trt_var}}{\code{character(1)} treatment variable name}
+}
 }
 \description{
-This function orchestrates calls to `estimate_subgroup_effects` to generate
+This function orchestrates calls to \code{estimate_subgroup_effects} to generate
 a summary table for specific subgroups.
 }

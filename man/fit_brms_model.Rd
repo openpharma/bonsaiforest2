@@ -16,41 +16,55 @@ fit_brms_model(
 )
 }
 \arguments{
-\item{prepared_model}{`list`. Object returned from `prepare_formula_model()` containing
-elements `formula` (`brmsformula`), `data` (`data.frame`), `response_type` (`character`),
-and `trt_var` (`character`). The `trt_var` element is stored as an attribute on the
-fitted model for downstream functions.}
+\item{prepared_model}{A list object. Object returned from \code{prepare_formula_model()} containing
+the elements: \code{formula} (a \code{brmsformula} object), \code{data} (a modified \code{data.frame} with
+appropriate contrast coding), \code{response_type} (a character string), and \code{trt_var} (a
+character string). The \code{trt_var} element is stored as an attribute on the fitted model
+for use by downstream functions like \code{estimate_subgroup_effects()}.}
 
-\item{sigma_ref}{`numeric(1)`. Reference scale for prior specification (REQUIRED).
-Recommended: (1) Standard deviation from trial protocol (preferred), or
-(2) `sd(outcome_variable)` if protocol value unavailable (fallback).
-For binary/survival outcomes, typically use 1. Can be referenced in prior strings
-(e.g., `"normal(0, 2.5 * sigma_ref)"`).}
+\item{sigma_ref}{A numeric scalar (REQUIRED). Reference scale for prior specification.
+Recommended values: (1) Standard deviation from trial protocol (preferred), or
+(2) \code{sd(outcome_variable)} if protocol value unavailable (fallback). For binary and
+survival outcomes, typically use 1. Can be referenced in prior strings using the
+placeholder \code{sigma_ref} (e.g., \code{"normal(0, 2.5 * sigma_ref)"}).}
 
-\item{intercept_prior}{`character(1)` or `brmsprior` or `NULL`. Prior specification for
-model intercept (e.g., `"normal(0, 10)"`).}
+\item{intercept_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior specification
+for the model intercept in the \code{unshrunktermeffect} component. Supports \code{sigma_ref}
+placeholder substitution. Not used for survival models (Cox models have no intercept).
+Example: \code{"normal(0, 10)"}.}
 
-\item{unshrunk_prior}{`character(1)` or `brmsprior` or `NULL`. Prior specification for
-unshrunk terms (`unshrunktermeffect` component).}
+\item{unshrunk_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior specification
+for unshrunk terms in the \code{unshrunktermeffect} component (excludes intercept). These are
+main effects and interactions for which no regularization is desired. Supports \code{sigma_ref}
+placeholder substitution. Example: \code{"normal(0, 2.5 * sigma_ref)"}.}
 
-\item{shrunk_prognostic_prior}{`character(1)` or `brmsprior` or `NULL`. Prior specification
-for regularized prognostic effects.}
+\item{shrunk_prognostic_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior
+specification for regularized prognostic effects in the \code{shprogeffect} component. These
+are main effects for which strong shrinkage/regularization is desired. Supports \code{sigma_ref}
+placeholder substitution. Example: \code{"horseshoe(1)"} or \code{"normal(0, sigma_ref)"}.}
 
-\item{shrunk_predictive_prior}{`character(1)` or `brmsprior` or `NULL`. Prior specification
-for regularized predictive effects (treatment interactions).}
+\item{shrunk_predictive_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior
+specification for regularized predictive effects (treatment interactions) in the
+\code{shpredeffect} component. These are treatment interactions for which strong
+shrinkage/regularization is desired. Supports \code{sigma_ref} placeholder substitution.
+Example: \code{"horseshoe(scale_global = 0.5 * sigma_ref)"}.}
 
-\item{stanvars}{`stanvars` or `NULL`. Custom Stan code created via `brms::stanvar()`.}
+\item{stanvars}{A \code{stanvars} object or \code{NULL}. Custom Stan code created via \code{brms::stanvar()}
+for implementing hierarchical priors or other advanced Stan functionality. See the brms
+documentation for details on creating \code{stanvars} objects.}
 
-\item{...}{Additional arguments passed to `brms::brm()` (e.g., `chains`, `iter`, `cores`).}
+\item{...}{Additional arguments passed to \code{brms::brm()}. Common arguments include \code{chains}
+(number of MCMC chains), \code{iter} (number of iterations per chain), \code{cores} (number of
+CPU cores to use), \code{backend} (Stan backend), and \code{refresh} (progress update frequency).}
 }
 \value{
-`brmsfit`. Fitted Bayesian model object with attributes:
-  `response_type` (`character`), `model_data` (`data.frame`), and
-  `trt_var` (`character`) for downstream analysis functions.
+\code{brmsfit}. Fitted Bayesian model object with attributes:
+\code{response_type} (\code{character}), \code{model_data} (\code{data.frame}), and
+\code{trt_var} (\code{character}) for downstream analysis functions.
 }
 \description{
-This function serves as a wrapper to fit a Bayesian model using the `brms`
-package. It uses a formula and data prepared by `prepare_formula_model` and
+This function serves as a wrapper to fit a Bayesian model using the \code{brms}
+package. It uses a formula and data prepared by \code{prepare_formula_model} and
 simplifies the process of assigning complex priors to the different non-linear
 components of the model.
 }
@@ -58,53 +72,63 @@ components of the model.
 
 Priors are specified separately for each model component using dedicated parameters.
 This provides explicit control and prevents errors. The function accepts prior
-definitions as character strings (e.g., `"normal(0, 2.5 * sigma_ref)"`) or as
-`brmsprior` objects for complex hierarchical or parameter-specific priors.
+definitions as character strings (e.g., \code{"normal(0, 2.5 * sigma_ref)"}) or as
+\code{brmsprior} objects for complex hierarchical or parameter-specific priors.
 
-**Available prior parameters:**
-- `intercept_prior`: Prior for the intercept in the unshrunk component
-- `unshrunk_prior`: Prior for all unshrunk terms (main effects you trust)
-- `shrunk_prognostic_prior`: Prior for shrunk prognostic effects (regularized)
-- `shrunk_predictive_prior`: Prior for shrunk predictive effects (regularized)
+\strong{Available prior parameters:}
+\itemize{
+\item \code{intercept_prior}: Prior for the intercept in the unshrunk component
+\item \code{unshrunk_prior}: Prior for all unshrunk terms (main effects you trust)
+\item \code{shrunk_prognostic_prior}: Prior for shrunk prognostic effects (regularized)
+\item \code{shrunk_predictive_prior}: Prior for shrunk predictive effects (regularized)
+}
 
-**Using sigma_ref in priors:**
-You can reference `sigma_ref` in prior strings, and it will be automatically
-substituted. For example: `"normal(0, 2.5 * sigma_ref)"` becomes
-`"normal(0, 8)"` when sigma_ref = 3.2.
+\strong{Using sigma_ref in priors:}
+You can reference \code{sigma_ref} in prior strings, and it will be automatically
+substituted. For example: \code{"normal(0, 2.5 * sigma_ref)"} becomes
+\code{"normal(0, 8)"} when sigma_ref = 3.2.
 
-**Default Priors by Response Type:**
+\strong{Default Priors by Response Type:}
 
 If you don't specify priors, the function uses sensible defaults:
 
-*Continuous outcomes:*
-- `intercept_prior`: `normal(outcome_mean, 5 * sigma_ref)`
-- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
-- `shrunk_prognostic_prior`: `horseshoe(1)`
-- `shrunk_predictive_prior`: `horseshoe(1)`
-- `sigma`: `normal(0, sigma_ref)`
+\emph{Continuous outcomes:}
+\itemize{
+\item \code{intercept_prior}: \code{normal(outcome_mean, 5 * sigma_ref)}
+\item \code{unshrunk_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{shrunk_prognostic_prior}: \code{horseshoe(1)}
+\item \code{shrunk_predictive_prior}: \code{horseshoe(1)}
+\item \code{sigma}: \code{normal(0, sigma_ref)}
+}
 
-*Binary outcomes:*
-- `intercept_prior`: `normal(0, 5 * sigma_ref)`
-- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
-- `shrunk_prognostic_prior`: `horseshoe(1)`
-- `shrunk_predictive_prior`: `horseshoe(1)`
+\emph{Binary outcomes:}
+\itemize{
+\item \code{intercept_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{unshrunk_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{shrunk_prognostic_prior}: \code{horseshoe(1)}
+\item \code{shrunk_predictive_prior}: \code{horseshoe(1)}
+}
 
-*Count outcomes:*
-- `intercept_prior`: `normal(0, 5 * sigma_ref)`
-- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
-- `shrunk_prognostic_prior`: `horseshoe(1)`
-- `shrunk_predictive_prior`: `horseshoe(1)`
-- `shape`: Uses brms default prior for negative binomial shape parameter
+\emph{Count outcomes:}
+\itemize{
+\item \code{intercept_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{unshrunk_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{shrunk_prognostic_prior}: \code{horseshoe(1)}
+\item \code{shrunk_predictive_prior}: \code{horseshoe(1)}
+\item \code{shape}: Uses brms default prior for negative binomial shape parameter
+}
 
-*Survival outcomes:*
-- No intercept (Cox models don't have intercepts)
-- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
-- `shrunk_prognostic_prior`: `horseshoe(1)`
-- `shrunk_predictive_prior`: `horseshoe(1)`
+\emph{Survival outcomes:}
+\itemize{
+\item No intercept (Cox models don't have intercepts)
+\item \code{unshrunk_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{shrunk_prognostic_prior}: \code{horseshoe(1)}
+\item \code{shrunk_predictive_prior}: \code{horseshoe(1)}
+}
 
-**Example:**
-```
-fit_brms_model(
+\strong{Example:}
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{fit_brms_model(
   prepared_model = prepared,
   sigma_ref = 12.5,  # From trial protocol (preferred)
   # OR sigma_ref = sd(data$outcome),  # If protocol value unavailable
@@ -112,7 +136,7 @@ fit_brms_model(
   shrunk_prognostic_prior = "horseshoe(scale_global = 0.5 * sigma_ref)",
   shrunk_predictive_prior = "horseshoe(scale_global = 0.1 * sigma_ref)"
 )
-```
+}\if{html}{\out{</div>}}
 }
 
 \examples{
