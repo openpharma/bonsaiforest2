@@ -7,29 +7,47 @@
 #' `prepare_formula_model` to build the `brmsformula` and process the data,
 #' then passes the results to `fit_brms_model` to run the analysis.
 #'
-#' @param data `data.frame`. Dataset containing all necessary variables.
-#' @param response_formula `formula`. Response specification (e.g., `outcome ~ trt` or `Surv(time, status) ~ trt`).
-#' @param response_type `character(1)`. Outcome type: `"binary"`, `"count"`, `"continuous"`, or `"survival"`.
-#' @param unshrunk_terms_formula `formula` or `NULL`. Unshrunk terms specification (`unshrunktermeffect`).
-#'   May include main effects and treatment interactions without regularization (e.g., `~ age + sex + trt*region`).
-#' @param shrunk_prognostic_formula `formula` or `NULL`. Prognostic effects for strong regularization
-#'   (`shprogeffect`). Must use `~ 0 + ...` syntax (e.g., `~ 0 + biomarker1 + biomarker2`).
-#' @param shrunk_predictive_formula `formula` or `NULL`. Treatment interactions for strong regularization
-#'   (`shpredeffect`). Must use `~ 0 + ...` syntax (e.g., `~ 0 + trt:subgroup` or `~ (0 + trt || subgroup)`).
-#' @param stratification_formula `formula` or `NULL`. Stratification variable specification (e.g., `~ strata_var`).
-#' @param sigma_ref `numeric(1)`. Reference scale for priors (REQUIRED). For continuous/count outcomes,
-#'   typically `sd(outcome_variable)`. For binary/survival, typically 1. Referenced in prior
-#'   expressions (e.g., `"normal(0, 2.5 * sigma_ref)"`).
-#' @param intercept_prior `character(1)` or `brmsprior` or `NULL`. Intercept prior for `unshrunktermeffect`.
-#'   Not used for survival models. Example: `"normal(0, 10 * sigma_ref)"`.
-#' @param unshrunk_prior `character(1)` or `brmsprior` or `NULL`. Prior for unshrunk terms
-#'   (non-intercept coefficients in `unshrunktermeffect`). Example: `"normal(0, 2.5 * sigma_ref)"`.
-#' @param shrunk_prognostic_prior `character(1)` or `brmsprior` or `NULL`. Prior for regularized
-#'   prognostic effects. Typically strong regularization. Example: `"horseshoe(scale_global = sigma_ref)"`.
-#' @param shrunk_predictive_prior `character(1)` or `brmsprior` or `NULL`. Prior for regularized
-#'   predictive effects (treatment interactions). Example: `"horseshoe(scale_global = 0.5 * sigma_ref)"`.
-#' @param stanvars `stanvars` or `NULL`. Custom Stan code via `brms::stanvar()` for hierarchical priors.
-#' @param ... Additional arguments for `brms::brm()` (e.g., `chains`, `iter`, `cores`, `backend`).
+#' @param data A data frame. Dataset containing all necessary variables including response,
+#'   treatment, and covariates. This is passed to `prepare_formula_model()` for preprocessing.
+#' @param response_formula A formula object. Response specification defining the outcome and
+#'   treatment. Examples: `outcome ~ trt` for continuous, or `Surv(time, status) ~ trt` for
+#'   survival. Passed to `prepare_formula_model()`.
+#' @param response_type A character string. Outcome type, one of `"binary"`, `"count"`,
+#'   `"continuous"`, or `"survival"`. Determines the likelihood function and link used.
+#'   Passed to `prepare_formula_model()`.
+#' @param unshrunk_terms_formula A formula object or `NULL`. Unshrunk terms specification for
+#'   the `unshrunktermeffect` component. May include main effects and treatment interactions
+#'   without regularization (e.g., `~ age + sex + trt*region`). Passed to `prepare_formula_model()`.
+#' @param shrunk_prognostic_formula A formula object or `NULL`. Prognostic effects for strong
+#'   regularization in the `shprogeffect` component. Must use `~ 0 + ...` syntax for one-hot
+#'   encoding (e.g., `~ 0 + biomarker1 + biomarker2`). Passed to `prepare_formula_model()`.
+#' @param shrunk_predictive_formula A formula object or `NULL`. Treatment interactions for strong
+#'   regularization in the `shpredeffect` component. Must use `~ 0 + ...` syntax for one-hot
+#'   encoding (e.g., `~ 0 + trt:subgroup` or `~ (0 + trt || subgroup)`). Passed to
+#'   `prepare_formula_model()`.
+#' @param stratification_formula A formula object or `NULL`. Stratification variable specification
+#'   (e.g., `~ strata_var`). For survival models, estimates separate baseline hazards per stratum.
+#'   For other models, models varying distributional parameters. Passed to `prepare_formula_model()`.
+#' @param sigma_ref A numeric scalar (REQUIRED). Reference scale for priors. For continuous and
+#'   count outcomes, typically `sd(outcome_variable)` or protocol-specified value. For binary
+#'   and survival, typically 1. Referenced in prior expressions (e.g., `"normal(0, 2.5 * sigma_ref)"`).
+#'   Passed to `fit_brms_model()`.
+#' @param intercept_prior A character string, `brmsprior` object, or `NULL`. Intercept prior for
+#'   `unshrunktermeffect` component. Not used for survival models. Example:
+#'   `"normal(0, 10 * sigma_ref)"`. Passed to `fit_brms_model()`.
+#' @param unshrunk_prior A character string, `brmsprior` object, or `NULL`. Prior for unshrunk
+#'   terms (non-intercept coefficients in `unshrunktermeffect` component). Example:
+#'   `"normal(0, 2.5 * sigma_ref)"`. Passed to `fit_brms_model()`.
+#' @param shrunk_prognostic_prior A character string, `brmsprior` object, or `NULL`. Prior for
+#'   regularized prognostic effects in `shprogeffect` component. Typically strong regularization.
+#'   Example: `"horseshoe(scale_global = sigma_ref)"`. Passed to `fit_brms_model()`.
+#' @param shrunk_predictive_prior A character string, `brmsprior` object, or `NULL`. Prior for
+#'   regularized predictive effects (treatment interactions) in `shpredeffect` component.
+#'   Example: `"horseshoe(scale_global = 0.5 * sigma_ref)"`. Passed to `fit_brms_model()`.
+#' @param stanvars A `stanvars` object or `NULL`. Custom Stan code via `brms::stanvar()` for
+#'   hierarchical priors or advanced functionality. Passed to `fit_brms_model()`.
+#' @param ... Additional arguments passed to `brms::brm()` via `fit_brms_model()`. Common
+#'   arguments include `chains`, `iter`, `cores`, `backend`, and `refresh`.
 #'
 #' @return `brmsfit`. Fitted Bayesian model object with stored attributes for downstream analysis.
 #' @export

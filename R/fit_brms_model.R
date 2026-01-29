@@ -64,25 +64,39 @@
 #' )
 #' ```
 #'
-#' @param prepared_model `list`. Object returned from `prepare_formula_model()` containing
-#'   elements `formula` (`brmsformula`), `data` (`data.frame`), `response_type` (`character`),
-#'   and `trt_var` (`character`). The `trt_var` element is stored as an attribute on the
-#'   fitted model for downstream functions.
-#' @param sigma_ref `numeric(1)`. Reference scale for prior specification (REQUIRED).
-#'   Recommended: (1) Standard deviation from trial protocol (preferred), or
-#'   (2) `sd(outcome_variable)` if protocol value unavailable (fallback).
-#'   For binary/survival outcomes, typically use 1. Can be referenced in prior strings
-#'   (e.g., `"normal(0, 2.5 * sigma_ref)"`).
-#' @param intercept_prior `character(1)` or `brmsprior` or `NULL`. Prior specification for
-#'   model intercept (e.g., `"normal(0, 10)"`).
-#' @param unshrunk_prior `character(1)` or `brmsprior` or `NULL`. Prior specification for
-#'   unshrunk terms (`unshrunktermeffect` component).
-#' @param shrunk_prognostic_prior `character(1)` or `brmsprior` or `NULL`. Prior specification
-#'   for regularized prognostic effects.
-#' @param shrunk_predictive_prior `character(1)` or `brmsprior` or `NULL`. Prior specification
-#'   for regularized predictive effects (treatment interactions).
-#' @param stanvars `stanvars` or `NULL`. Custom Stan code created via `brms::stanvar()`.
-#' @param ... Additional arguments passed to `brms::brm()` (e.g., `chains`, `iter`, `cores`).
+#' @param prepared_model A list object. Object returned from `prepare_formula_model()` containing
+#'   the elements: `formula` (a `brmsformula` object), `data` (a modified `data.frame` with
+#'   appropriate contrast coding), `response_type` (a character string), and `trt_var` (a
+#'   character string). The `trt_var` element is stored as an attribute on the fitted model
+#'   for use by downstream functions like `estimate_subgroup_effects()`.
+#' @param sigma_ref A numeric scalar (REQUIRED). Reference scale for prior specification.
+#'   Recommended values: (1) Standard deviation from trial protocol (preferred), or
+#'   (2) `sd(outcome_variable)` if protocol value unavailable (fallback). For binary and
+#'   survival outcomes, typically use 1. Can be referenced in prior strings using the
+#'   placeholder `sigma_ref` (e.g., `"normal(0, 2.5 * sigma_ref)"`).
+#' @param intercept_prior A character string, `brmsprior` object, or `NULL`. Prior specification
+#'   for the model intercept in the `unshrunktermeffect` component. Supports `sigma_ref`
+#'   placeholder substitution. Not used for survival models (Cox models have no intercept).
+#'   Example: `"normal(0, 10)"`.
+#' @param unshrunk_prior A character string, `brmsprior` object, or `NULL`. Prior specification
+#'   for unshrunk terms in the `unshrunktermeffect` component (excludes intercept). These are
+#'   main effects and interactions for which no regularization is desired. Supports `sigma_ref`
+#'   placeholder substitution. Example: `"normal(0, 2.5 * sigma_ref)"`.
+#' @param shrunk_prognostic_prior A character string, `brmsprior` object, or `NULL`. Prior
+#'   specification for regularized prognostic effects in the `shprogeffect` component. These
+#'   are main effects for which strong shrinkage/regularization is desired. Supports `sigma_ref`
+#'   placeholder substitution. Example: `"horseshoe(1)"` or `"normal(0, sigma_ref)"`.
+#' @param shrunk_predictive_prior A character string, `brmsprior` object, or `NULL`. Prior
+#'   specification for regularized predictive effects (treatment interactions) in the
+#'   `shpredeffect` component. These are treatment interactions for which strong
+#'   shrinkage/regularization is desired. Supports `sigma_ref` placeholder substitution.
+#'   Example: `"horseshoe(scale_global = 0.5 * sigma_ref)"`.
+#' @param stanvars A `stanvars` object or `NULL`. Custom Stan code created via `brms::stanvar()`
+#'   for implementing hierarchical priors or other advanced Stan functionality. See the brms
+#'   documentation for details on creating `stanvars` objects.
+#' @param ... Additional arguments passed to `brms::brm()`. Common arguments include `chains`
+#'   (number of MCMC chains), `iter` (number of iterations per chain), `cores` (number of
+#'   CPU cores to use), `backend` (Stan backend), and `refresh` (progress update frequency).
 #'
 #' @return `brmsfit`. Fitted Bayesian model object with attributes:
 #'   `response_type` (`character`), `model_data` (`data.frame`), and
