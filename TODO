@@ -1,9 +1,0 @@
-TODO
-- divide functions.R into smaller files -----------------------> DONE
-- examples for each exported function -------------------------> DONE
-- assertions --------------------------------------------------> DONE
-- checks pass -------------------------------------------------> DONE
-- tests -------------------------------------------------------> DONE
-- vignettes ---------------------------------------------------> DONE
-- pkgdown site -> check ssl error for downloading bootstrap ---> DONE
-
