@@ -54,7 +54,7 @@ components of the model.</p>
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">fit_brms_model</span><span class="op">(</span></span>
 <span>  <span class="va">prepared_model</span>,</span>
-<span>  sigma_ref <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  intercept_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  unshrunk_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  shrunk_prognostic_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -77,11 +77,12 @@ for use by downstream functions like <code><a href="estimate_subgroup_effects.ht
 
 
 <dt id="arg-sigma-ref">sigma_ref<a class="anchor" aria-label="anchor" href="#arg-sigma-ref"></a></dt>
-<dd><p>A numeric scalar (REQUIRED). Reference scale for prior specification.
-Recommended values: (1) Standard deviation from trial protocol (preferred), or
-(2) <code>sd(outcome_variable)</code> if protocol value unavailable (fallback). For binary and
-survival outcomes, typically use 1. Can be referenced in prior strings using the
-placeholder <code>sigma_ref</code> (e.g., <code>"normal(0, 2.5 * sigma_ref)"</code>).</p></dd>
+<dd><p>A numeric scalar. Reference scale for prior specification. Default is 1.
+For continuous outcomes, recommended values are: (1) Assumed standard deviation from trial
+protocol (preferred), or (2) <code>sd(outcome_variable)</code> if protocol value unavailable.
+For binary, survival and count outcomes, the default value of 1 is typically appropriate.
+Can be referenced in prior strings using the placeholder <code>sigma_ref</code>
+(e.g., <code>"normal(0, 2.5 * sigma_ref)"</code>).</p></dd>
 
 
 <dt id="arg-intercept-prior">intercept_prior<a class="anchor" aria-label="anchor" href="#arg-intercept-prior"></a></dt>
@@ -94,23 +95,20 @@ Example: <code>"normal(0, 10)"</code>.</p></dd>
 <dt id="arg-unshrunk-prior">unshrunk_prior<a class="anchor" aria-label="anchor" href="#arg-unshrunk-prior"></a></dt>
 <dd><p>A character string, <code>brmsprior</code> object, or <code>NULL</code>. Prior specification
 for unshrunk terms in the <code>unshrunktermeffect</code> component (excludes intercept). These are
-main effects and interactions for which no regularization is desired. Supports <code>sigma_ref</code>
-placeholder substitution. Example: <code>"normal(0, 2.5 * sigma_ref)"</code>.</p></dd>
+main effects and interactions for which no regularization is desired.</p></dd>
 
 
 <dt id="arg-shrunk-prognostic-prior">shrunk_prognostic_prior<a class="anchor" aria-label="anchor" href="#arg-shrunk-prognostic-prior"></a></dt>
 <dd><p>A character string, <code>brmsprior</code> object, or <code>NULL</code>. Prior
 specification for regularized prognostic effects in the <code>shprogeffect</code> component. These
-are main effects for which strong shrinkage/regularization is desired. Supports <code>sigma_ref</code>
-placeholder substitution. Example: <code>"horseshoe(1)"</code> or <code>"normal(0, sigma_ref)"</code>.</p></dd>
+are main effects for which strong shrinkage/regularization is desired.</p></dd>
 
 
 <dt id="arg-shrunk-predictive-prior">shrunk_predictive_prior<a class="anchor" aria-label="anchor" href="#arg-shrunk-predictive-prior"></a></dt>
 <dd><p>A character string, <code>brmsprior</code> object, or <code>NULL</code>. Prior
 specification for regularized predictive effects (treatment interactions) in the
 <code>shpredeffect</code> component. These are treatment interactions for which strong
-shrinkage/regularization is desired. Supports <code>sigma_ref</code> placeholder substitution.
-Example: <code>"horseshoe(scale_global = 0.5 * sigma_ref)"</code>.</p></dd>
+shrinkage/regularization is desired.</p></dd>
 
 
 <dt id="arg-stanvars">stanvars<a class="anchor" aria-label="anchor" href="#arg-stanvars"></a></dt>
@@ -147,35 +145,42 @@ definitions as character strings (e.g., <code>"normal(0, 2.5 * sigma_ref)"</code
 You can reference <code>sigma_ref</code> in prior strings, and it will be automatically
 substituted. For example: <code>"normal(0, 2.5 * sigma_ref)"</code> becomes
 <code>"normal(0, 8)"</code> when sigma_ref = 3.2.</p>
-<p><strong>Default Priors by Response Type:</strong></p>
-<p>If you don't specify priors, the function uses sensible defaults:</p>
-<p><em>Continuous outcomes:</em></p><ul><li><p><code>intercept_prior</code>: <code>normal(outcome_mean, 5 * sigma_ref)</code></p></li>
-<li><p><code>unshrunk_prior</code>: <code>normal(0, 5 * sigma_ref)</code></p></li>
+<p><strong>Default Priors by Response Type and Model Structure:</strong></p>
+<p>If you don't specify priors, the function uses sensible defaults that adapt to
+the model structure and response type:</p>
+<p><strong>For models with fixed effects (GLOBAL) (colon <code>:</code> syntax):</strong></p>
+<p><em>Continuous outcomes:</em></p><ul><li><p><code>intercept_prior</code>: <code>normal(outcome_mean, 2.5 * sigma_ref)</code> (weakly informative, centered at outcome mean)</p></li>
+<li><p><code>unshrunk_prior</code>: <code>normal(0, 2.5 * sigma_ref)</code> (weakly informative)</p></li>
+<li><p><code>shrunk_prognostic_prior</code>: <code>horseshoe(1)</code> (strong regularization)</p></li>
+<li><p><code>shrunk_predictive_prior</code>: <code>horseshoe(1)</code> (strong regularization)</p></li>
+<li><p><code>sigma</code>: <code>student_t(3, 0, sigma_ref)</code> (half-t prior for residual SD)</p></li>
+</ul><p><em>Binary outcomes:</em></p><ul><li><p><code>intercept_prior</code>: <code>normal(0, 1.5)</code> (weakly informative on logit scale)</p></li>
+<li><p><code>unshrunk_prior</code>: <code>normal(0, 1.5)</code></p></li>
 <li><p><code>shrunk_prognostic_prior</code>: <code>horseshoe(1)</code></p></li>
 <li><p><code>shrunk_predictive_prior</code>: <code>horseshoe(1)</code></p></li>
-<li><p><code>sigma</code>: <code>normal(0, sigma_ref)</code></p></li>
-</ul><p><em>Binary outcomes:</em></p><ul><li><p><code>intercept_prior</code>: <code>normal(0, 5 * sigma_ref)</code></p></li>
-<li><p><code>unshrunk_prior</code>: <code>normal(0, 5 * sigma_ref)</code></p></li>
-<li><p><code>shrunk_prognostic_prior</code>: <code>horseshoe(1)</code></p></li>
-<li><p><code>shrunk_predictive_prior</code>: <code>horseshoe(1)</code></p></li>
-</ul><p><em>Count outcomes:</em></p><ul><li><p><code>intercept_prior</code>: <code>normal(0, 5 * sigma_ref)</code></p></li>
-<li><p><code>unshrunk_prior</code>: <code>normal(0, 5 * sigma_ref)</code></p></li>
+</ul><p><em>Count outcomes:</em></p><ul><li><p><code>intercept_prior</code>: <code>normal(0, 2)</code> (weakly informative on log scale)</p></li>
+<li><p><code>unshrunk_prior</code>: <code>normal(0, 2)</code></p></li>
 <li><p><code>shrunk_prognostic_prior</code>: <code>horseshoe(1)</code></p></li>
 <li><p><code>shrunk_predictive_prior</code>: <code>horseshoe(1)</code></p></li>
 <li><p><code>shape</code>: Uses brms default prior for negative binomial shape parameter</p></li>
 </ul><p><em>Survival outcomes:</em></p><ul><li><p>No intercept (Cox models don't have intercepts)</p></li>
-<li><p><code>unshrunk_prior</code>: <code>normal(0, 5 * sigma_ref)</code></p></li>
+<li><p><code>unshrunk_prior</code>: <code>normal(0, 1.5)</code> (weakly informative on log-hazard scale)</p></li>
 <li><p><code>shrunk_prognostic_prior</code>: <code>horseshoe(1)</code></p></li>
 <li><p><code>shrunk_predictive_prior</code>: <code>horseshoe(1)</code></p></li>
+</ul><p><strong>For models with random effects (One-variable-at-a-time (OVAT)) (pipe-pipe <code>||</code> syntax):</strong></p>
+<p>Random effects in shrunk predictive terms (e.g., <code>~ (1 + trt || subgroup)</code>)
+automatically receive <code>normal(0, sigma_ref)</code> priors on the standard deviation
+scale for each coefficient and group combination, regardless of the
+shrunk_predictive_prior setting. For example:</p><ul><li><p><code>prior(normal(0, sigma_ref), class = "sd", coef = "Intercept", group = "subgroup")</code></p></li>
+<li><p><code>prior(normal(0, sigma_ref), class = "sd", coef = "trt", group = "subgroup")</code></p></li>
 </ul><p><strong>Example:</strong></p>
 <p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">fit_brms_model</span>(</span>
 <span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  <span class="at">prepared_model =</span> prepared,</span>
-<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>  <span class="at">sigma_ref =</span> <span class="fl">12.5</span>,  <span class="co"># From trial protocol (preferred)</span></span>
-<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  <span class="co"># OR sigma_ref = sd(data$outcome),  # If protocol value unavailable</span></span>
-<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="at">unshrunk_prior =</span> <span class="st">"normal(0, 2.5 * sigma_ref)"</span>,</span>
-<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>  <span class="at">shrunk_prognostic_prior =</span> <span class="st">"horseshoe(scale_global = 0.5 * sigma_ref)"</span>,</span>
-<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>  <span class="at">shrunk_predictive_prior =</span> <span class="st">"horseshoe(scale_global = 0.1 * sigma_ref)"</span></span>
-<span id="cb1-8"><a href="#cb1-8" tabindex="-1"></a>)</span></code></pre><p></p></div>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>  <span class="at">sigma_ref =</span> <span class="dv">1</span>,</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>  <span class="at">unshrunk_prior =</span> <span class="st">"normal(0, 2.5 * sigma_ref)"</span>,</span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a>  <span class="at">shrunk_prognostic_prior =</span> <span class="st">"horseshoe(scale_global = 0.5)"</span>,</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>  <span class="at">shrunk_predictive_prior =</span> <span class="st">"horseshoe(scale_global = 0.1)"</span></span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>)</span></code></pre><p></p></div>
     </div>
 
     <div class="section level2">
@@ -249,17 +254,8 @@ substituted. For example: <code>"normal(0, 2.5 * sigma_ref)"</code> becomes
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Marginality principle not followed - interaction term 'subgroup' is used without its main effect. Consider adding 'subgroup' to prognostic terms for proper model hierarchy.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> DEBUG: Creating sub-formulas...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>   - all_unshrunk_terms: age, trt</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>   - shrunk_prog_terms: region</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>   - shrunk_pred_formula: trt:subgroup</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Formula 'shprogeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> DEBUG: Final formula object:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shprogeffect + shpredeffect </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unshrunktermeffect ~ 0 + age + trt</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shprogeffect ~ region</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ trt:subgroup</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

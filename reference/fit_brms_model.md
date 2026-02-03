@@ -10,7 +10,7 @@ priors to the different non-linear components of the model.
 ``` r
 fit_brms_model(
   prepared_model,
-  sigma_ref = NULL,
+  sigma_ref = 1,
   intercept_prior = NULL,
   unshrunk_prior = NULL,
   shrunk_prognostic_prior = NULL,
@@ -35,11 +35,12 @@ fit_brms_model(
 
 - sigma_ref:
 
-  A numeric scalar (REQUIRED). Reference scale for prior specification.
-  Recommended values: (1) Standard deviation from trial protocol
-  (preferred), or (2) `sd(outcome_variable)` if protocol value
-  unavailable (fallback). For binary and survival outcomes, typically
-  use 1. Can be referenced in prior strings using the placeholder
+  A numeric scalar. Reference scale for prior specification. Default
+  is 1. For continuous outcomes, recommended values are: (1) Assumed
+  standard deviation from trial protocol (preferred), or (2)
+  `sd(outcome_variable)` if protocol value unavailable. For binary,
+  survival and count outcomes, the default value of 1 is typically
+  appropriate. Can be referenced in prior strings using the placeholder
   `sigma_ref` (e.g., `"normal(0, 2.5 * sigma_ref)"`).
 
 - intercept_prior:
@@ -54,25 +55,21 @@ fit_brms_model(
   A character string, `brmsprior` object, or `NULL`. Prior specification
   for unshrunk terms in the `unshrunktermeffect` component (excludes
   intercept). These are main effects and interactions for which no
-  regularization is desired. Supports `sigma_ref` placeholder
-  substitution. Example: `"normal(0, 2.5 * sigma_ref)"`.
+  regularization is desired.
 
 - shrunk_prognostic_prior:
 
   A character string, `brmsprior` object, or `NULL`. Prior specification
   for regularized prognostic effects in the `shprogeffect` component.
   These are main effects for which strong shrinkage/regularization is
-  desired. Supports `sigma_ref` placeholder substitution. Example:
-  `"horseshoe(1)"` or `"normal(0, sigma_ref)"`.
+  desired.
 
 - shrunk_predictive_prior:
 
   A character string, `brmsprior` object, or `NULL`. Prior specification
   for regularized predictive effects (treatment interactions) in the
   `shpredeffect` component. These are treatment interactions for which
-  strong shrinkage/regularization is desired. Supports `sigma_ref`
-  placeholder substitution. Example:
-  `"horseshoe(scale_global = 0.5 * sigma_ref)"`.
+  strong shrinkage/regularization is desired.
 
 - stanvars:
 
@@ -123,27 +120,32 @@ strings, and it will be automatically substituted. For example:
 `"normal(0, 2.5 * sigma_ref)"` becomes `"normal(0, 8)"` when sigma_ref =
 3.2.
 
-**Default Priors by Response Type:**
+**Default Priors by Response Type and Model Structure:**
 
-If you don't specify priors, the function uses sensible defaults:
+If you don't specify priors, the function uses sensible defaults that
+adapt to the model structure and response type:
+
+**For models with fixed effects (GLOBAL) (colon `:` syntax):**
 
 *Continuous outcomes:*
 
-- `intercept_prior`: `normal(outcome_mean, 5 * sigma_ref)`
+- `intercept_prior`: `normal(outcome_mean, 2.5 * sigma_ref)` (weakly
+  informative, centered at outcome mean)
 
-- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 2.5 * sigma_ref)` (weakly informative)
 
-- `shrunk_prognostic_prior`: `horseshoe(1)`
+- `shrunk_prognostic_prior`: `horseshoe(1)` (strong regularization)
 
-- `shrunk_predictive_prior`: `horseshoe(1)`
+- `shrunk_predictive_prior`: `horseshoe(1)` (strong regularization)
 
-- `sigma`: `normal(0, sigma_ref)`
+- `sigma`: `student_t(3, 0, sigma_ref)` (half-t prior for residual SD)
 
 *Binary outcomes:*
 
-- `intercept_prior`: `normal(0, 5 * sigma_ref)`
+- `intercept_prior`: `normal(0, 1.5)` (weakly informative on logit
+  scale)
 
-- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 1.5)`
 
 - `shrunk_prognostic_prior`: `horseshoe(1)`
 
@@ -151,9 +153,9 @@ If you don't specify priors, the function uses sensible defaults:
 
 *Count outcomes:*
 
-- `intercept_prior`: `normal(0, 5 * sigma_ref)`
+- `intercept_prior`: `normal(0, 2)` (weakly informative on log scale)
 
-- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 2)`
 
 - `shrunk_prognostic_prior`: `horseshoe(1)`
 
@@ -165,21 +167,34 @@ If you don't specify priors, the function uses sensible defaults:
 
 - No intercept (Cox models don't have intercepts)
 
-- `unshrunk_prior`: `normal(0, 5 * sigma_ref)`
+- `unshrunk_prior`: `normal(0, 1.5)` (weakly informative on log-hazard
+  scale)
 
 - `shrunk_prognostic_prior`: `horseshoe(1)`
 
 - `shrunk_predictive_prior`: `horseshoe(1)`
 
+**For models with random effects (One-variable-at-a-time (OVAT))
+(pipe-pipe `||` syntax):**
+
+Random effects in shrunk predictive terms (e.g.,
+`~ (1 + trt || subgroup)`) automatically receive `normal(0, sigma_ref)`
+priors on the standard deviation scale for each coefficient and group
+combination, regardless of the shrunk_predictive_prior setting. For
+example:
+
+- `prior(normal(0, sigma_ref), class = "sd", coef = "Intercept", group = "subgroup")`
+
+- `prior(normal(0, sigma_ref), class = "sd", coef = "trt", group = "subgroup")`
+
 **Example:**
 
     fit_brms_model(
       prepared_model = prepared,
-      sigma_ref = 12.5,  # From trial protocol (preferred)
-      # OR sigma_ref = sd(data$outcome),  # If protocol value unavailable
+      sigma_ref = 1,
       unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
-      shrunk_prognostic_prior = "horseshoe(scale_global = 0.5 * sigma_ref)",
-      shrunk_predictive_prior = "horseshoe(scale_global = 0.1 * sigma_ref)"
+      shrunk_prognostic_prior = "horseshoe(scale_global = 0.5)",
+      shrunk_predictive_prior = "horseshoe(scale_global = 0.1)"
     )
 
 ## Examples
@@ -254,15 +269,6 @@ if (require("brms") && require("survival")) {
 #> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)
 #> Note: Marginality principle not followed - interaction term 'subgroup' is used without its main effect. Consider adding 'subgroup' to prognostic terms for proper model hierarchy.
 #> Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)
-#> DEBUG: Creating sub-formulas...
-#>   - all_unshrunk_terms: age, trt
-#>   - shrunk_prog_terms: region
-#>   - shrunk_pred_formula: trt:subgroup
 #> Warning: Formula 'shprogeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
 #> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
-#> DEBUG: Final formula object:
-#> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shprogeffect + shpredeffect 
-#> unshrunktermeffect ~ 0 + age + trt
-#> shprogeffect ~ region
-#> shpredeffect ~ trt:subgroup
 ```

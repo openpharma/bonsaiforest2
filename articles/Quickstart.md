@@ -55,6 +55,7 @@ First, let’s load the libraries and create the data.
 ``` r
 # Load the main package
 library(bonsaiforest2)
+library(brms)
 ```
 
 ``` r
@@ -96,6 +97,12 @@ subgroup variables.
 
 ``` r
 # Write the sigma specified in the trial protocol
+priors <- c(
+  prior(normal(0, 5), class = "sd", coef = "Intercept", group = "SEX"),
+  prior(normal(0, 5), class = "sd", coef = "TRT01PN", group = "SEX"),
+  prior(gamma(2, 0.1), class = "shape")
+)
+
 sigma_ref <- 2
 
 # Fit model with only region as subgroup variable
@@ -104,18 +111,14 @@ ovat_region <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0+ (0+trt||region),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0+ (1+trt||region),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
 )
-#> sbp_change ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ baseline_sbp + trt
-#> shpredeffect ~ 0 + (0 + trt || region)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.1 seconds.
+#> Chain 1 finished in 3.2 seconds.
 
 summary_ovat_region <- summary_subgroup_effects(brms_fit = ovat_region)
 ```
@@ -128,18 +131,14 @@ ovat_comorbidity <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (0+trt||comorbidity),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0 + (1+trt||comorbidity),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
 )
-#> sbp_change ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ baseline_sbp + trt
-#> shpredeffect ~ 0 + (0 + trt || comorbidity)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.1 seconds.
+#> Chain 1 finished in 3.6 seconds.
 
 summary_ovat_comorbidity <- summary_subgroup_effects(brms_fit = ovat_comorbidity)
 ```
@@ -152,18 +151,14 @@ ovat_age <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (0+trt||age_group),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0 + (1+trt||age_group),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
 )
-#> sbp_change ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ baseline_sbp + trt
-#> shpredeffect ~ 0 + (0 + trt || age_group)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.0 seconds.
+#> Chain 1 finished in 3.2 seconds.
 
 summary_ovat_age <- summary_subgroup_effects(brms_fit = ovat_age, subgroup_vars = "age_group")
 ```
@@ -176,18 +171,14 @@ ovat_sex <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (0+trt||sex),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0 + (1+trt||sex),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
 )
-#> sbp_change ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ baseline_sbp + trt
-#> shpredeffect ~ 0 + (0 + trt || sex)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 1 finished in 3.4 seconds.
 
 summary_ovat_sex <- summary_subgroup_effects(brms_fit = ovat_sex)
 ```
@@ -200,18 +191,14 @@ ovat_diabetes <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (0+trt||diabetes),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0 + (1+trt||diabetes),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
 )
-#> sbp_change ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ baseline_sbp + trt
-#> shpredeffect ~ 0 + (0 + trt || diabetes)
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 1 finished in 3.8 seconds.
 
 summary_ovat_diabetes <- summary_subgroup_effects(brms_fit = ovat_diabetes)
 ```
@@ -259,12 +246,9 @@ global_model <- run_brms_analysis(
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
 )
-#> sbp_change ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ baseline_sbp + region + comorbidity + age_group + sex + diabetes + trt
-#> shpredeffect ~ 0 + trt:region + trt:comorbidity + trt:age_group + trt:sex + trt:diabetes
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.3 seconds.
+#> Chain 1 finished in 2.8 seconds.
 ```
 
 ### 4.2 Global Model: Summary of Subgroup Effects
@@ -347,18 +331,18 @@ print(global_summary)
 #> # A tibble: 12 × 4
 #>    Subgroup         Median CI_Lower CI_Upper
 #>    <chr>             <dbl>    <dbl>    <dbl>
-#>  1 region: APAC      1.67    -1.29      4.92
-#>  2 region: EU        0.879   -2.00      3.85
-#>  3 region: USA       0.472   -2.40      3.17
-#>  4 comorbidity: No   0.826   -1.48      3.01
-#>  5 comorbidity: Yes  1.27    -1.31      3.90
-#>  6 age_group: <50    1.22    -1.26      3.83
-#>  7 age_group: >65    1.08    -1.93      4.11
-#>  8 age_group: 50-65  0.841   -1.87      3.13
-#>  9 sex: F            0.384   -2.26      2.87
-#> 10 sex: M            1.61    -0.924     3.96
-#> 11 diabetes: No      0.660   -1.69      2.75
-#> 12 diabetes: Yes     1.74    -0.977     4.54
+#>  1 region: APAC      1.56     -1.24     4.77
+#>  2 region: EU        0.940    -1.89     3.62
+#>  3 region: USA       0.283    -2.60     3.12
+#>  4 comorbidity: No   0.796    -1.52     3.07
+#>  5 comorbidity: Yes  1.19     -1.30     3.98
+#>  6 age_group: <50    1.13     -1.26     3.87
+#>  7 age_group: >65    0.996    -1.74     3.92
+#>  8 age_group: 50-65  0.813    -1.95     3.26
+#>  9 sex: F            0.331    -2.14     2.84
+#> 10 sex: M            1.49     -1.04     4.20
+#> 11 diabetes: No      0.539    -1.66     2.83
+#> 12 diabetes: Yes     1.68     -1.17     4.73
 #> 
 #> $response_type
 #> [1] "continuous"

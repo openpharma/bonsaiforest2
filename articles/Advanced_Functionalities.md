@@ -62,24 +62,16 @@ count_model_fit <- run_brms_analysis(
 #> Step 1: Preparing formula and data...
 #> Converting treatment variable 'medication' to numeric binary (0/1). '0' = 0, '1' = 1
 #> Note: Treatment 'medication' automatically added to unshrunk terms.
-#> DEBUG: Creating sub-formulas...
-#>   - all_unshrunk_terms: 1, baseline_severity, medication
-#>   - shrunk_prog_terms: biomarker_1, biomarker_2, biomarker_3, biomarker_4, biomarker_5, biomarker_6, biomarker_7, biomarker_8, biomarker_9, biomarker_10
-#>   - shrunk_pred_formula:
 #> Warning: Formula 'shprogeffect' contains an intercept. For proper
 #> regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~
 #> -1 + ...' to your input formula.
-#> DEBUG: Final formula object:
-#> exacerbation_count ~ unshrunktermeffect + shprogeffect + log_exposure_time 
-#> unshrunktermeffect ~ 1 + baseline_severity + medication
-#> shprogeffect ~ biomarker_1 + biomarker_2 + biomarker_3 + biomarker_4 + biomarker_5 + biomarker_6 + biomarker_7 + biomarker_8 + biomarker_9 + biomarker_10
 #> 
 #> Step 2: Fitting the brms model...
 #> Using trt_var from prepared_model: medication
 #> Using sigma_ref = 1
 #> Using default priors for unspecified effects:
-#>   - intercept: normal(0, 5)
-#>   - unshrunk terms: normal(0, 5)
+#>   - intercept: normal(0, 2)
+#>   - unshrunk terms: normal(0, 2)
 #>   - shrunk prognostic: horseshoe(1)
 #> Fitting brms model...
 #> Start sampling
@@ -170,14 +162,6 @@ prepared_model <- prepare_formula_model(
 #> Note: Treatment 'trt' automatically added to unshrunk terms.
 #> Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)
 #> Note: Marginality principle not followed - interaction term 'region' is used without its main effect. Consider adding 'region' to prognostic terms for proper model hierarchy.
-#> DEBUG: Creating sub-formulas...
-#>   - all_unshrunk_terms: age, trt
-#>   - shrunk_prog_terms:
-#>   - shrunk_pred_formula: trt:region
-#> DEBUG: Final formula object:
-#> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE) ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ 0 + age + trt
-#> shpredeffect ~ 0 + trt:region
 ```
 
 #### 2.2.2 Example 2: Using Default Priors (Recommended)
@@ -199,7 +183,7 @@ fit_ex3 <- fit_brms_model(
 #> Using trt_var from prepared_model: trt
 #> Using sigma_ref = 1
 #> Using default priors for unspecified effects:
-#>   - unshrunk terms: normal(0, 5)
+#>   - unshrunk terms: normal(0, 1.5)
 #>   - shrunk predictive: horseshoe(1)
 #> Fitting brms model...
 #> Start sampling
@@ -213,7 +197,7 @@ fit_ex3 <- fit_brms_model(
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
 #> Chain 1 finished in 2.1 seconds.
-#> Warning: 96 of 100 (96.0%) transitions hit the maximum treedepth limit of 10.
+#> Warning: 92 of 100 (92.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 
 # View the priors that were automatically set
@@ -221,14 +205,14 @@ cat("\n=== Priors Used ===\n")
 #> 
 #> === Priors Used ===
 print(fit_ex3[["prior"]])
-#>         prior class        coef group resp dpar              nlpar lb ub tag
-#>  horseshoe(1)     b                                   shpredeffect          
-#>  horseshoe(1)     b trt:regionA                       shpredeffect          
-#>  horseshoe(1)     b trt:regionB                       shpredeffect          
-#>  normal(0, 5)     b                             unshrunktermeffect          
-#>  normal(0, 5)     b         age                 unshrunktermeffect          
-#>  normal(0, 5)     b         trt                 unshrunktermeffect          
-#>  dirichlet(1) sbhaz                                                         
+#>           prior class        coef group resp dpar              nlpar lb ub tag
+#>    horseshoe(1)     b                                   shpredeffect          
+#>    horseshoe(1)     b trt:regionA                       shpredeffect          
+#>    horseshoe(1)     b trt:regionB                       shpredeffect          
+#>  normal(0, 1.5)     b                             unshrunktermeffect          
+#>  normal(0, 1.5)     b         age                 unshrunktermeffect          
+#>  normal(0, 1.5)     b         trt                 unshrunktermeffect          
+#>    dirichlet(1) sbhaz                                                         
 #>        source
 #>          user
 #>  (vectorized)
@@ -441,14 +425,6 @@ prepared_model <- prepare_formula_model(
 #> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'subgroup'
 #> Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)
 #> Note: Marginality principle not followed - interaction term 'region' is used without its main effect. Consider adding 'region' to prognostic terms for proper model hierarchy.
-#> DEBUG: Creating sub-formulas...
-#>   - all_unshrunk_terms: age, trt * subgroup, trt
-#>   - shrunk_prog_terms:
-#>   - shrunk_pred_formula: trt:region
-#> DEBUG: Final formula object:
-#> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE) ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ 0 + age + trt * subgroup + trt
-#> shpredeffect ~ 0 + trt:region
 
 # 2. Inspect the Results
 # A. The generated brms formula object
@@ -738,14 +714,6 @@ prepared_custom_contrast <- prepare_formula_model(
 #> Note: Treatment 'trt' automatically added to unshrunk terms.
 #> Variable 'biomarker' has user-specified contrasts. Keeping them.
 #> Note: Marginality principle not followed - interaction term 'biomarker' is used without its main effect. Consider adding 'biomarker' to prognostic terms for proper model hierarchy.
-#> DEBUG: Creating sub-formulas...
-#>   - all_unshrunk_terms: age, trt
-#>   - shrunk_prog_terms:
-#>   - shrunk_pred_formula: trt:biomarker
-#> DEBUG: Final formula object:
-#> outcome ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ age + trt
-#> shpredeffect ~ 0 + trt:biomarker
 
 # Observe costum contrast in the data
 str(prepared_custom_contrast$data)
@@ -769,13 +737,14 @@ fit_custom_contrast <- fit_brms_model(
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 #> Using trt_var from prepared_model: trt
+#> Note: Using default sigma_ref = 1 for continuous outcome. Consider setting sigma_ref to the outcome standard deviation from the trial protocol (preferred) or sd(outcome) for better prior specification.
 #> Using sigma_ref = 1
 #> Computed outcome mean: 50.06
 #> Using default priors for unspecified effects:
-#>   - intercept: normal(50.0602209848849, 5)
-#>   - unshrunk terms: normal(0, 5)
+#>   - intercept: normal(50.0602209848849, 2.5)
+#>   - unshrunk terms: normal(0, 2.5)
 #>   - shrunk predictive: horseshoe(1)
-#> Adding sigma prior: normal(0, 1)
+#> Adding sigma prior: student_t(3, 0, 1)
 #> Fitting brms model...
 #> Start sampling
 #> Running MCMC with 1 chain...
@@ -787,9 +756,7 @@ fit_custom_contrast <- fit_brms_model(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 1.4 seconds.
-#> Warning: 16 of 100 (16.0%) transitions hit the maximum treedepth limit of 10.
-#> See https://mc-stan.org/misc/warnings for details.
+#> Chain 1 finished in 1.0 seconds.
 
 estimate_custom_contrast <- summary_subgroup_effects(fit_custom_contrast)
 #> Using trt_var from model attributes: trt
@@ -835,9 +802,9 @@ print(estimate_custom_contrast)
 #> # A tibble: 3 × 4
 #>   Subgroup          Median CI_Lower CI_Upper
 #>   <chr>              <dbl>    <dbl>    <dbl>
-#> 1 biomarker: High   -0.719    -3.72    1.86 
-#> 2 biomarker: Low    -3.19     -5.88   -0.623
-#> 3 biomarker: Medium -2.01     -5.25    1.39 
+#> 1 biomarker: High   -0.668    -3.30   2.35  
+#> 2 biomarker: Low    -2.57     -5.77  -0.0927
+#> 3 biomarker: Medium -1.33     -4.76   1.64  
 #> 
 #> $response_type
 #> [1] "continuous"
@@ -939,23 +906,14 @@ fit_continuous_stratified <- run_brms_analysis(
 #> Note: Treatment 'trt' automatically added to unshrunk terms.
 #> Note: Applied one-hot encoding to shrunken factor 'age_group' (will be used with ~ 0 + ...)
 #> Note: Marginality principle not followed - interaction term 'age_group' is used without its main effect. Consider adding 'age_group' to prognostic terms for proper model hierarchy.
-#> DEBUG: Creating sub-formulas...
-#>   - all_unshrunk_terms: baseline_sbp, trt
-#>   - shrunk_prog_terms:
-#>   - shrunk_pred_formula: trt:age_group
-#> DEBUG: Final formula object:
-#> sbp_change ~ unshrunktermeffect + shpredeffect 
-#> sigma ~ clinic_site
-#> unshrunktermeffect ~ baseline_sbp + trt
-#> shpredeffect ~ 0 + trt:age_group
 #> 
 #> Step 2: Fitting the brms model...
 #> Using trt_var from prepared_model: trt
 #> Using sigma_ref = 13.287
 #> Computed outcome mean: -11.302
 #> Using default priors for unspecified effects:
-#>   - intercept: normal(-11.3016300423315, 66.4347558459801)
-#>   - unshrunk terms: normal(0, 66.4347558459801)
+#>   - intercept: normal(-11.3016300423315, 33.2173779229901)
+#>   - unshrunk terms: normal(0, 33.2173779229901)
 #>   - shrunk predictive: horseshoe(1)
 #> Fitting brms model...
 #> Start sampling
@@ -968,8 +926,8 @@ fit_continuous_stratified <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.8 seconds.
-#> Warning: 60 of 100 (60.0%) transitions hit the maximum treedepth limit of 10.
+#> Chain 1 finished in 2.7 seconds.
+#> Warning: 56 of 100 (56.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 
 #> Analysis complete.
@@ -1022,8 +980,8 @@ print(strat_continuous_summary$estimates)
 #> # A tibble: 2 × 4
 #>   Subgroup           Median CI_Lower CI_Upper
 #>   <chr>               <dbl>    <dbl>    <dbl>
-#> 1 age_group: Over60  -11.6     -14.5    -7.33
-#> 2 age_group: Under60  -8.50    -12.2    -5.67
+#> 1 age_group: Over60  -11.5     -14.3    -8.22
+#> 2 age_group: Under60  -9.26    -11.9    -5.77
 plot(strat_continuous_summary, title = "Stratified Continuous: Subgroup Effects")
 #> Preparing data for plotting...
 #> Generating plot...
@@ -1080,20 +1038,12 @@ fit_surv_stratified <- run_brms_analysis(
 #> Note: Treatment 'trt' automatically added to unshrunk terms.
 #> Note: Applied one-hot encoding to shrunken factor 'biomarker' (will be used with ~ 0 + ...)
 #> Note: Marginality principle not followed - interaction term 'biomarker' is used without its main effect. Consider adding 'biomarker' to prognostic terms for proper model hierarchy.
-#> DEBUG: Creating sub-formulas...
-#>   - all_unshrunk_terms: age, trt
-#>   - shrunk_prog_terms:
-#>   - shrunk_pred_formula: trt:biomarker
-#> DEBUG: Final formula object:
-#> event_time | cens(1 - event_status) + bhaz(Boundary.knots = c(0, 60.5958978874147), knots = c(7.96377038417436, 13.5426536107278, 24.4077980704831), intercept = FALSE, gr = country) ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ 0 + age + trt
-#> shpredeffect ~ 0 + trt:biomarker
 #> 
 #> Step 2: Fitting the brms model...
 #> Using trt_var from prepared_model: trt
 #> Using sigma_ref = 1
 #> Using default priors for unspecified effects:
-#>   - unshrunk terms: normal(0, 5)
+#>   - unshrunk terms: normal(0, 1.5)
 #>   - shrunk predictive: horseshoe(1)
 #> Fitting brms model...
 #> Start sampling
@@ -1106,7 +1056,7 @@ fit_surv_stratified <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 7.9 seconds.
+#> Chain 1 finished in 7.6 seconds.
 #> Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 
@@ -1158,8 +1108,8 @@ print(strat_surv_summary$estimates)
 #> # A tibble: 2 × 4
 #>   Subgroup        Median CI_Lower CI_Upper
 #>   <chr>            <dbl>    <dbl>    <dbl>
-#> 1 biomarker: High  0.625    0.471    0.835
-#> 2 biomarker: Low   0.360    0.268    0.529
+#> 1 biomarker: High  0.592    0.476    0.832
+#> 2 biomarker: Low   0.376    0.263    0.522
 plot(strat_surv_summary, title = "Stratified Survival: Subgroup Effects (AHR)")
 #> Preparing data for plotting...
 #> Generating plot...

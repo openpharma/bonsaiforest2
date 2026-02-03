@@ -109,7 +109,8 @@
 <p>First, let’s load the libraries and create the data.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load the main package</span></span>
-<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span></code></pre></div>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Create the example data with multiple subgroup variables</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
@@ -149,6 +150,12 @@
 </h3>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Write the sigma specified in the trial protocol</span></span>
+<span><span class="va">priors</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">prior</a></span><span class="op">(</span><span class="fu">normal</span><span class="op">(</span><span class="fl">0</span>, <span class="fl">5</span><span class="op">)</span>, class <span class="op">=</span> <span class="st">"sd"</span>, coef <span class="op">=</span> <span class="st">"Intercept"</span>, group <span class="op">=</span> <span class="st">"SEX"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">prior</a></span><span class="op">(</span><span class="fu">normal</span><span class="op">(</span><span class="fl">0</span>, <span class="fl">5</span><span class="op">)</span>, class <span class="op">=</span> <span class="st">"sd"</span>, coef <span class="op">=</span> <span class="st">"TRT01PN"</span>, group <span class="op">=</span> <span class="st">"SEX"</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">prior</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Special.html" class="external-link">gamma</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">0.1</span><span class="op">)</span>, class <span class="op">=</span> <span class="st">"shape"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
 <span><span class="va">sigma_ref</span> <span class="op">&lt;-</span> <span class="fl">2</span></span>
 <span></span>
 <span><span class="co"># Fit model with only region as subgroup variable</span></span>
@@ -157,18 +164,14 @@
 <span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span><span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">region</span><span class="op">)</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span><span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">region</span><span class="op">)</span>,</span>
 <span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || region)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.1 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_region</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_region</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -182,18 +185,14 @@
 <span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">comorbidity</span><span class="op">)</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">comorbidity</span><span class="op">)</span>,</span>
 <span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || comorbidity)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.1 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.6 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_comorbidity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_comorbidity</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -207,18 +206,14 @@
 <span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">age_group</span><span class="op">)</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">age_group</span><span class="op">)</span>,</span>
 <span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || age_group)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.0 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_age</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_age</span>, subgroup_vars <span class="op">=</span> <span class="st">"age_group"</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -232,18 +227,14 @@
 <span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">sex</span><span class="op">)</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">sex</span><span class="op">)</span>,</span>
 <span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || sex)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.4 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_sex</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_sex</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -257,18 +248,14 @@
 <span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">0</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">diabetes</span><span class="op">)</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="op">(</span><span class="fl">1</span><span class="op">+</span><span class="va">trt</span><span class="op">||</span><span class="va">diabetes</span><span class="op">)</span>,</span>
 <span>  sigma_ref <span class="op">=</span> <span class="va">sigma_ref</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + (0 + trt || diabetes)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.8 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_diabetes</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_diabetes</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -316,12 +303,9 @@
 <span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + region + comorbidity + age_group + sex + diabetes + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + trt:region + trt:comorbidity + trt:age_group + trt:sex + trt:diabetes</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.3 seconds.</span></span></code></pre></div>
+<span><span class="co">#&gt; Chain 1 finished in 2.8 seconds.</span></span></code></pre></div>
 </div>
 <div class="section level3" number="4.2">
 <h3 id="global-model-summary-of-subgroup-effects">
@@ -401,18 +385,18 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 12 × 4</span></span></span>
 <span><span class="co">#&gt;    Subgroup         Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> region: APAC      1.67    -<span style="color: #BB0000;">1.29</span>      4.92</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> region: EU        0.879   -<span style="color: #BB0000;">2.00</span>      3.85</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> region: USA       0.472   -<span style="color: #BB0000;">2.40</span>      3.17</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> comorbidity: No   0.826   -<span style="color: #BB0000;">1.48</span>      3.01</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> comorbidity: Yes  1.27    -<span style="color: #BB0000;">1.31</span>      3.90</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> age_group: &lt;50    1.22    -<span style="color: #BB0000;">1.26</span>      3.83</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> age_group: &gt;65    1.08    -<span style="color: #BB0000;">1.93</span>      4.11</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> age_group: 50-65  0.841   -<span style="color: #BB0000;">1.87</span>      3.13</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> sex: F            0.384   -<span style="color: #BB0000;">2.26</span>      2.87</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> sex: M            1.61    -<span style="color: #BB0000;">0.924</span>     3.96</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> diabetes: No      0.660   -<span style="color: #BB0000;">1.69</span>      2.75</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> diabetes: Yes     1.74    -<span style="color: #BB0000;">0.977</span>     4.54</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> region: APAC      1.56     -<span style="color: #BB0000;">1.24</span>     4.77</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> region: EU        0.940    -<span style="color: #BB0000;">1.89</span>     3.62</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> region: USA       0.283    -<span style="color: #BB0000;">2.60</span>     3.12</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> comorbidity: No   0.796    -<span style="color: #BB0000;">1.52</span>     3.07</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> comorbidity: Yes  1.19     -<span style="color: #BB0000;">1.30</span>     3.98</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> age_group: &lt;50    1.13     -<span style="color: #BB0000;">1.26</span>     3.87</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> age_group: &gt;65    0.996    -<span style="color: #BB0000;">1.74</span>     3.92</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> age_group: 50-65  0.813    -<span style="color: #BB0000;">1.95</span>     3.26</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> sex: F            0.331    -<span style="color: #BB0000;">2.14</span>     2.84</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> sex: M            1.49     -<span style="color: #BB0000;">1.04</span>     4.20</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> diabetes: No      0.539    -<span style="color: #BB0000;">1.66</span>     2.83</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> diabetes: Yes     1.68     -<span style="color: #BB0000;">1.17</span>     4.73</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>

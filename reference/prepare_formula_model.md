@@ -127,7 +127,7 @@ proper factor handling and interactions.
 ## Key Features
 
 - **Multi-Part Formula Construction:** It generates a `brmsformula`
-  object with up to four distinct linear components
+  object with up to three distinct linear components
   (`unshrunktermeffect`, `shprogeffect`, `shpredeffect`), which are
   combined in a non-linear model. This allows for assigning different
   priors to each component.
@@ -179,10 +179,10 @@ spline knots to ensure stability:
 
 ## Data Transformation and Contrast Coding
 
-**CRITICAL:** This function returns a modified `data.frame` that must be
-used in subsequent calls to
-[`brms::brm()`](https://paulbuerkner.com/brms/reference/brm.html), not
-the original data. The transformations are:
+This function returns a modified `data.frame` that must be used in
+subsequent calls to
+[`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md),
+not the original data. The transformations are:
 
 - **Treatment variable:** Converted to numeric binary (0/1) to avoid
   multi-level factor interactions. The first level (alphabetically or
@@ -193,9 +193,9 @@ the original data. The transformations are:
 
   - **Shrunk terms:** One-hot encoding (all factor levels represented).
     For proper regularization, specify these using `~ 0 + var` to
-    explicitly remove the intercept. To treat all subgroups
-    symmetrically without privileging a specific reference group, to
-    ensure the exchangeability assumption.
+    explicitly remove the intercept and treat all subgroups
+    symmetrically without privileging a specific reference group
+    (ensures the exchangeability assumption).
 
   - **Unshrunk terms:** Dummy encoding (reference level dropped). Use
     standard formula syntax `~ var` with intercept.
@@ -269,15 +269,7 @@ if (require("brms") && require("survival")) {
 #> Note: Treatment 'trt' automatically added to unshrunk terms.
 #> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)
 #> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'subgroup'
-#> DEBUG: Creating sub-formulas...
-#>   - all_unshrunk_terms: age, subgroup, trt
-#>   - shrunk_prog_terms: 
-#>   - shrunk_pred_formula: trt:subgroup
 #> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
-#> DEBUG: Final formula object:
-#> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ 0 + age + subgroup + trt
-#> shpredeffect ~ trt:subgroup
 #> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect 
 #> unshrunktermeffect ~ 0 + age + subgroup + trt
 #> shpredeffect ~ trt:subgroup

@@ -112,24 +112,16 @@
 <span><span class="co">#&gt; Step 1: Preparing formula and data...</span></span>
 <span><span class="co">#&gt; Converting treatment variable 'medication' to numeric binary (0/1). '0' = 0, '1' = 1</span></span>
 <span><span class="co">#&gt; Note: Treatment 'medication' automatically added to unshrunk terms.</span></span>
-<span><span class="co">#&gt; DEBUG: Creating sub-formulas...</span></span>
-<span><span class="co">#&gt;   - all_unshrunk_terms: 1, baseline_severity, medication</span></span>
-<span><span class="co">#&gt;   - shrunk_prog_terms: biomarker_1, biomarker_2, biomarker_3, biomarker_4, biomarker_5, biomarker_6, biomarker_7, biomarker_8, biomarker_9, biomarker_10</span></span>
-<span><span class="co">#&gt;   - shrunk_pred_formula:</span></span>
 <span><span class="co">#&gt; Warning: Formula 'shprogeffect' contains an intercept. For proper</span></span>
 <span><span class="co">#&gt; regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~</span></span>
 <span><span class="co">#&gt; -1 + ...' to your input formula.</span></span>
-<span><span class="co">#&gt; DEBUG: Final formula object:</span></span>
-<span><span class="co">#&gt; exacerbation_count ~ unshrunktermeffect + shprogeffect + log_exposure_time </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ 1 + baseline_severity + medication</span></span>
-<span><span class="co">#&gt; shprogeffect ~ biomarker_1 + biomarker_2 + biomarker_3 + biomarker_4 + biomarker_5 + biomarker_6 + biomarker_7 + biomarker_8 + biomarker_9 + biomarker_10</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
 <span><span class="co">#&gt; Using trt_var from prepared_model: medication</span></span>
 <span><span class="co">#&gt; Using sigma_ref = 1</span></span>
 <span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - intercept: normal(0, 5)</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: normal(0, 5)</span></span>
+<span><span class="co">#&gt;   - intercept: normal(0, 2)</span></span>
+<span><span class="co">#&gt;   - unshrunk terms: normal(0, 2)</span></span>
 <span><span class="co">#&gt;   - shrunk prognostic: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
@@ -249,15 +241,7 @@
 <span><span class="co">#&gt; Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span></span>
 <span><span class="co">#&gt; Note: Treatment 'trt' automatically added to unshrunk terms.</span></span>
 <span><span class="co">#&gt; Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)</span></span>
-<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'region' is used without its main effect. Consider adding 'region' to prognostic terms for proper model hierarchy.</span></span>
-<span><span class="co">#&gt; DEBUG: Creating sub-formulas...</span></span>
-<span><span class="co">#&gt;   - all_unshrunk_terms: age, trt</span></span>
-<span><span class="co">#&gt;   - shrunk_prog_terms:</span></span>
-<span><span class="co">#&gt;   - shrunk_pred_formula: trt:region</span></span>
-<span><span class="co">#&gt; DEBUG: Final formula object:</span></span>
-<span><span class="co">#&gt; time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE) ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ 0 + age + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + trt:region</span></span></code></pre></div>
+<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'region' is used without its main effect. Consider adding 'region' to prognostic terms for proper model hierarchy.</span></span></code></pre></div>
 </div>
 <div class="section level4" number="2.2.2">
 <h4 id="example-2-using-default-priors-recommended">
@@ -278,7 +262,7 @@
 <span><span class="co">#&gt; Using trt_var from prepared_model: trt</span></span>
 <span><span class="co">#&gt; Using sigma_ref = 1</span></span>
 <span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: normal(0, 5)</span></span>
+<span><span class="co">#&gt;   - unshrunk terms: normal(0, 1.5)</span></span>
 <span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
@@ -292,7 +276,7 @@
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
 <span><span class="co">#&gt; Chain 1 finished in 2.1 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 96 of 100 (96.0%) transitions hit the maximum treedepth limit of 10.</span></span>
+<span><span class="co">#&gt; Warning: 92 of 100 (92.0%) transitions hit the maximum treedepth limit of 10.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span></span>
 <span><span class="co"># View the priors that were automatically set</span></span>
@@ -300,14 +284,14 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex3</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;         prior class        coef group resp dpar              nlpar lb ub tag</span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b                                   shpredeffect          </span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b trt:regionA                       shpredeffect          </span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b trt:regionB                       shpredeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b                             unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b         age                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b         trt                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  dirichlet(1) sbhaz                                                         </span></span>
+<span><span class="co">#&gt;           prior class        coef group resp dpar              nlpar lb ub tag</span></span>
+<span><span class="co">#&gt;    horseshoe(1)     b                                   shpredeffect          </span></span>
+<span><span class="co">#&gt;    horseshoe(1)     b trt:regionA                       shpredeffect          </span></span>
+<span><span class="co">#&gt;    horseshoe(1)     b trt:regionB                       shpredeffect          </span></span>
+<span><span class="co">#&gt;  normal(0, 1.5)     b                             unshrunktermeffect          </span></span>
+<span><span class="co">#&gt;  normal(0, 1.5)     b         age                 unshrunktermeffect          </span></span>
+<span><span class="co">#&gt;  normal(0, 1.5)     b         trt                 unshrunktermeffect          </span></span>
+<span><span class="co">#&gt;    dirichlet(1) sbhaz                                                         </span></span>
 <span><span class="co">#&gt;        source</span></span>
 <span><span class="co">#&gt;          user</span></span>
 <span><span class="co">#&gt;  (vectorized)</span></span>
@@ -508,14 +492,6 @@
 <span><span class="co">#&gt; Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'subgroup'</span></span>
 <span><span class="co">#&gt; Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)</span></span>
 <span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'region' is used without its main effect. Consider adding 'region' to prognostic terms for proper model hierarchy.</span></span>
-<span><span class="co">#&gt; DEBUG: Creating sub-formulas...</span></span>
-<span><span class="co">#&gt;   - all_unshrunk_terms: age, trt * subgroup, trt</span></span>
-<span><span class="co">#&gt;   - shrunk_prog_terms:</span></span>
-<span><span class="co">#&gt;   - shrunk_pred_formula: trt:region</span></span>
-<span><span class="co">#&gt; DEBUG: Final formula object:</span></span>
-<span><span class="co">#&gt; time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE) ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ 0 + age + trt * subgroup + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + trt:region</span></span>
 <span></span>
 <span><span class="co"># 2. Inspect the Results</span></span>
 <span><span class="co"># A. The generated brms formula object</span></span>
@@ -793,14 +769,6 @@
 <span><span class="co">#&gt; Note: Treatment 'trt' automatically added to unshrunk terms.</span></span>
 <span><span class="co">#&gt; Variable 'biomarker' has user-specified contrasts. Keeping them.</span></span>
 <span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'biomarker' is used without its main effect. Consider adding 'biomarker' to prognostic terms for proper model hierarchy.</span></span>
-<span><span class="co">#&gt; DEBUG: Creating sub-formulas...</span></span>
-<span><span class="co">#&gt;   - all_unshrunk_terms: age, trt</span></span>
-<span><span class="co">#&gt;   - shrunk_prog_terms:</span></span>
-<span><span class="co">#&gt;   - shrunk_pred_formula: trt:biomarker</span></span>
-<span><span class="co">#&gt; DEBUG: Final formula object:</span></span>
-<span><span class="co">#&gt; outcome ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ age + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + trt:biomarker</span></span>
 <span></span>
 <span><span class="co"># Observe costum contrast in the data</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">prepared_custom_contrast</span><span class="op">$</span><span class="va">data</span><span class="op">)</span></span>
@@ -824,13 +792,14 @@
 <span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Using trt_var from prepared_model: trt</span></span>
+<span><span class="co">#&gt; Note: Using default sigma_ref = 1 for continuous outcome. Consider setting sigma_ref to the outcome standard deviation from the trial protocol (preferred) or sd(outcome) for better prior specification.</span></span>
 <span><span class="co">#&gt; Using sigma_ref = 1</span></span>
 <span><span class="co">#&gt; Computed outcome mean: 50.06</span></span>
 <span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - intercept: normal(50.0602209848849, 5)</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: normal(0, 5)</span></span>
+<span><span class="co">#&gt;   - intercept: normal(50.0602209848849, 2.5)</span></span>
+<span><span class="co">#&gt;   - unshrunk terms: normal(0, 2.5)</span></span>
 <span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
-<span><span class="co">#&gt; Adding sigma prior: normal(0, 1)</span></span>
+<span><span class="co">#&gt; Adding sigma prior: student_t(3, 0, 1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
@@ -842,9 +811,7 @@
 <span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 1.4 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 16 of 100 (16.0%) transitions hit the maximum treedepth limit of 10.</span></span>
-<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 1.0 seconds.</span></span>
 <span></span>
 <span><span class="va">estimate_custom_contrast</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span><span class="va">fit_custom_contrast</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Using trt_var from model attributes: trt</span></span>
@@ -890,9 +857,9 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup          Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> biomarker: High   -<span style="color: #BB0000;">0.719</span>    -<span style="color: #BB0000;">3.72</span>    1.86 </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> biomarker: Low    -<span style="color: #BB0000;">3.19</span>     -<span style="color: #BB0000;">5.88</span>   -<span style="color: #BB0000;">0.623</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> biomarker: Medium -<span style="color: #BB0000;">2.01</span>     -<span style="color: #BB0000;">5.25</span>    1.39 </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> biomarker: High   -<span style="color: #BB0000;">0.668</span>    -<span style="color: #BB0000;">3.30</span>   2.35  </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> biomarker: Low    -<span style="color: #BB0000;">2.57</span>     -<span style="color: #BB0000;">5.77</span>  -<span style="color: #BB0000;">0.092</span><span style="color: #BB0000; text-decoration: underline;">7</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> biomarker: Medium -<span style="color: #BB0000;">1.33</span>     -<span style="color: #BB0000;">4.76</span>   1.64  </span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>
@@ -981,23 +948,14 @@
 <span><span class="co">#&gt; Note: Treatment 'trt' automatically added to unshrunk terms.</span></span>
 <span><span class="co">#&gt; Note: Applied one-hot encoding to shrunken factor 'age_group' (will be used with ~ 0 + ...)</span></span>
 <span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'age_group' is used without its main effect. Consider adding 'age_group' to prognostic terms for proper model hierarchy.</span></span>
-<span><span class="co">#&gt; DEBUG: Creating sub-formulas...</span></span>
-<span><span class="co">#&gt;   - all_unshrunk_terms: baseline_sbp, trt</span></span>
-<span><span class="co">#&gt;   - shrunk_prog_terms:</span></span>
-<span><span class="co">#&gt;   - shrunk_pred_formula: trt:age_group</span></span>
-<span><span class="co">#&gt; DEBUG: Final formula object:</span></span>
-<span><span class="co">#&gt; sbp_change ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; sigma ~ clinic_site</span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ baseline_sbp + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + trt:age_group</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
 <span><span class="co">#&gt; Using trt_var from prepared_model: trt</span></span>
 <span><span class="co">#&gt; Using sigma_ref = 13.287</span></span>
 <span><span class="co">#&gt; Computed outcome mean: -11.302</span></span>
 <span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - intercept: normal(-11.3016300423315, 66.4347558459801)</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: normal(0, 66.4347558459801)</span></span>
+<span><span class="co">#&gt;   - intercept: normal(-11.3016300423315, 33.2173779229901)</span></span>
+<span><span class="co">#&gt;   - unshrunk terms: normal(0, 33.2173779229901)</span></span>
 <span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
@@ -1010,8 +968,8 @@
 <span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.8 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 60 of 100 (60.0%) transitions hit the maximum treedepth limit of 10.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.7 seconds.</span></span>
+<span><span class="co">#&gt; Warning: 56 of 100 (56.0%) transitions hit the maximum treedepth limit of 10.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Analysis complete.</span></span></code></pre></div>
@@ -1062,8 +1020,8 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup           Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> age_group: Over60  -<span style="color: #BB0000;">11.6</span>     -<span style="color: #BB0000;">14.5</span>    -<span style="color: #BB0000;">7.33</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> age_group: Under60  -<span style="color: #BB0000;">8.50</span>    -<span style="color: #BB0000;">12.2</span>    -<span style="color: #BB0000;">5.67</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> age_group: Over60  -<span style="color: #BB0000;">11.5</span>     -<span style="color: #BB0000;">14.3</span>    -<span style="color: #BB0000;">8.22</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> age_group: Under60  -<span style="color: #BB0000;">9.26</span>    -<span style="color: #BB0000;">11.9</span>    -<span style="color: #BB0000;">5.77</span></span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">strat_continuous_summary</span>, title <span class="op">=</span> <span class="st">"Stratified Continuous: Subgroup Effects"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
@@ -1114,20 +1072,12 @@
 <span><span class="co">#&gt; Note: Treatment 'trt' automatically added to unshrunk terms.</span></span>
 <span><span class="co">#&gt; Note: Applied one-hot encoding to shrunken factor 'biomarker' (will be used with ~ 0 + ...)</span></span>
 <span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'biomarker' is used without its main effect. Consider adding 'biomarker' to prognostic terms for proper model hierarchy.</span></span>
-<span><span class="co">#&gt; DEBUG: Creating sub-formulas...</span></span>
-<span><span class="co">#&gt;   - all_unshrunk_terms: age, trt</span></span>
-<span><span class="co">#&gt;   - shrunk_prog_terms:</span></span>
-<span><span class="co">#&gt;   - shrunk_pred_formula: trt:biomarker</span></span>
-<span><span class="co">#&gt; DEBUG: Final formula object:</span></span>
-<span><span class="co">#&gt; event_time | cens(1 - event_status) + bhaz(Boundary.knots = c(0, 60.5958978874147), knots = c(7.96377038417436, 13.5426536107278, 24.4077980704831), intercept = FALSE, gr = country) ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ 0 + age + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + trt:biomarker</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
 <span><span class="co">#&gt; Using trt_var from prepared_model: trt</span></span>
 <span><span class="co">#&gt; Using sigma_ref = 1</span></span>
 <span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: normal(0, 5)</span></span>
+<span><span class="co">#&gt;   - unshrunk terms: normal(0, 1.5)</span></span>
 <span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
@@ -1140,7 +1090,7 @@
 <span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
 <span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
 <span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 7.9 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 7.6 seconds.</span></span>
 <span><span class="co">#&gt; Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span><span class="co">#&gt; </span></span>
@@ -1190,8 +1140,8 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup        Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> biomarker: High  0.625    0.471    0.835</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> biomarker: Low   0.360    0.268    0.529</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> biomarker: High  0.592    0.476    0.832</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> biomarker: Low   0.376    0.263    0.522</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">strat_surv_summary</span>, title <span class="op">=</span> <span class="st">"Stratified Survival: Subgroup Effects (AHR)"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>

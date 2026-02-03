@@ -153,7 +153,7 @@ data using R's contrast coding system for proper factor handling and interaction
 
 
 <ul><li><p><strong>Multi-Part Formula Construction:</strong> It generates a <code>brmsformula</code>
-object with up to four distinct linear components (<code>unshrunktermeffect</code>,
+object with up to three distinct linear components (<code>unshrunktermeffect</code>,
 <code>shprogeffect</code>, <code>shpredeffect</code>), which are combined in a non-linear model.
 This allows for assigning different priors to each component.</p></li>
 <li><p><strong>Automated Interaction Handling:</strong> Predictive terms support three syntaxes
@@ -197,14 +197,14 @@ evenly spaced knots within the defined boundaries.</p></li>
     <h2 id="data-transformation-and-contrast-coding">Data Transformation and Contrast Coding<a class="anchor" aria-label="anchor" href="#data-transformation-and-contrast-coding"></a></h2>
 
 
-<p><strong>CRITICAL:</strong> This function returns a modified <code>data.frame</code> that must be used
-in subsequent calls to <code><a href="https://paulbuerkner.com/brms/reference/brm.html" class="external-link">brms::brm()</a></code>, not the original data. The transformations are:</p><ul><li><p><strong>Treatment variable:</strong> Converted to numeric binary (0/1) to avoid
+<p>This function returns a modified <code>data.frame</code> that must be used in subsequent calls
+to <code><a href="fit_brms_model.html">fit_brms_model()</a></code>, not the original data. The transformations are:</p><ul><li><p><strong>Treatment variable:</strong> Converted to numeric binary (0/1) to avoid
 multi-level factor interactions. The first level (alphabetically or numerically)
 becomes 0, the second becomes 1.</p></li>
 <li><p><strong>Factor covariates:</strong> Automatic contrast coding based on shrinkage type:</p><ul><li><p><strong>Shrunk terms:</strong> One-hot encoding (all factor levels represented).
 For proper regularization, specify these using <code>~ 0 + var</code> to explicitly remove
-the intercept. To treat all subgroups symmetrically without privileging a specific
-reference group, to ensure the exchangeability assumption.</p></li>
+the intercept and treat all subgroups symmetrically without privileging a specific
+reference group (ensures the exchangeability assumption).</p></li>
 <li><p><strong>Unshrunk terms:</strong> Dummy encoding (reference level dropped).
 Use standard formula syntax <code>~ var</code> with intercept.</p></li>
 </ul></li>
@@ -273,15 +273,7 @@ across levels of the stratification variable.</p></li>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Treatment 'trt' automatically added to unshrunk terms.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'subgroup'</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> DEBUG: Creating sub-formulas...</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>   - all_unshrunk_terms: age, subgroup, trt</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>   - shrunk_prog_terms: </span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span>   - shrunk_pred_formula: trt:subgroup</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> DEBUG: Final formula object:</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> unshrunktermeffect ~ 0 + age + subgroup + trt</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ trt:subgroup</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> unshrunktermeffect ~ 0 + age + subgroup + trt</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ trt:subgroup</span>
