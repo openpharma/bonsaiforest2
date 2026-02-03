@@ -116,37 +116,37 @@ test_that("Assertions catch invalid inputs", {
     estimate_subgroup_effects(brms_fit = list()),
     regexp = "Must inherit from class 'brmsfit'"
   )
-  
+
   # Invalid trt_var (not a string) when explicitly provided
   expect_error(
     estimate_subgroup_effects(brms_fit = minimal_brms_fit, trt_var = 123),
     regexp = "Must be of type 'string'"
   )
-  
+
   # trt_var not in data when explicitly provided
   expect_error(
     estimate_subgroup_effects(brms_fit = minimal_brms_fit, trt_var = "treatment"),
     regexp = "Must be a subset of"
   )
-  
+
   # Invalid subgroup_vars type
   expect_error(
     estimate_subgroup_effects(brms_fit = minimal_brms_fit, subgroup_vars = 123),
     regexp = "Assertion failed"
   )
-  
+
   # subgroup_vars not in data
   expect_error(
     estimate_subgroup_effects(brms_fit = minimal_brms_fit, subgroup_vars = c("region", "missing_var")),
     regexp = "Must be a subset of"
   )
-  
+
   # Invalid response_type when explicitly provided
   expect_error(
     estimate_subgroup_effects(brms_fit = minimal_brms_fit, response_type = "gaussian"),
     regexp = "Must be element of set"
   )
-  
+
   # Invalid ndraws
   expect_error(
     estimate_subgroup_effects(brms_fit = minimal_brms_fit, ndraws = 0),

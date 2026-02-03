@@ -97,7 +97,7 @@ estimate_subgroup_effects <- function(brms_fit,
   # This ensures consistency between predictions and subgroup membership
   model_data <- data
 
-  # --- 2. Prepare Subgroup Variables (UPDATED for Pipe Support) ---
+  # --- 2. Prepare Subgroup Variables ---
   message("Step 1: Identifying subgroups and creating counterfactuals...")
 
   prep <- .prepare_subgroup_vars(
@@ -117,7 +117,7 @@ estimate_subgroup_effects <- function(brms_fit,
     trt_var = trt_var
   )
 
-  # --- 4. Generate posterior predictions (UPDATED for RE support) ---
+  # --- 4. Generate posterior predictions ---
   message("Step 2: Generating posterior predictions...")
   posterior_preds <- .get_posterior_predictions(
     brms_fit = brms_fit,
@@ -146,10 +146,8 @@ estimate_subgroup_effects <- function(brms_fit,
 #' Prepare and Validate Subgroup Variables
 #'
 #' Detects treatment interaction terms from the fitted brms model.
-#' Now detects BOTH:
-#' 1. Fixed Interactions (from colon syntax in any formula component:
-#'    unshrunktermeffect, shprogeffect, or shpredeffect)
-#' 2. Random Effects Grouping Factors (from pipe syntax, typically in shpredeffect)
+#' Detects both fixed interactions (colon syntax) and random effects grouping
+#' factors (pipe syntax) from all formula components.
 #' @noRd
 .prepare_subgroup_vars <- function(brms_fit, model_data, trt_var, subgroup_vars) {
 
@@ -230,15 +228,18 @@ estimate_subgroup_effects <- function(brms_fit,
           
           # Check which factor variable in the data this corresponds to
           # by seeing if any factor variable name is a prefix of varname_with_level
-          for (var_name in names(model_data)) {
-            if (is.factor(model_data[[var_name]]) && var_name != trt_var) {
-              # Check if varname_with_level starts with var_name
-              # e.g., "biomarkerLow" starts with "biomarker"
-              if (startsWith(varname_with_level, var_name)) {
-                detected_vars <- c(detected_vars, var_name)
-                message(sprintf("Detected subgroup variable '%s' from coefficient '%s'", var_name, coef))
-                break
-              }
+          # Sort by length descending to match longer names first (e.g., x_10 before x_1)
+          factor_vars <- names(model_data)[sapply(model_data, is.factor)]
+          factor_vars <- factor_vars[factor_vars != trt_var]
+          factor_vars_sorted <- factor_vars[order(nchar(factor_vars), decreasing = TRUE)]
+          
+          for (var_name in factor_vars_sorted) {
+            # Check if varname_with_level starts with var_name
+            # e.g., "biomarkerLow" starts with "biomarker", "x_10a" starts with "x_10"
+            if (startsWith(varname_with_level, var_name)) {
+              detected_vars <- c(detected_vars, var_name)
+              message(sprintf("Detected subgroup variable '%s' from coefficient '%s'", var_name, coef))
+              break
             }
           }
         }
@@ -351,19 +352,17 @@ estimate_subgroup_effects <- function(brms_fit,
 #' Create Counterfactual Datasets
 #'
 #' Creates two versions of the data: one with all observations set to control,
-#' and one with all set to treatment. This works for treatment effects in ANY
-#' formula component (unshrunktermeffect, shprogeffect, shpredeffect).
-#' 
-#' UPDATED: Now handles numeric treatment variable (0/1) instead of factor.
+#' and one with all set to treatment. Handles both numeric (0/1) and factor
+#' treatment variables. Works for treatment effects in any formula component.
 #' @noRd
 .create_counterfactual_datasets <- function(model_data, trt_var) {
   checkmate::assert_data_frame(model_data)
 
-  # Check if treatment is numeric (new behavior) or factor (legacy)
+  # Check if treatment is numeric or factor
   is_numeric_trt <- is.numeric(model_data[[trt_var]])
   
   if (is_numeric_trt) {
-    # NEW: Treatment is numeric (0/1)
+    # Treatment is numeric (0/1)
     # Validate that treatment is binary 0/1
     trt_vals <- unique(model_data[[trt_var]])
     if (!all(trt_vals %in% c(0, 1))) {
@@ -374,7 +373,7 @@ estimate_subgroup_effects <- function(brms_fit,
     treatment_val <- 1
     
   } else {
-    # LEGACY: Treatment is factor (for backward compatibility)
+    # Treatment is factor (for backward compatibility with older workflows)
     if (!is.factor(model_data[[trt_var]])) model_data[[trt_var]] <- as.factor(model_data[[trt_var]])
     trt_levels <- levels(model_data[[trt_var]])
     trt_contrasts <- contrasts(model_data[[trt_var]])
@@ -390,7 +389,7 @@ estimate_subgroup_effects <- function(brms_fit,
   data_treatment <- model_data
   
   if (is_numeric_trt) {
-    # NEW: For numeric treatment, interactions are handled automatically by R/brms
+    # For numeric treatment, interactions are handled automatically by R/brms
     # When we have trt:sex where trt is 0/1 and sex is a factor with contrasts,
     # R automatically computes trt * sexM, trt * sexF, etc.
     # We just need to set trt to 0 or 1, and keep all other variables as-is
@@ -398,7 +397,7 @@ estimate_subgroup_effects <- function(brms_fit,
     data_treatment[[trt_var]] <- rep(treatment_val, nrow(model_data))
     
   } else {
-    # LEGACY: Factor treatment with explicit interaction dummy columns
+    # Factor treatment with explicit interaction dummy columns
     data_control[[trt_var]] <- factor(rep(ref_level, nrow(model_data)), levels = trt_levels)
     contrasts(data_control[[trt_var]]) <- trt_contrasts
     
@@ -436,10 +435,10 @@ estimate_subgroup_effects <- function(brms_fit,
   return(list(control = data_control, treatment = data_treatment))
 }
 
-#' Get Posterior Predictions (Robust)
+#' Get Posterior Predictions
 #'
-#' UPDATED: Intelligently switches `re_formula` based on whether the treatment
-#' effect is modeled as Fixed (Colon) or Random (Pipe).
+#' Intelligently switches `re_formula` based on whether the treatment
+#' effect is modeled as fixed effects (colon syntax) or random effects (pipe syntax).
 #' @noRd
 .get_posterior_predictions <- function(brms_fit, data_control, data_treatment, response_type, original_data, ndraws = NULL, trt_var) {
 
@@ -492,7 +491,6 @@ estimate_subgroup_effects <- function(brms_fit,
     # This approach leverages brms' internal spline representation for computational efficiency
     message("... (reconstructing baseline hazard and getting linear predictors)...")
 
-    # For random effects, must use allow_new_levels = FALSE to use fitted random effects
     linpred_combined <- if (is.null(ndraws)) {
       brms::posterior_linpred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula,
                              allow_new_levels = FALSE)
@@ -520,7 +518,6 @@ estimate_subgroup_effects <- function(brms_fit,
   } else {
     message("... (predicting expected outcomes)...")
 
-    # For random effects, must use allow_new_levels = FALSE to use fitted random effects
     pred_combined <- if (is.null(ndraws)) {
       brms::posterior_epred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, 
                            allow_new_levels = FALSE)
@@ -540,9 +537,10 @@ estimate_subgroup_effects <- function(brms_fit,
   }
 }
 
-#' Helper: Extract Baseline Hazard details for Survival
+#' Extract Baseline Hazard Details for Survival Models
 #'
-#' Separated for cleanliness. Parses formula to find bhaz() terms.
+#' Parses the brms formula to extract baseline hazard function parameters
+#' and reconstructs the hazard using B-spline basis functions.
 #' @noRd
 .extract_baseline_hazard <- function(brms_fit, original_data, ndraws) {
     # Parse formula for bhaz
@@ -600,7 +598,7 @@ estimate_subgroup_effects <- function(brms_fit,
 }
 
 
-#' Calculate and Summarize Marginal Effects (Identical Logic to Previous)
+#' Calculate and Summarize Marginal Effects
 #' @noRd
 .calculate_and_summarize_effects <- function(posterior_preds, original_data, subgroup_vars, is_overall, response_type) {
 
@@ -690,7 +688,9 @@ estimate_subgroup_effects <- function(brms_fit,
 
 
 #' Calculate Average Hazard Ratio (AHR) Draws for Survival Models
-#' (Unchanged from your logic, included for completeness)
+#'
+#' Computes the average hazard ratio across all time points by integrating
+#' the marginal survival curves for control and treatment arms.
 #' @noRd
 .calculate_survival_ahr_draws <- function(linpred_control, linpred_treatment, H0_posterior_list, indices, strat_var, original_data) {
   # --- Assertions ---
@@ -736,9 +736,11 @@ estimate_subgroup_effects <- function(brms_fit,
 }
 
 #' Calculate Vectorized Marginal Survival Curve
+#'
+#' Computes marginal survival curves by averaging over individual-level
+#' survival predictions for a given subgroup.
 #' @noRd
 .get_marginal_survival_vectorized <- function(linpred_posterior, H0_post_list, sub_indices, strat_variable, full_data) {
-  # ... [Same as your previous implementation] ...
   subgroup_linpred <- linpred_posterior[, sub_indices, drop = FALSE]
   n_draws <- nrow(subgroup_linpred)
 
@@ -771,10 +773,11 @@ estimate_subgroup_effects <- function(brms_fit,
   return(S_marginal)
 }
 
-#' Calculate AHR Vectorized
+#' Calculate AHR from Survival Curves
+#'
+#' Computes the average hazard ratio using the restricted mean survival time approach.
 #' @noRd
 .calculate_ahr_vectorized <- function(S_control, S_treatment) {
-  # ... [Same as your previous implementation] ...
   n_draws <- nrow(S_control)
   ahr_draws <- numeric(n_draws)
   for (i in 1:n_draws) {

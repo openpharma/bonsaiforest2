@@ -80,7 +80,7 @@ data using R's contrast coding system for proper factor handling and interaction
 
 \itemize{
 \item \strong{Multi-Part Formula Construction:} It generates a \code{brmsformula}
-object with up to four distinct linear components (\code{unshrunktermeffect},
+object with up to three distinct linear components (\code{unshrunktermeffect},
 \code{shprogeffect}, \code{shpredeffect}), which are combined in a non-linear model.
 This allows for assigning different priors to each component.
 \item \strong{Automated Interaction Handling:} Predictive terms support three syntaxes
@@ -126,8 +126,8 @@ evenly spaced knots within the defined boundaries.
 
 \section{Data Transformation and Contrast Coding}{
 
-\strong{CRITICAL:} This function returns a modified \code{data.frame} that must be used
-in subsequent calls to \code{brms::brm()}, not the original data. The transformations are:
+This function returns a modified \code{data.frame} that must be used in subsequent calls
+to \code{fit_brms_model()}, not the original data. The transformations are:
 \itemize{
 \item \strong{Treatment variable:} Converted to numeric binary (0/1) to avoid
 multi-level factor interactions. The first level (alphabetically or numerically)
@@ -136,8 +136,8 @@ becomes 0, the second becomes 1.
 \itemize{
 \item \strong{Shrunk terms:} One-hot encoding (all factor levels represented).
 For proper regularization, specify these using \code{~ 0 + var} to explicitly remove
-the intercept. To treat all subgroups symmetrically without privileging a specific
-reference group, to ensure the exchangeability assumption.
+the intercept and treat all subgroups symmetrically without privileging a specific
+reference group (ensures the exchangeability assumption).
 \item \strong{Unshrunk terms:} Dummy encoding (reference level dropped).
 Use standard formula syntax \code{~ var} with intercept.
 }

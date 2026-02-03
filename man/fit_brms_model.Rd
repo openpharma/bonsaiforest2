@@ -6,7 +6,7 @@
 \usage{
 fit_brms_model(
   prepared_model,
-  sigma_ref = NULL,
+  sigma_ref = 1,
   intercept_prior = NULL,
   unshrunk_prior = NULL,
   shrunk_prognostic_prior = NULL,
@@ -22,11 +22,12 @@ appropriate contrast coding), \code{response_type} (a character string), and \co
 character string). The \code{trt_var} element is stored as an attribute on the fitted model
 for use by downstream functions like \code{estimate_subgroup_effects()}.}
 
-\item{sigma_ref}{A numeric scalar (REQUIRED). Reference scale for prior specification.
-Recommended values: (1) Standard deviation from trial protocol (preferred), or
-(2) \code{sd(outcome_variable)} if protocol value unavailable (fallback). For binary and
-survival outcomes, typically use 1. Can be referenced in prior strings using the
-placeholder \code{sigma_ref} (e.g., \code{"normal(0, 2.5 * sigma_ref)"}).}
+\item{sigma_ref}{A numeric scalar. Reference scale for prior specification. Default is 1.
+For continuous outcomes, recommended values are: (1) Assumed standard deviation from trial
+protocol (preferred), or (2) \code{sd(outcome_variable)} if protocol value unavailable.
+For binary, survival and count outcomes, the default value of 1 is typically appropriate.
+Can be referenced in prior strings using the placeholder \code{sigma_ref}
+(e.g., \code{"normal(0, 2.5 * sigma_ref)"}).}
 
 \item{intercept_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior specification
 for the model intercept in the \code{unshrunktermeffect} component. Supports \code{sigma_ref}
@@ -35,19 +36,16 @@ Example: \code{"normal(0, 10)"}.}
 
 \item{unshrunk_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior specification
 for unshrunk terms in the \code{unshrunktermeffect} component (excludes intercept). These are
-main effects and interactions for which no regularization is desired. Supports \code{sigma_ref}
-placeholder substitution. Example: \code{"normal(0, 2.5 * sigma_ref)"}.}
+main effects and interactions for which no regularization is desired.}
 
 \item{shrunk_prognostic_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior
 specification for regularized prognostic effects in the \code{shprogeffect} component. These
-are main effects for which strong shrinkage/regularization is desired. Supports \code{sigma_ref}
-placeholder substitution. Example: \code{"horseshoe(1)"} or \code{"normal(0, sigma_ref)"}.}
+are main effects for which strong shrinkage/regularization is desired.}
 
 \item{shrunk_predictive_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior
 specification for regularized predictive effects (treatment interactions) in the
 \code{shpredeffect} component. These are treatment interactions for which strong
-shrinkage/regularization is desired. Supports \code{sigma_ref} placeholder substitution.
-Example: \code{"horseshoe(scale_global = 0.5 * sigma_ref)"}.}
+shrinkage/regularization is desired.}
 
 \item{stanvars}{A \code{stanvars} object or \code{NULL}. Custom Stan code created via \code{brms::stanvar()}
 for implementing hierarchical priors or other advanced Stan functionality. See the brms
@@ -88,31 +86,34 @@ You can reference \code{sigma_ref} in prior strings, and it will be automaticall
 substituted. For example: \code{"normal(0, 2.5 * sigma_ref)"} becomes
 \code{"normal(0, 8)"} when sigma_ref = 3.2.
 
-\strong{Default Priors by Response Type:}
+\strong{Default Priors by Response Type and Model Structure:}
 
-If you don't specify priors, the function uses sensible defaults:
+If you don't specify priors, the function uses sensible defaults that adapt to
+the model structure and response type:
+
+\strong{For models with fixed effects (GLOBAL) (colon \code{:} syntax):}
 
 \emph{Continuous outcomes:}
 \itemize{
-\item \code{intercept_prior}: \code{normal(outcome_mean, 5 * sigma_ref)}
-\item \code{unshrunk_prior}: \code{normal(0, 5 * sigma_ref)}
-\item \code{shrunk_prognostic_prior}: \code{horseshoe(1)}
-\item \code{shrunk_predictive_prior}: \code{horseshoe(1)}
-\item \code{sigma}: \code{normal(0, sigma_ref)}
+\item \code{intercept_prior}: \code{normal(outcome_mean, 2.5 * sigma_ref)} (weakly informative, centered at outcome mean)
+\item \code{unshrunk_prior}: \code{normal(0, 2.5 * sigma_ref)} (weakly informative)
+\item \code{shrunk_prognostic_prior}: \code{horseshoe(1)} (strong regularization)
+\item \code{shrunk_predictive_prior}: \code{horseshoe(1)} (strong regularization)
+\item \code{sigma}: \code{student_t(3, 0, sigma_ref)} (half-t prior for residual SD)
 }
 
 \emph{Binary outcomes:}
 \itemize{
-\item \code{intercept_prior}: \code{normal(0, 5 * sigma_ref)}
-\item \code{unshrunk_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{intercept_prior}: \code{normal(0, 1.5)} (weakly informative on logit scale)
+\item \code{unshrunk_prior}: \code{normal(0, 1.5)}
 \item \code{shrunk_prognostic_prior}: \code{horseshoe(1)}
 \item \code{shrunk_predictive_prior}: \code{horseshoe(1)}
 }
 
 \emph{Count outcomes:}
 \itemize{
-\item \code{intercept_prior}: \code{normal(0, 5 * sigma_ref)}
-\item \code{unshrunk_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{intercept_prior}: \code{normal(0, 2)} (weakly informative on log scale)
+\item \code{unshrunk_prior}: \code{normal(0, 2)}
 \item \code{shrunk_prognostic_prior}: \code{horseshoe(1)}
 \item \code{shrunk_predictive_prior}: \code{horseshoe(1)}
 \item \code{shape}: Uses brms default prior for negative binomial shape parameter
@@ -121,20 +122,30 @@ If you don't specify priors, the function uses sensible defaults:
 \emph{Survival outcomes:}
 \itemize{
 \item No intercept (Cox models don't have intercepts)
-\item \code{unshrunk_prior}: \code{normal(0, 5 * sigma_ref)}
+\item \code{unshrunk_prior}: \code{normal(0, 1.5)} (weakly informative on log-hazard scale)
 \item \code{shrunk_prognostic_prior}: \code{horseshoe(1)}
 \item \code{shrunk_predictive_prior}: \code{horseshoe(1)}
+}
+
+\strong{For models with random effects (One-variable-at-a-time (OVAT)) (pipe-pipe \code{||} syntax):}
+
+Random effects in shrunk predictive terms (e.g., \code{~ (1 + trt || subgroup)})
+automatically receive \code{normal(0, sigma_ref)} priors on the standard deviation
+scale for each coefficient and group combination, regardless of the
+shrunk_predictive_prior setting. For example:
+\itemize{
+\item \code{prior(normal(0, sigma_ref), class = "sd", coef = "Intercept", group = "subgroup")}
+\item \code{prior(normal(0, sigma_ref), class = "sd", coef = "trt", group = "subgroup")}
 }
 
 \strong{Example:}
 
 \if{html}{\out{<div class="sourceCode">}}\preformatted{fit_brms_model(
   prepared_model = prepared,
-  sigma_ref = 12.5,  # From trial protocol (preferred)
-  # OR sigma_ref = sd(data$outcome),  # If protocol value unavailable
+  sigma_ref = 1,
   unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 0.5 * sigma_ref)",
-  shrunk_predictive_prior = "horseshoe(scale_global = 0.1 * sigma_ref)"
+  shrunk_prognostic_prior = "horseshoe(scale_global = 0.5)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 0.1)"
 )
 }\if{html}{\out{</div>}}
 }

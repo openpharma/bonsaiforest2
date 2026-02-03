@@ -62,6 +62,7 @@ First, let's load the libraries and create the data.
 ```{r load-packages, message=FALSE, warning=FALSE}
 # Load the main package
 library(bonsaiforest2)
+library(brms)
 
 ```
 
@@ -95,6 +96,12 @@ This section demonstrates how to fit separate models, each examining one subgrou
 
 ```{r ovat-region, message=FALSE, warning=FALSE}
 # Write the sigma specified in the trial protocol
+priors <- c(
+  prior(normal(0, 5), class = "sd", coef = "Intercept", group = "SEX"),
+  prior(normal(0, 5), class = "sd", coef = "TRT01PN", group = "SEX"),
+  prior(gamma(2, 0.1), class = "shape")
+)
+
 sigma_ref <- 2
 
 # Fit model with only region as subgroup variable
@@ -103,8 +110,7 @@ ovat_region <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0+ (0+trt||region),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0+ (1+trt||region),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
@@ -121,8 +127,7 @@ ovat_comorbidity <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (0+trt||comorbidity),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0 + (1+trt||comorbidity),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
@@ -139,8 +144,7 @@ ovat_age <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (0+trt||age_group),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0 + (1+trt||age_group),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
@@ -157,8 +161,7 @@ ovat_sex <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (0+trt||sex),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0 + (1+trt||sex),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"
@@ -175,8 +178,7 @@ ovat_diabetes <- run_brms_analysis(
   response_formula = sbp_change ~ trt,
   response_type = "continuous",
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (0+trt||diabetes),
-  shrunk_predictive_prior = "normal(0, 2 * sigma_ref)",
+  shrunk_predictive_formula = ~ 0 + (1+trt||diabetes),
   sigma_ref = sigma_ref,
   chains = 1, iter = 2000, warmup = 1000, cores = 1,
   refresh = 0, backend = "cmdstanr"

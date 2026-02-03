@@ -61,9 +61,7 @@ summary_subgroup_effects <- function(brms_fit,
                                             choices = c("binary", "count", "continuous", "survival")
   )
 
-  # MODIFIED: subgroup_vars cannot be NULL anymore.
-  # It must be "auto" (detect from any formula component) OR an explicit character vector.
-  # This ensures the function works correctly with the three-component architecture.
+  # Validate subgroup specification: must be either "auto" or explicit character vector
   checkmate::assert(
     checkmate::check_string(subgroup_vars, pattern = "^auto$"),
     checkmate::check_character(subgroup_vars, null.ok = FALSE, min.len = 1, unique = TRUE)
