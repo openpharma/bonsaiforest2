@@ -12,7 +12,7 @@
 #' @section Key Features:
 #' \itemize{
 #'   \item \strong{Multi-Part Formula Construction:} It generates a `brmsformula`
-#'     object with up to four distinct linear components (`unshrunktermeffect`,
+#'     object with up to three distinct linear components (`unshrunktermeffect`,
 #'     `shprogeffect`, `shpredeffect`), which are combined in a non-linear model.
 #'     This allows for assigning different priors to each component.
 #'   \item \strong{Automated Interaction Handling:} Predictive terms support three syntaxes
@@ -54,8 +54,8 @@
 #' }
 #'
 #' @section Data Transformation and Contrast Coding:
-#' \strong{CRITICAL:} This function returns a modified `data.frame` that must be used
-#' in subsequent calls to `brms::brm()`, not the original data. The transformations are:
+#' This function returns a modified `data.frame` that must be used in subsequent calls
+#' to `fit_brms_model()`, not the original data. The transformations are:
 #' \itemize{
 #'   \item \strong{Treatment variable:} Converted to numeric binary (0/1) to avoid
 #'     multi-level factor interactions. The first level (alphabetically or numerically)
@@ -64,8 +64,8 @@
 #'     \itemize{
 #'       \item \strong{Shrunk terms:} One-hot encoding (all factor levels represented).
 #'         For proper regularization, specify these using `~ 0 + var` to explicitly remove
-#'         the intercept. To treat all subgroups symmetrically without privileging a specific
-#'         reference group, to ensure the exchangeability assumption.
+#'         the intercept and treat all subgroups symmetrically without privileging a specific
+#'         reference group (ensures the exchangeability assumption).
 #'       \item \strong{Unshrunk terms:} Dummy encoding (reference level dropped).
 #'       Use standard formula syntax `~ var` with intercept.
 #'     }
@@ -152,7 +152,7 @@
 #'   sim_data$region <- as.factor(sim_data$region)
 #'   sim_data$subgroup <- as.factor(sim_data$subgroup)
 #'
-  #'   # 2a. Example with colon interaction syntax
+#'   # 2a. Example with colon interaction syntax
 #'   prepared_model <- prepare_formula_model(
 #'     data = sim_data,
 #'     response_formula = Surv(time, status) ~ trt,
@@ -189,7 +189,6 @@ prepare_formula_model <- function(data,
   checkmate::assert_data_frame(data, min.rows = 1, min.cols = 2)
 
   # Convert formula objects to string representation for internal processing
-  # Supports both formula objects and character strings for user flexibility
   .formula_to_string <- function(f) {
     if (is.null(f)) return(NULL)
     if (is.character(f)) return(f)
@@ -228,8 +227,9 @@ prepare_formula_model <- function(data,
     }
   }
 
-  # --- 2. Handle Response-Type Specific Logic ---
+  # --- 2. Handle Response-Type Specific Logic + Stratification ---
   if (response_type == "survival") {
+    # .handle_survival_response handles existence of stratification factor
     response_term <- .handle_survival_response(
       response_part = response_term,
       data = processed_data,
@@ -245,6 +245,19 @@ prepare_formula_model <- function(data,
   }
 
   # --- 3. Process and Resolve Formula Terms  ---
+  # Check if shrunk_prognostic_formula contains interaction or random effects syntax
+  # Prognostic effects should be main effects only
+  if (!is.null(shrunk_prognostic_formula_str) && shrunk_prognostic_formula_str != "") {
+    if (grepl("\\|\\||:|\\*", shrunk_prognostic_formula_str)) {
+      warning(
+        "Prognostic formula contains interaction (':' or '*') or random effects ('||') syntax. ",
+        "Prognostic effects should be main effects only (e.g., '~ 0 + biomarker1 + biomarker2'). ",
+        "For treatment interactions, use shrunk_predictive_formula instead.",
+        call. = FALSE
+      )
+    }
+  }
+  
   term_lists <- .resolve_term_overlaps_and_defaults(
     unshrunk_str = unshrunk_terms_formula_str,
     shrunk_prognostic_str = shrunk_prognostic_formula_str,
@@ -277,12 +290,12 @@ prepare_formula_model <- function(data,
     .formula_type = "shrunk predictive"
   )
   processed_data <- shrunk_pred_out$data
-  
+
   # Check if random effects are present
   has_random_effects <- isTRUE(unshrunk_out$has_random_effects) || isTRUE(shrunk_pred_out$has_random_effects)
-  
+
   if (has_random_effects) {
-    message("Note: Random effects (||) detected. Using non-linear brms formula with random effects (grouping factors handled by brms).")
+    message("Note: Random effects (||) detected. Grouping factors will be handled by brms.")
   }
 
   # --- 5. Check for missing prognostic main effects  ---
@@ -290,7 +303,7 @@ prepare_formula_model <- function(data,
   # Handle NULL values from star_vars by converting to character(0)
   all_star_vars <- c(unshrunk_out$star_vars, shrunk_pred_out$star_vars)
   if (is.null(all_star_vars)) all_star_vars <- character(0)
-  
+
   .check_missing_prognostic_effects(
     prognostic_terms = c(term_lists$all_unshrunk_terms, term_lists$shrunk_prog),
     needed_terms = unique(c(shrunk_pred_out$prognostic_effects, unshrunk_out$prognostic_effects)),
@@ -328,7 +341,7 @@ prepare_formula_model <- function(data,
   # This prevents duplicate interactions when R canonicalizes formulas
   all_unshrunk_terms <- .deduplicate_interaction_terms(all_unshrunk_terms)
 
-  # Use non-linear formula structure (works with random effects when contrasts aren't applied)
+  # Assemble the final brms formula using non-linear structure
   final_formula_obj <- .assemble_brms_formula(
     response_term = response_term,
     offset_term = offset_term,
@@ -351,17 +364,17 @@ prepare_formula_model <- function(data,
     count      = brms::negbinomial(),
     survival   = brms::cox()
   )
-  
-  # Debug: Print the formula before calling make_standata
-  message("DEBUG: Final formula object:")
-  print(final_formula_obj)
-  
   # Try to get stan variable names, but handle errors gracefully
   stan_variable_names <- tryCatch({
-    lapply(
-      brms::make_standata(final_formula_obj, data = processed_data, family = model_family), 
-      colnames
-    )
+    standata <- brms::make_standata(final_formula_obj, data = processed_data, family = model_family)
+    # Only extract colnames from matrices/data.frames, not vectors
+    lapply(standata, function(x) {
+      if (is.matrix(x) || is.data.frame(x)) {
+        colnames(x)
+      } else {
+        NULL  # Return NULL for non-matrix elements
+      }
+    })
   }, error = function(e) {
     message("Warning: Could not extract Stan variable names. Error: ", e$message)
     list()  # Return empty list if extraction fails
@@ -369,13 +382,13 @@ prepare_formula_model <- function(data,
 
   # --- 8. Return Final List ---
   return(list(
-    formula = final_formula_obj, 
-    data = processed_data, 
+    formula = final_formula_obj,
+    data = processed_data,
     response_type = response_type,
     trt_var = trt_var,
     stan_variable_names = stan_variable_names,
-    has_intercept = !term_lists$unshrunk_no_int,  # TRUE if there IS an intercept, FALSE if removed with ~ 0 +
-    has_random_effects = has_random_effects  # Flag for downstream functions
+    has_intercept = !term_lists$unshrunk_no_int,
+    has_random_effects = has_random_effects
   ))
 }
 
@@ -426,7 +439,6 @@ prepare_formula_model <- function(data,
   # Apply appropriate contrast coding scheme based on regularization approach:
   # - Shrunk terms: One-hot encoding (all levels represented) ensures exchangeability assumption
   # - Unshrunk terms: Dummy encoding (reference level dropped) for standard interpretation
-  # User-specified contrasts are always preserved to respect domain knowledge
   if (is_shrunken) {
     # One-hot encoding for shrunk terms (to be used with ~ 0 + ... formula syntax)
     contrasts(data[[var_name]], nlevels(data[[var_name]])) <- contr.treatment(levels(data[[var_name]]), contrasts = FALSE)
@@ -442,7 +454,6 @@ prepare_formula_model <- function(data,
 
 
 #' Parse Initial Formula and Validate Inputs
-#'
 #'
 #' Handles initial data validation and parsing of the main response formula string,
 #' correctly separating the core response variable from potential offset terms.
@@ -637,7 +648,6 @@ prepare_formula_model <- function(data,
   shrunk_pred <- .get_terms(shrunk_predictive_str)
 
   # Track which formulas had explicit intercept removal
-  # Use the standalone .has_no_intercept function
   unshrunk_no_int <- .has_no_intercept(unshrunk_str)
   shrunk_prog_no_int <- .has_no_intercept(shrunk_prognostic_str)
   shrunk_pred_no_int <- .has_no_intercept(shrunk_predictive_str)
@@ -683,17 +693,17 @@ prepare_formula_model <- function(data,
 #'
 #' @return Modified `data.frame` with factors and contrasts applied
 #' @noRd
-.apply_factor_contrasts_to_vars <- function(.data, vars, .trt_var = NULL, .user_contrast_vars = character(0), 
+.apply_factor_contrasts_to_vars <- function(.data, vars, .trt_var = NULL, .user_contrast_vars = character(0),
                                              use_onehot = FALSE, .formula_type = "interaction",
                                              convert_to_factor = TRUE) {
   if (is.null(vars) || length(vars) == 0) {
     return(.data)
   }
-  
+
   for (var in vars) {
     # Skip if not in data
     if (!var %in% names(.data)) next
-    
+
     # Skip numeric variables (e.g., binary 0/1 treatment)
     if (is.numeric(.data[[var]])) {
       next
@@ -710,7 +720,7 @@ prepare_formula_model <- function(data,
       .data <- .set_factor_contrasts(.data, var, use_onehot, .user_contrast_vars)
     }
   }
-  
+
   return(.data)
 }
 
@@ -740,7 +750,7 @@ prepare_formula_model <- function(data,
   if (!all(.data[[.trt_var]] %in% c(0, 1))) {
     stop("Treatment variable must be binary (0/1) for interaction terms")
   }
-  
+
   return(.data)
 }
 
@@ -878,7 +888,7 @@ prepare_formula_model <- function(data,
 
   # Identify which terms actually contain star notation
   terms_with_star <- star_terms[stringr::str_detect(star_terms, "\\*")]
-  
+
   # If no star notation found, return empty result
   if (length(terms_with_star) == 0) {
     return(list(
@@ -893,21 +903,21 @@ prepare_formula_model <- function(data,
   # We only want to know which variables are involved for contrast coding
   prognostic_effects_needed <- c()
   all_interaction_vars <- c()
-  
+
   for (star_term in terms_with_star) {
     # Split by * to get the variables
     vars_in_term <- stringr::str_squish(stringr::str_split(star_term, "\\*")[[1]])
-    
+
     # Remove treatment variable and collect other variables
     other_vars <- vars_in_term[vars_in_term != .trt_var]
     prognostic_effects_needed <- c(prognostic_effects_needed, other_vars)
     all_interaction_vars <- c(all_interaction_vars, vars_in_term)
   }
-  
+
   # Get unique variables and apply factor conversion and contrasts
   all_interaction_vars <- unique(all_interaction_vars)
   prognostic_effects_needed <- unique(prognostic_effects_needed)
-  
+
   .data <- .apply_factor_contrasts_to_vars(
     .data = .data,
     vars = all_interaction_vars,
@@ -955,7 +965,7 @@ prepare_formula_model <- function(data,
   formula_rhs <- stringr::str_remove(formula_rhs, "^(0|\\-1)\\s*\\+\\s*")
   raw_terms <- stringr::str_squish(stringr::str_split(formula_rhs, "\\+")[[1]])
   star_terms_in_formula <- raw_terms[stringr::str_detect(raw_terms, "\\*")]
-  
+
   # If there are star terms, we need to exclude their expanded versions
   # Build a new formula without the star terms for colon processing
   if (length(star_terms_in_formula) > 0) {
@@ -1035,10 +1045,6 @@ prepare_formula_model <- function(data,
 #' For random effects, brms handles contrast coding internally, so we only
 #' ensure grouping variables are factors without applying custom contrasts.
 #'
-#' NOTE: Random effects cannot be used in non-linear formula sub-formulas (lf()).
-#' When random effects are detected, the calling function should switch to
-#' a standard brms formula structure.
-#'
 #' @param formula_str A formula string like "~ (trt || subgroup)" or "~ (0 + trt || subgroup)"
 #' @param .data The data.frame to modify.
 #' @param .trt_var The treatment variable name.
@@ -1088,10 +1094,10 @@ prepare_formula_model <- function(data,
   all_grouping_vars <- unique(all_grouping_vars)
   for (var in all_grouping_vars) {
     if (!var %in% names(.data)) next
-    
+
     # Skip numeric variables
     if (is.numeric(.data[[var]])) next
-    
+
     # Convert to factor if needed, but don't set custom contrasts
     if (!is.factor(.data[[var]])) {
       message("Note: Converting '", var, "' to factor for random effects grouping.")
@@ -1138,8 +1144,8 @@ prepare_formula_model <- function(data,
   # Delegate to unified function
   # For prognostic terms: don't auto-convert to factors (they should already be factors or will be handled elsewhere)
   .apply_factor_contrasts_to_vars(
-    .data = data, 
-    vars = terms, 
+    .data = data,
+    vars = terms,
     .trt_var = NULL,  # Not needed for prognostic processing
     .user_contrast_vars = user_contrast_vars,
     use_onehot = is_shrunken,
@@ -1232,10 +1238,10 @@ prepare_formula_model <- function(data,
   if (length(parts) < 2) return(FALSE)
 
   rhs <- stringr::str_trim(parts[length(parts)])
-  
+
   # Check for explicit intercept removal at the formula level: ~ 0 + ... or ~ -1 + ...
   has_removal <- stringr::str_detect(rhs, "^(0|\\-1)\\s*\\+")
-  
+
   # Also check if it's ONLY a random effect with 0 inside: ~ (0 + trt || group)
   # In this case, there's no fixed intercept either
   if (!has_removal) {
@@ -1263,129 +1269,27 @@ prepare_formula_model <- function(data,
 #'
 .deduplicate_interaction_terms <- function(terms) {
   if (length(terms) == 0) return(terms)
-  
+
   # Create a canonical form for each term for comparison
   canonical_forms <- sapply(terms, function(term) {
     # Don't canonicalize star notation - keep it as-is
     if (stringr::str_detect(term, "\\*")) {
       return(term)
     }
-    
+
     # For colon interactions, sort the variables alphabetically
     if (stringr::str_detect(term, ":")) {
       vars <- stringr::str_squish(stringr::str_split(term, ":")[[1]])
       return(paste(sort(vars), collapse = ":"))
     }
-    
+
     # For other terms (main effects, pipe notation), return as-is
     return(term)
   }, USE.NAMES = FALSE)
-  
+
   # Keep only unique canonical forms, preserving the first occurrence
   unique_indices <- !duplicated(canonical_forms)
   return(terms[unique_indices])
-}
-
-#' Check if Formula String Has Intercept
-#'
-#' A formula has an intercept unless it explicitly removes it with "~ 0 +" or "~ -1 +".
-#'
-#' @param formula_str A formula string or NULL
-#' @return TRUE if formula has intercept, FALSE otherwise
-#' @noRd
-#'
-.has_intercept <- function(formula_str) {
-  return(!.has_no_intercept(formula_str))
-}
-
-#' Assemble Standard brms Formula (for random effects)
-#'
-#' Creates a standard brms formula (not non-linear) when random effects (||) are present.
-#' This approach applies shrinkage through priors on the random effects sd parameters
-#' (like in standard mixed models), rather than through non-linear parameter structure.
-#'
-#' @param response_term The main response part of the formula
-#' @param offset_term The offset part of the formula, or NULL
-#' @param response_type The type of outcome
-#' @param all_unshrunk_terms Character vector of all unshrunk terms
-#' @param shrunk_prog_terms Character vector of shrunk prognostic terms
-#' @param shrunk_pred_formula Formula string for shrunk predictive (may contain ||)
-#' @param sub_formulas List of any existing sub-formulas
-#' @param unshrunk_no_int Logical, whether unshrunk had explicit intercept removal
-#' @param shrunk_prog_no_int Logical, whether shrunk prog had explicit intercept removal
-#'
-#' @return A `brms::bf` object (standard formula, not nl)
-#' @noRd
-#'
-.assemble_standard_brms_formula <- function(response_term, offset_term, response_type,
-                                            all_unshrunk_terms, shrunk_prog_terms,
-                                            shrunk_pred_formula, sub_formulas = list(),
-                                            unshrunk_no_int = FALSE,
-                                            shrunk_prog_no_int = FALSE) {
-  # Combine all fixed effects terms
-  all_terms <- c()
-  
-  # Add intercept handling for fixed effects
-  if (unshrunk_no_int) {
-    all_terms <- c(all_terms, "0")
-  }
-  
-  # Add all unshrunk terms
-  if (length(all_unshrunk_terms) > 0) {
-    all_terms <- c(all_terms, all_unshrunk_terms)
-  }
-  
-  # Add shrunk prognostic terms (as fixed effects)
-  if (length(shrunk_prog_terms) > 0) {
-    if (shrunk_prog_no_int) {
-      all_terms <- c(all_terms, "0", shrunk_prog_terms)
-    } else {
-      all_terms <- c(all_terms, shrunk_prog_terms)
-    }
-  }
-  
-  # Add shrunk predictive formula (may contain || random effects)
-  if (!is.null(shrunk_pred_formula) && nzchar(shrunk_pred_formula)) {
-    all_terms <- c(all_terms, shrunk_pred_formula)
-  }
-  
-  # Deduplicate "0" if present multiple times
-  all_terms <- unique(all_terms)
-  
-  # Build RHS
-  rhs <- if (length(all_terms) > 0) {
-    paste(all_terms, collapse = " + ")
-  } else {
-    "1"
-  }
-  
-  # Build main formula string
-  main_formula_str <- paste(response_term, "~", rhs)
-  
-  # Add offset if present
-  if (!is.null(offset_term) && nzchar(offset_term)) {
-    clean_offset_term <- sub("^offset\\((.*)\\)$", "\\1", offset_term)
-    main_formula_str <- paste(main_formula_str, "+", clean_offset_term)
-  }
-  
-  # Determine appropriate family
-  model_family <- switch(
-    response_type,
-    continuous = stats::gaussian(),
-    binary     = brms::bernoulli(link = "logit"),
-    count      = brms::negbinomial(),
-    survival   = brms::cox()
-  )
-  
-  # Create standard bf object (NOT nl = TRUE)
-  main_bf_obj <- brms::bf(main_formula_str, family = model_family, center = FALSE)
-  
-  # Combine with sub-formulas if present (e.g., sigma, shape stratification)
-  if (length(sub_formulas) > 0) {
-    main_bf_obj <- Reduce("+", sub_formulas, init = main_bf_obj)
-  }
-  
-  return(main_bf_obj)
 }
 
 #' Assemble the Final brms Formula
@@ -1441,7 +1345,7 @@ prepare_formula_model <- function(data,
       # Warn if shrunk formulas have intercepts when they shouldn't
       # Only shrunk terms (shprogeffect, shpredeffect) should have no intercept
       if (name %in% c("shprogeffect", "shpredeffect")) {
-        if (.has_intercept(formula_str)) {
+        if (!.has_no_intercept(formula_str)) {
           warning("Formula '", name, "' contains an intercept. ",
                   "For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' ",
                   "to your input formula.", call. = FALSE)
@@ -1460,12 +1364,7 @@ prepare_formula_model <- function(data,
   } else {
     unshrunk_no_int  # Respect user's choice
   }
-  
-  message("DEBUG: Creating sub-formulas...")
-  message("  - all_unshrunk_terms: ", paste(all_unshrunk_terms, collapse = ", "))
-  message("  - shrunk_prog_terms: ", paste(shrunk_prog_terms, collapse = ", "))
-  message("  - shrunk_pred_formula: ", shrunk_pred_formula)
-  
+
   .create_sub_formula("unshrunktermeffect", all_unshrunk_terms, remove_intercept = unshrunk_remove_int)
   .create_sub_formula("shprogeffect", shrunk_prog_terms, remove_intercept = shrunk_prog_no_int)
   .create_sub_formula("shpredeffect", shrunk_pred_formula, remove_intercept = shrunk_pred_no_int)
