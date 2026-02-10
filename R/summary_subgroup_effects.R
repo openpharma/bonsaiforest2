@@ -19,7 +19,8 @@
 #'
 #' @return `subgroup_summary`. S3 object containing:
 #'   \describe{
-#'     \item{`estimates`}{`tibble` with subgroup-specific treatment effect estimates}
+#'     \item{`estimates`}{`tibble` where each row represents a subgroup, with columns
+#'       for `Subgroup`, `Median`, `CI_Lower`, and `CI_Upper` from posterior distribution}
 #'     \item{`response_type`}{`character(1)` indicating outcome type}
 #'     \item{`ci_level`}{`numeric(1)` credible interval level (default 0.95)}
 #'     \item{`trt_var`}{`character(1)` treatment variable name}

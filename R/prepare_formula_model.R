@@ -92,7 +92,7 @@
 #'   returned for use in model fitting.
 #' @param response_formula A formula object. The response specification defining the outcome
 #'   variable and treatment. Examples: `outcome ~ trt` for continuous outcomes,
-#'   `n_events + offset(log(days)) ~ trt` for count outcomes, or `Surv(time, status) ~ trt`
+#'   `n_events ~ trt + offset(log(days))` for count outcomes, or `Surv(time, status) ~ trt`
 #'   for survival models. The treatment variable (right-hand side) will be automatically
 #'   extracted and converted to a numeric binary variable (0/1).
 #' @param unshrunk_terms_formula A formula object or `NULL`. Formula specifying unshrunk terms
@@ -265,6 +265,33 @@ prepare_formula_model <- function(data,
     trt_var = trt_var
   )
 
+  # 3b. Create duplicate variables for overlapping terms
+  # This allows different contrast encodings for shrunk vs unshrunk contexts
+  # Only applies to variables in interactions (shrunk_predictive), not prognostic main effects
+  duplicate_result <- .create_duplicate_vars(
+    data = processed_data,
+    vars = term_lists$vars_to_duplicate,
+    suffix = "_onehot"
+  )
+  processed_data <- duplicate_result$data
+  var_mapping <- duplicate_result$mapping  # Maps original name -> duplicate name
+  
+  # Update ONLY shrunk_predictive_formula to use duplicated variable names
+  # (shrunk_prognostic should NOT have any overlaps per the validation above)
+  if (length(var_mapping) > 0) {
+    # Update shrunk predictive formula string to reference duplicated variables
+    if (!is.null(shrunk_predictive_formula_str) && shrunk_predictive_formula_str != "") {
+      for (orig_var in names(var_mapping)) {
+        # Use word boundaries to avoid partial matches
+        shrunk_predictive_formula_str <- stringr::str_replace_all(
+          shrunk_predictive_formula_str,
+          paste0("\\b", orig_var, "\\b"),
+          var_mapping[orig_var]
+        )
+      }
+    }
+  }
+
   # 4. Process Predictive Terms
   # Process the full unshrunk formula (both main effects and interactions together)
   # This will be used as a single unshrunktermeffect component
@@ -314,6 +341,7 @@ prepare_formula_model <- function(data,
   # --- 5b. Apply Contrasts to Prognostic Terms ---
   # Apply appropriate contrasts based on whether terms are shrunken or not
   # This respects user-specified contrasts and only sets defaults where missing
+  # Note: After duplication, shrunk terms use the _onehot suffixed versions
   processed_data <- .apply_prognostic_contrasts(
     data = processed_data,
     terms = term_lists$all_unshrunk_terms,
@@ -324,7 +352,7 @@ prepare_formula_model <- function(data,
   processed_data <- .apply_prognostic_contrasts(
     data = processed_data,
     terms = term_lists$shrunk_prog,
-    is_shrunken = TRUE,  # Shrunken = one-hot encoding
+    is_shrunken = TRUE,  # Shrunken = one-hot encoding (applied to duplicated _onehot variables)
     user_contrast_vars = user_contrast_vars
   )
 
@@ -393,6 +421,109 @@ prepare_formula_model <- function(data,
 }
 
 
+#' Extract Variables from Interaction Terms
+#'
+#' Extracts the variable names involved in interaction terms from a formula string.
+#' Handles colon (:), star (*), and pipe-pipe (||) notation.
+#' Excludes the treatment variable from the results.
+#'
+#' @param formula_str A formula string containing interaction terms
+#' @param trt_var The treatment variable name to exclude from results
+#'
+#' @return A character vector of unique variable names (excluding treatment)
+#' @noRd
+#'
+.extract_interaction_vars <- function(formula_str, trt_var) {
+  if (is.null(formula_str) || formula_str == "") return(character(0))
+  
+  interaction_vars <- character(0)
+  
+  # Remove the ~ and any leading 0/1
+  formula_rhs <- stringr::str_remove(formula_str, "^~\\s*")
+  formula_rhs <- stringr::str_remove(formula_rhs, "^(0|\\-1)\\s*\\+\\s*")
+  
+  # Extract from colon notation: trt:var or var:trt
+  colon_matches <- stringr::str_match_all(formula_rhs, "(\\w+):(\\w+)")[[1]]
+  if (nrow(colon_matches) > 0) {
+    for (i in seq_len(nrow(colon_matches))) {
+      vars <- c(colon_matches[i, 2], colon_matches[i, 3])
+      interaction_vars <- c(interaction_vars, setdiff(vars, trt_var))
+    }
+  }
+  
+  # Extract from star notation: trt*var or var*trt
+  star_matches <- stringr::str_match_all(formula_rhs, "(\\w+)\\*(\\w+)")[[1]]
+  if (nrow(star_matches) > 0) {
+    for (i in seq_len(nrow(star_matches))) {
+      vars <- c(star_matches[i, 2], star_matches[i, 3])
+      interaction_vars <- c(interaction_vars, setdiff(vars, trt_var))
+    }
+  }
+  
+  # Extract from pipe-pipe notation: (var1 || var2) or (0 + var1 || var2)
+  pipe_matches <- stringr::str_match_all(formula_rhs, "\\(\\s*([^|]+?)\\s*\\|\\|\\s*([^)]+?)\\s*\\)")[[1]]
+  if (nrow(pipe_matches) > 0) {
+    for (i in seq_len(nrow(pipe_matches))) {
+      var1 <- stringr::str_remove(pipe_matches[i, 2], "^(0|\\-1)\\s*\\+\\s*")
+      var1 <- stringr::str_squish(var1)
+      var2 <- stringr::str_squish(pipe_matches[i, 3])
+      vars <- c(var1, var2)
+      interaction_vars <- c(interaction_vars, setdiff(vars, trt_var))
+    }
+  }
+  
+  return(unique(interaction_vars))
+}
+
+
+#' Create Duplicate Variables for Overlapping Shrunk/Unshrunk Terms
+#'
+#' When a variable appears in both shrunk and unshrunk formulas, create a duplicate
+#' column with a suffix to allow different contrast encodings.
+#'
+#' @param data The data.frame to modify
+#' @param vars Character vector of variable names to duplicate
+#' @param suffix Character string to append to duplicated variable names (default: "_onehot")
+#'
+#' @return A list with:
+#'   - data: The modified data.frame with duplicate columns
+#'   - mapping: Named character vector mapping original names to duplicated names
+#' @noRd
+#'
+.create_duplicate_vars <- function(data, vars, suffix = "_onehot") {
+  checkmate::assert_data_frame(data)
+  checkmate::assert_character(vars)
+  checkmate::assert_string(suffix)
+  
+  if (length(vars) == 0) {
+    return(list(data = data, mapping = character(0)))
+  }
+  
+  mapping <- character(length(vars))
+  names(mapping) <- vars
+  
+  for (var in vars) {
+    if (!var %in% names(data)) {
+      warning("Variable '", var, "' not found in data. Skipping duplication.")
+      next
+    }
+    
+    # Create new variable name
+    new_var <- paste0(var, suffix)
+    
+    # Duplicate the column
+    data[[new_var]] <- data[[var]]
+    
+    # Store mapping
+    mapping[var] <- new_var
+    
+    message("Created duplicate variable '", new_var, "' for one-hot encoding (original '", var, "' will use dummy encoding)")
+  }
+  
+  return(list(data = data, mapping = mapping))
+}
+
+
 #' Set Contrasts for Factor Variable Based on Shrinkage Type
 #'
 #' Sets appropriate contrast encoding for factor variables:
@@ -457,9 +588,12 @@ prepare_formula_model <- function(data,
 #'
 #' Handles initial data validation and parsing of the main response formula string,
 #' correctly separating the core response variable from potential offset terms.
+#' Supports offset on either side of the formula:
+#' - Legacy: "response + offset(log(var)) ~ treatment"
+#' - New (preferred): "response ~ treatment + offset(log(var))"
 #'
 #' @param data A data.frame.
-#' @param response_formula_str A string like "response ~ treatment" or "response + offset(log(var)) ~ treatment".
+#' @param response_formula_str A string like "response ~ treatment" or "response ~ treatment + offset(log(var))".
 #' @return A list containing the core response part (`response_term`), the offset part (`offset_term`),
 #'   the treatment variable name (`trt_var`), and the processed data.
 #' @noRd
@@ -471,17 +605,35 @@ prepare_formula_model <- function(data,
 
   formula_parts <- stringr::str_squish(stringr::str_split(response_formula_str, "~", n = 2)[[1]])
   lhs_str <- formula_parts[1]
-  trt_var <- formula_parts[2]
+  rhs_str <- formula_parts[2]
+
+  # Parse RHS to separate treatment variable from offset
+  rhs_terms <- stringr::str_squish(stringr::str_split(rhs_str, "\\+")[[1]])
+  is_offset_rhs <- stringr::str_starts(rhs_terms, "offset\\(")
+  
+  # Extract treatment variable (first non-offset term on RHS)
+  trt_var <- rhs_terms[!is_offset_rhs][1]
+  
+  # Extract offset from RHS if present
+  offset_term <- if (any(is_offset_rhs)) rhs_terms[is_offset_rhs][1] else NULL
+  
+  # Also check LHS for backwards compatibility
+  lhs_terms <- stringr::str_squish(stringr::str_split(lhs_str, "\\+")[[1]])
+  is_offset_lhs <- stringr::str_starts(lhs_terms, "offset\\(")
+  
+  if (any(is_offset_lhs)) {
+    if (!is.null(offset_term)) {
+      warning("Offset specified on both sides of formula. Using RHS offset only.")
+    } else {
+      offset_term <- lhs_terms[is_offset_lhs][1]
+      message("Note: Offset on LHS is deprecated. Please use 'response ~ treatment + offset(...)' syntax instead.")
+    }
+  }
+  
+  response_term <- paste(lhs_terms[!is_offset_lhs], collapse = " + ")
 
   checkmate::assert_string(trt_var, min.chars = 1)
   checkmate::assert_subset(trt_var, names(data))
-
-  # Split the left-hand side to find the response and any offset
-  lhs_terms <- stringr::str_squish(stringr::str_split(lhs_str, "\\+")[[1]])
-  is_offset <- stringr::str_starts(lhs_terms, "offset\\(")
-
-  offset_term <- if (any(is_offset)) lhs_terms[is_offset] else NULL
-  response_term <- paste(lhs_terms[!is_offset], collapse = " + ")
 
   # Convert treatment variable to numeric binary (0/1) representation
   # This standardization avoids multi-level factor interactions and simplifies model structure
@@ -613,8 +765,9 @@ prepare_formula_model <- function(data,
 
 #' Resolve Term Overlaps and Set Defaults
 #'
-#' Checks for overlapping terms between shrunk/unshrunk formulas and adds
-#' the treatment variable to unshrunk terms if it's missing.
+#' Checks for overlapping terms between shrunk/unshrunk formulas. When overlaps are found,
+#' identifies them for duplication (allowing different contrast encodings for each context).
+#' Also adds the treatment variable to unshrunk terms if it's missing.
 #'
 #' @param unshrunk_str A formula string, e.g., "~ var1 + var2 + trt:var1".
 #' @param shrunk_prognostic_str A formula string, e.g., "~ var3".
@@ -622,7 +775,7 @@ prepare_formula_model <- function(data,
 #' @param trt_var The name of the treatment variable (character string).
 #'
 #' @return A list of cleaned-up character vectors for each term type:
-#'   `all_unshrunk_terms`, `shrunk_prog`, `shrunk_pred`.
+#'   `all_unshrunk_terms`, `shrunk_prog`, `shrunk_pred`, `vars_to_duplicate`.
 #' @noRd
 #'
 .resolve_term_overlaps_and_defaults <- function(unshrunk_str, shrunk_prognostic_str,
@@ -658,18 +811,38 @@ prepare_formula_model <- function(data,
     all_unshrunk_terms <- c(all_unshrunk_terms, trt_var)
   }
 
-  # Resolve overlaps between unshrunk and shrunk terms
-  overlap_terms <- intersect(all_unshrunk_terms, c(shrunk_prog, shrunk_pred))
-  if (length(overlap_terms) > 0) {
-    warning("Terms in both shrunk/unshrunk. Prioritizing as unshrunk: ", paste(overlap_terms, collapse = ", "))
-    shrunk_prog <- setdiff(shrunk_prog, overlap_terms)
-    shrunk_pred <- setdiff(shrunk_pred, overlap_terms)
+  # Check for overlaps between unshrunk and shrunk PROGNOSTIC terms
+  # This is NOT allowed - user must choose one location
+  prognostic_overlap <- intersect(all_unshrunk_terms, shrunk_prog)
+  if (length(prognostic_overlap) > 0) {
+    stop("Variables cannot appear in both unshrunk_terms_formula and shrunk_prognostic_formula. ",
+         "Please specify each variable in only one location. ",
+         "Overlapping variables: ", paste(prognostic_overlap, collapse = ", "),
+         call. = FALSE)
+  }
+  
+  # Extract variables involved in interactions from shrunk_predictive
+  # These are the variables we'll check for overlaps with unshrunk terms
+  predictive_interaction_vars <- .extract_interaction_vars(shrunk_predictive_str, trt_var)
+  
+  # Check for overlaps between unshrunk main effects and shrunk PREDICTIVE interactions
+  # This IS allowed - we'll create duplicates for the interaction terms
+  predictive_overlap <- intersect(all_unshrunk_terms, predictive_interaction_vars)
+  vars_to_duplicate <- character(0)
+  
+  if (length(predictive_overlap) > 0) {
+    message("Note: Variables appear as main effects (unshrunk) and in interactions (shrunk predictive): ", 
+            paste(predictive_overlap, collapse = ", "), 
+            ". Creating duplicates to allow different contrast encodings.")
+    vars_to_duplicate <- predictive_overlap
+    # Keep original terms in unshrunk, duplicates will be used in shrunk predictive
   }
 
   return(list(
     all_unshrunk_terms = all_unshrunk_terms,
     shrunk_prog = shrunk_prog,
     shrunk_pred = shrunk_pred,
+    vars_to_duplicate = vars_to_duplicate,
     unshrunk_no_int = unshrunk_no_int,
     shrunk_prog_no_int = shrunk_prog_no_int,
     shrunk_pred_no_int = shrunk_pred_no_int
@@ -1127,7 +1300,7 @@ prepare_formula_model <- function(data,
 #'
 #' Applies appropriate contrasts to all factor variables in prognostic formulas.
 #' Shrunken terms get one-hot encoding, unshrunken get dummy encoding.
-#' Respects user-specified contrasts.
+#' Respects user-specified contrasts only (not those set during interaction processing).
 #'
 #' Wrapper around .apply_factor_contrasts_to_vars() for backward compatibility
 #' and clearer calling semantics for prognostic terms.
@@ -1141,13 +1314,18 @@ prepare_formula_model <- function(data,
 #' @noRd
 #'
 .apply_prognostic_contrasts <- function(data, terms, is_shrunken, user_contrast_vars = character(0)) {
+  # Only protect truly user-specified contrasts (from before any processing)
+  # Do NOT protect contrasts set during interaction processing
+  # This allows prognostic terms to apply their own encoding even if the same
+  # variable was used in predictive interactions with different encoding
+  
   # Delegate to unified function
   # For prognostic terms: don't auto-convert to factors (they should already be factors or will be handled elsewhere)
   .apply_factor_contrasts_to_vars(
     .data = data,
     vars = terms,
     .trt_var = NULL,  # Not needed for prognostic processing
-    .user_contrast_vars = user_contrast_vars,
+    .user_contrast_vars = user_contrast_vars,  # Only protect original user contrasts
     use_onehot = is_shrunken,
     .formula_type = if (is_shrunken) "shrunk prognostic" else "unshrunk prognostic",
     convert_to_factor = FALSE  # Prognostic terms should already be factors
@@ -1376,11 +1554,14 @@ prepare_formula_model <- function(data,
     paste(response_term, "~ 1")
   }
 
-  # Offset handling
+  # Offset handling for non-linear models
+  # In brms non-linear formulas (nl = TRUE), offset terms must be added WITHOUT the offset() wrapper
+  # because we're explicitly combining predictors in the non-linear formula definition.
+  # The offset() wrapper is only needed in standard linear formulas where brms automatically
+  # handles the model structure. Here, we manually define: response ~ predictor1 + predictor2 + offset_term
   if (!is.null(offset_term) && nzchar(offset_term)) {
-
+    # Strip the offset() wrapper: "offset(log(days))" -> "log(days)"
     clean_offset_term <- sub("^offset\\((.*)\\)$", "\\1", offset_term)
-
     main_formula_str <- paste(main_formula_str, "+", clean_offset_term)
   }
 

@@ -135,6 +135,7 @@ estimate_subgroup_effects <- function(brms_fit,
     posterior_preds = posterior_preds,
     original_data = prep$data,  # Same data used for subgroup membership
     subgroup_vars = prep$subgroup_vars,
+    display_names = prep$display_names,
     is_overall = prep$is_overall,
     response_type = response_type
   )
@@ -142,6 +143,26 @@ estimate_subgroup_effects <- function(brms_fit,
   message("Done.")
   return(results)
 }
+
+#' Strip _onehot Suffix from Variable Name
+#'
+#' Removes the _onehot suffix used internally for duplicate variables.
+#' This is used to display clean variable names to users.
+#' @noRd
+.strip_onehot_suffix <- function(var_name) {
+  sub("_onehot$", "", var_name)
+}
+
+
+#' Strip _onehot Suffix from Variable Name
+#'
+#' Removes the _onehot suffix used internally for duplicate variables.
+#' This is used to display clean variable names to users.
+#' @noRd
+.strip_onehot_suffix <- function(var_name) {
+  sub("_onehot$", "", var_name)
+}
+
 
 #' Prepare and Validate Subgroup Variables
 #'
@@ -342,8 +363,16 @@ estimate_subgroup_effects <- function(brms_fit,
     model_data$Overall <- "Overall"
   }
 
+  # Create mapping of internal variable names to display names
+  # Strip _onehot suffix for user-facing output
+  display_names <- setNames(
+    sapply(subgroup_vars, .strip_onehot_suffix),
+    subgroup_vars
+  )
+  
   return(list(
     subgroup_vars = subgroup_vars,
+    display_names = display_names,
     data = model_data,
     is_overall = is_overall
   ))
@@ -600,7 +629,7 @@ estimate_subgroup_effects <- function(brms_fit,
 
 #' Calculate and Summarize Marginal Effects
 #' @noRd
-.calculate_and_summarize_effects <- function(posterior_preds, original_data, subgroup_vars, is_overall, response_type) {
+.calculate_and_summarize_effects <- function(posterior_preds, original_data, subgroup_vars, display_names, is_overall, response_type) {
 
   all_results_list <- list()
   all_draws_list <- list()
@@ -664,7 +693,9 @@ estimate_subgroup_effects <- function(brms_fit,
         )
       }
 
-      subgroup_name <- if (is_overall) "Overall" else paste0(current_subgroup_var, ": ", level)
+      # Use display name (without _onehot suffix) for user-facing output
+      display_var_name <- if (is_overall) "Overall" else display_names[current_subgroup_var]
+      subgroup_name <- if (is_overall) "Overall" else paste0(display_var_name, ": ", level)
       all_draws_list[[subgroup_name]] <- effect_draws
 
       point_estimate <- median(effect_draws, na.rm = TRUE)
