@@ -382,23 +382,20 @@ test_that("All three formula types can be used together", {
   expect_equal(get_formula_rhs(res$formula, "shpredeffect"), "trt:subgroup2")
 })
 
-test_that("Term overlaps generate warnings and prioritize unshrunk", {
-  expect_warning(
-    res <- prepare_formula_model(
+test_that("Prognostic term overlaps throw error", {
+  expect_error(
+    prepare_formula_model(
       data = test_data,
       response_formula = "outcome ~ trt",
       response_type = "continuous",
       unshrunk_terms_formula = "~ age + region",
       shrunk_prognostic_formula = "~ 0 + age + subgroup1"
     ),
-    regexp = "Prioritizing as unshrunk: age"
+    regexp = "Variables cannot appear in both unshrunk_terms_formula and shrunk_prognostic_formula"
   )
-
-  expect_equal(get_formula_rhs(res$formula, "unshrunktermeffect"), c("age", "region", "trt"))
-  expect_equal(get_formula_rhs(res$formula, "shprogeffect"), "subgroup1")
 })
 
-test_that("No overlap warning for different terms", {
+test_that("Predictive interaction overlaps create duplicates", {
   expect_warning(
     res <- prepare_formula_model(
       data = test_data,
@@ -410,8 +407,17 @@ test_that("No overlap warning for different terms", {
     regexp = NA
   )
 
+  # Original variable in unshrunk (dummy encoding)
   expect_true("region" %in% get_formula_rhs(res$formula, "unshrunktermeffect"))
-  expect_equal(get_formula_rhs(res$formula, "shpredeffect"), "trt:region")
+  expect_dummy_contrasts(res$data, "region")
+  
+  # Duplicate variable with _onehot suffix in shrunk predictive (one-hot encoding)
+  expect_equal(get_formula_rhs(res$formula, "shpredeffect"), "trt:region_onehot")
+  expect_onehot_contrasts(res$data, "region_onehot")
+  
+  # Both variables should exist in data
+  expect_true("region" %in% names(res$data))
+  expect_true("region_onehot" %in% names(res$data))
 })
 
 

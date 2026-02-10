@@ -22,7 +22,7 @@ returned for use in model fitting.}
 
 \item{response_formula}{A formula object. The response specification defining the outcome
 variable and treatment. Examples: \code{outcome ~ trt} for continuous outcomes,
-\code{n_events + offset(log(days)) ~ trt} for count outcomes, or \code{Surv(time, status) ~ trt}
+\code{n_events ~ trt + offset(log(days))} for count outcomes, or \code{Surv(time, status) ~ trt}
 for survival models. The treatment variable (right-hand side) will be automatically
 extracted and converted to a numeric binary variable (0/1).}
 
