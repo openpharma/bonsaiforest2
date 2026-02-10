@@ -77,7 +77,7 @@ returned for use in model fitting.</p></dd>
 <dt id="arg-response-formula">response_formula<a class="anchor" aria-label="anchor" href="#arg-response-formula"></a></dt>
 <dd><p>A formula object. The response specification defining the outcome
 variable and treatment. Examples: <code>outcome ~ trt</code> for continuous outcomes,
-<code>n_events + offset(log(days)) ~ trt</code> for count outcomes, or <code>Surv(time, status) ~ trt</code>
+<code>n_events ~ trt + offset(log(days))</code> for count outcomes, or <code>Surv(time, status) ~ trt</code>
 for survival models. The treatment variable (right-hand side) will be automatically
 extracted and converted to a numeric binary variable (0/1).</p></dd>
 
@@ -271,19 +271,22 @@ across levels of the stratification variable.</p></li>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Applying stratification: estimating separate baseline hazards by 'region'.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Treatment 'trt' automatically added to unshrunk terms.</span>
-<span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Variables appear as main effects (unshrunk) and in interactions (shrunk predictive): subgroup. Creating duplicates to allow different contrast encodings.</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Created duplicate variable 'subgroup_onehot' for one-hot encoding (original 'subgroup' will use dummy encoding)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied one-hot encoding to shrunken factor 'subgroup_onehot' (will be used with ~ 0 + ...)</span>
+<span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Marginality principle not followed - interaction term 'subgroup_onehot' is used without its main effect. Consider adding 'subgroup_onehot' to prognostic terms for proper model hierarchy.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'subgroup'</span>
 <span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> unshrunktermeffect ~ 0 + age + subgroup + trt</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ trt:subgroup</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   time status trt      age region subgroup</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1   29      0   1 57.87739      B       S2</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2   79      1   1 57.69042      B       S1</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 3   41      1   1 53.32203      B       S3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 4   88      0   0 39.91623      B       S3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 5   94      1   1 48.80547      A       S3</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 6    6      1   1 47.19605      A       S2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ trt:subgroup_onehot</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   time status trt      age region subgroup subgroup_onehot</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1   29      0   1 57.87739      B       S2              S2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2   79      1   1 57.69042      B       S1              S1</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 3   41      1   1 53.32203      B       S3              S3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 4   88      0   0 39.91623      B       S3              S3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 5   94      1   1 48.80547      A       S3              S3</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 6    6      1   1 47.19605      A       S2              S2</span>
 <span class="r-in"><span></span></span>
 </code></pre></div>
     </div>

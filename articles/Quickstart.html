@@ -171,7 +171,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.0 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_region</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_region</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -192,7 +192,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.6 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.3 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_comorbidity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_comorbidity</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -213,7 +213,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.0 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_age</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_age</span>, subgroup_vars <span class="op">=</span> <span class="st">"age_group"</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -234,7 +234,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.4 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_sex</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_sex</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -255,7 +255,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.8 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.6 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_diabetes</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_diabetes</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -305,7 +305,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.8 seconds.</span></span></code></pre></div>
+<span><span class="co">#&gt; Chain 1 finished in 3.7 seconds.</span></span></code></pre></div>
 </div>
 <div class="section level3" number="4.2">
 <h3 id="global-model-summary-of-subgroup-effects">
@@ -322,8 +322,8 @@
 <span><span class="co">#&gt; Using data from model attributes</span></span>
 <span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
 <span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model...</span></span>
-<span><span class="co">#&gt; Model data has 300 rows and 9 columns</span></span>
-<span><span class="co">#&gt; Column names: id, sbp_change, trt, baseline_sbp, region, comorbidity, age_group, sex, diabetes</span></span>
+<span><span class="co">#&gt; Model data has 300 rows and 14 columns</span></span>
+<span><span class="co">#&gt; Column names: id, sbp_change, trt, baseline_sbp, region, comorbidity, age_group, sex, diabetes, region_onehot, comorbidity_onehot, age_group_onehot, sex_onehot, diabetes_onehot</span></span>
 <span><span class="co">#&gt; Treatment variable: 'trt'</span></span>
 <span><span class="co">#&gt; All coefficient names:</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_Intercept</span></span>
@@ -336,67 +336,79 @@
 <span><span class="co">#&gt; unshrunktermeffect_sexM</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_diabetesYes</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_trt</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:regionAPAC</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:regionEU</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:regionUSA</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:comorbidityYes</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:age_group&gt;65</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:age_group50M65</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:sexM</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:diabetesYes</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:region_onehotAPAC</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:region_onehotEU</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:region_onehotUSA</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:comorbidity_onehotNo</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:comorbidity_onehotYes</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group_onehot&lt;50</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group_onehot&gt;65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group_onehot50M65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:sex_onehotF</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:sex_onehotM</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:diabetes_onehotNo</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:diabetes_onehotYes</span></span>
 <span><span class="co">#&gt; Looking for treatment interactions with pattern: 'trt:'</span></span>
-<span><span class="co">#&gt; Found 8 treatment interaction coefficients</span></span>
+<span><span class="co">#&gt; Found 12 treatment interaction coefficients</span></span>
 <span><span class="co">#&gt; Treatment interaction coefficients found:</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:regionAPAC</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:regionEU</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:regionUSA</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:comorbidityYes</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:age_group&gt;65</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:age_group50M65</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:sexM</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:diabetesYes</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionAPAC'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionEU'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionUSA'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'comorbidity' from coefficient 'shpredeffect_trt:comorbidityYes'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group&gt;65'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group50M65'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'sex' from coefficient 'shpredeffect_trt:sexM'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'diabetes' from coefficient 'shpredeffect_trt:diabetesYes'</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:region_onehotAPAC</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:region_onehotEU</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:region_onehotUSA</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:comorbidity_onehotNo</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:comorbidity_onehotYes</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group_onehot&lt;50</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group_onehot&gt;65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:age_group_onehot50M65</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:sex_onehotF</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:sex_onehotM</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:diabetes_onehotNo</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:diabetes_onehotYes</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'region_onehot' from coefficient 'shpredeffect_trt:region_onehotAPAC'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'region_onehot' from coefficient 'shpredeffect_trt:region_onehotEU'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'region_onehot' from coefficient 'shpredeffect_trt:region_onehotUSA'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'comorbidity_onehot' from coefficient 'shpredeffect_trt:comorbidity_onehotNo'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'comorbidity_onehot' from coefficient 'shpredeffect_trt:comorbidity_onehotYes'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'age_group_onehot' from coefficient 'shpredeffect_trt:age_group_onehot&lt;50'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'age_group_onehot' from coefficient 'shpredeffect_trt:age_group_onehot&gt;65'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'age_group_onehot' from coefficient 'shpredeffect_trt:age_group_onehot50M65'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'sex_onehot' from coefficient 'shpredeffect_trt:sex_onehotF'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'sex_onehot' from coefficient 'shpredeffect_trt:sex_onehotM'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'diabetes_onehot' from coefficient 'shpredeffect_trt:diabetes_onehotNo'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'diabetes_onehot' from coefficient 'shpredeffect_trt:diabetes_onehotYes'</span></span>
 <span><span class="co">#&gt; Checking for random effects parameters...</span></span>
-<span><span class="co">#&gt; Retrieved 31 total parameters from model</span></span>
+<span><span class="co">#&gt; Retrieved 39 total parameters from model</span></span>
 <span><span class="co">#&gt; Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'</span></span>
 <span><span class="co">#&gt; Found 0 matching random effect parameters</span></span>
 <span><span class="co">#&gt; No random effect parameters matching the pattern were found</span></span>
-<span><span class="co">#&gt; ...detected subgroup variable(s): region, comorbidity, age_group, sex, diabetes</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): region_onehot, comorbidity_onehot, age_group_onehot, sex_onehot, diabetes_onehot</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.</span></span>
 <span><span class="co">#&gt; ... (predicting expected outcomes)...</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
-<span><span class="co">#&gt; ... processing region</span></span>
-<span><span class="co">#&gt; ... processing comorbidity</span></span>
-<span><span class="co">#&gt; ... processing age_group</span></span>
-<span><span class="co">#&gt; ... processing sex</span></span>
-<span><span class="co">#&gt; ... processing diabetes</span></span>
+<span><span class="co">#&gt; ... processing region_onehot</span></span>
+<span><span class="co">#&gt; ... processing comorbidity_onehot</span></span>
+<span><span class="co">#&gt; ... processing age_group_onehot</span></span>
+<span><span class="co">#&gt; ... processing sex_onehot</span></span>
+<span><span class="co">#&gt; ... processing diabetes_onehot</span></span>
 <span><span class="co">#&gt; Done.</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">global_summary</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $estimates</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 12 × 4</span></span></span>
-<span><span class="co">#&gt;    Subgroup         Median CI_Lower CI_Upper</span></span>
-<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> region: APAC      1.56     -<span style="color: #BB0000;">1.24</span>     4.77</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> region: EU        0.940    -<span style="color: #BB0000;">1.89</span>     3.62</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> region: USA       0.283    -<span style="color: #BB0000;">2.60</span>     3.12</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> comorbidity: No   0.796    -<span style="color: #BB0000;">1.52</span>     3.07</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> comorbidity: Yes  1.19     -<span style="color: #BB0000;">1.30</span>     3.98</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> age_group: &lt;50    1.13     -<span style="color: #BB0000;">1.26</span>     3.87</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> age_group: &gt;65    0.996    -<span style="color: #BB0000;">1.74</span>     3.92</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> age_group: 50-65  0.813    -<span style="color: #BB0000;">1.95</span>     3.26</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> sex: F            0.331    -<span style="color: #BB0000;">2.14</span>     2.84</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> sex: M            1.49     -<span style="color: #BB0000;">1.04</span>     4.20</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> diabetes: No      0.539    -<span style="color: #BB0000;">1.66</span>     2.83</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> diabetes: Yes     1.68     -<span style="color: #BB0000;">1.17</span>     4.73</span></span>
+<span><span class="co">#&gt;    Subgroup          Median CI_Lower CI_Upper</span></span>
+<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> region: APAC     1.53      -<span style="color: #BB0000;">1.26</span>      4.88</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> region: EU       0.764     -<span style="color: #BB0000;">1.95</span>      3.47</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> region: USA      0.379     -<span style="color: #BB0000;">2.60</span>      3.12</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> comorbidity: No  0.607     -<span style="color: #BB0000;">1.75</span>      3.11</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> comorbidity: Yes 1.28      -<span style="color: #BB0000;">1.37</span>      3.93</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> age_group: &lt;50   1.28      -<span style="color: #BB0000;">1.61</span>      4.28</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> age_group: &gt;65   0.852     -<span style="color: #BB0000;">2.12</span>      3.93</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> age_group: 50-65 0.661     -<span style="color: #BB0000;">1.80</span>      3.20</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> sex: F           0.005<span style="text-decoration: underline;">42</span>   -<span style="color: #BB0000;">2.87</span>      2.66</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> sex: M           1.65      -<span style="color: #BB0000;">0.775</span>     4.30</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> diabetes: No     0.312     -<span style="color: #BB0000;">2.21</span>      2.72</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> diabetes: Yes    2.01      -<span style="color: #BB0000;">0.845</span>     5.15</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>

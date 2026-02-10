@@ -60,6 +60,7 @@ count_model_fit <- run_brms_analysis(
   chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
 )
 #> Step 1: Preparing formula and data...
+#> Note: Offset on LHS is deprecated. Please use 'response ~ treatment + offset(...)' syntax instead.
 #> Converting treatment variable 'medication' to numeric binary (0/1). '0' = 0, '1' = 1
 #> Note: Treatment 'medication' automatically added to unshrunk terms.
 #> Warning: Formula 'shprogeffect' contains an intercept. For proper
@@ -84,7 +85,7 @@ count_model_fit <- run_brms_analysis(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.7 seconds.
+#> Chain 1 finished in 2.6 seconds.
 #> Loading required namespace: rstan
 #> 
 #> Analysis complete.
@@ -196,7 +197,7 @@ fit_ex3 <- fit_brms_model(
 #> Chain 1            init_buffer = 15 
 #> Chain 1            adapt_window = 75 
 #> Chain 1            term_buffer = 10 
-#> Chain 1 finished in 2.1 seconds.
+#> Chain 1 finished in 2.2 seconds.
 #> Warning: 92 of 100 (92.0%) transitions hit the maximum treedepth limit of 10.
 #> See https://mc-stan.org/misc/warnings for details.
 

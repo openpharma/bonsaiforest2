@@ -34,7 +34,7 @@ prepare_formula_model(
 
   A formula object. The response specification defining the outcome
   variable and treatment. Examples: `outcome ~ trt` for continuous
-  outcomes, `n_events + offset(log(days)) ~ trt` for count outcomes, or
+  outcomes, `n_events ~ trt + offset(log(days))` for count outcomes, or
   `Surv(time, status) ~ trt` for survival models. The treatment variable
   (right-hand side) will be automatically extracted and converted to a
   numeric binary variable (0/1).
@@ -267,17 +267,20 @@ if (require("brms") && require("survival")) {
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 #> Applying stratification: estimating separate baseline hazards by 'region'.
 #> Note: Treatment 'trt' automatically added to unshrunk terms.
-#> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)
+#> Note: Variables appear as main effects (unshrunk) and in interactions (shrunk predictive): subgroup. Creating duplicates to allow different contrast encodings.
+#> Created duplicate variable 'subgroup_onehot' for one-hot encoding (original 'subgroup' will use dummy encoding)
+#> Note: Applied one-hot encoding to shrunken factor 'subgroup_onehot' (will be used with ~ 0 + ...)
+#> Note: Marginality principle not followed - interaction term 'subgroup_onehot' is used without its main effect. Consider adding 'subgroup_onehot' to prognostic terms for proper model hierarchy.
 #> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'subgroup'
 #> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
 #> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect 
 #> unshrunktermeffect ~ 0 + age + subgroup + trt
-#> shpredeffect ~ trt:subgroup
-#>   time status trt      age region subgroup
-#> 1   29      0   1 57.87739      B       S2
-#> 2   79      1   1 57.69042      B       S1
-#> 3   41      1   1 53.32203      B       S3
-#> 4   88      0   0 39.91623      B       S3
-#> 5   94      1   1 48.80547      A       S3
-#> 6    6      1   1 47.19605      A       S2
+#> shpredeffect ~ trt:subgroup_onehot
+#>   time status trt      age region subgroup subgroup_onehot
+#> 1   29      0   1 57.87739      B       S2              S2
+#> 2   79      1   1 57.69042      B       S1              S1
+#> 3   41      1   1 53.32203      B       S3              S3
+#> 4   88      0   0 39.91623      B       S3              S3
+#> 5   94      1   1 48.80547      A       S3              S3
+#> 6    6      1   1 47.19605      A       S2              S2
 ```

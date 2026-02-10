@@ -118,7 +118,7 @@ ovat_region <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 1 finished in 3.0 seconds.
 
 summary_ovat_region <- summary_subgroup_effects(brms_fit = ovat_region)
 ```
@@ -138,7 +138,7 @@ ovat_comorbidity <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.6 seconds.
+#> Chain 1 finished in 3.3 seconds.
 
 summary_ovat_comorbidity <- summary_subgroup_effects(brms_fit = ovat_comorbidity)
 ```
@@ -158,7 +158,7 @@ ovat_age <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 1 finished in 3.0 seconds.
 
 summary_ovat_age <- summary_subgroup_effects(brms_fit = ovat_age, subgroup_vars = "age_group")
 ```
@@ -178,7 +178,7 @@ ovat_sex <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.4 seconds.
+#> Chain 1 finished in 3.2 seconds.
 
 summary_ovat_sex <- summary_subgroup_effects(brms_fit = ovat_sex)
 ```
@@ -198,7 +198,7 @@ ovat_diabetes <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.8 seconds.
+#> Chain 1 finished in 3.6 seconds.
 
 summary_ovat_diabetes <- summary_subgroup_effects(brms_fit = ovat_diabetes)
 ```
@@ -248,7 +248,7 @@ global_model <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 2.8 seconds.
+#> Chain 1 finished in 3.7 seconds.
 ```
 
 ### 4.2 Global Model: Summary of Subgroup Effects
@@ -268,8 +268,8 @@ global_summary <- summary_subgroup_effects(
 #> Using data from model attributes
 #> Step 1: Identifying subgroups and creating counterfactuals...
 #> `subgroup_vars` set to 'auto'. Detecting from model...
-#> Model data has 300 rows and 9 columns
-#> Column names: id, sbp_change, trt, baseline_sbp, region, comorbidity, age_group, sex, diabetes
+#> Model data has 300 rows and 14 columns
+#> Column names: id, sbp_change, trt, baseline_sbp, region, comorbidity, age_group, sex, diabetes, region_onehot, comorbidity_onehot, age_group_onehot, sex_onehot, diabetes_onehot
 #> Treatment variable: 'trt'
 #> All coefficient names:
 #> unshrunktermeffect_Intercept
@@ -282,67 +282,79 @@ global_summary <- summary_subgroup_effects(
 #> unshrunktermeffect_sexM
 #> unshrunktermeffect_diabetesYes
 #> unshrunktermeffect_trt
-#> shpredeffect_trt:regionAPAC
-#> shpredeffect_trt:regionEU
-#> shpredeffect_trt:regionUSA
-#> shpredeffect_trt:comorbidityYes
-#> shpredeffect_trt:age_group>65
-#> shpredeffect_trt:age_group50M65
-#> shpredeffect_trt:sexM
-#> shpredeffect_trt:diabetesYes
+#> shpredeffect_trt:region_onehotAPAC
+#> shpredeffect_trt:region_onehotEU
+#> shpredeffect_trt:region_onehotUSA
+#> shpredeffect_trt:comorbidity_onehotNo
+#> shpredeffect_trt:comorbidity_onehotYes
+#> shpredeffect_trt:age_group_onehot<50
+#> shpredeffect_trt:age_group_onehot>65
+#> shpredeffect_trt:age_group_onehot50M65
+#> shpredeffect_trt:sex_onehotF
+#> shpredeffect_trt:sex_onehotM
+#> shpredeffect_trt:diabetes_onehotNo
+#> shpredeffect_trt:diabetes_onehotYes
 #> Looking for treatment interactions with pattern: 'trt:'
-#> Found 8 treatment interaction coefficients
+#> Found 12 treatment interaction coefficients
 #> Treatment interaction coefficients found:
-#> shpredeffect_trt:regionAPAC
-#> shpredeffect_trt:regionEU
-#> shpredeffect_trt:regionUSA
-#> shpredeffect_trt:comorbidityYes
-#> shpredeffect_trt:age_group>65
-#> shpredeffect_trt:age_group50M65
-#> shpredeffect_trt:sexM
-#> shpredeffect_trt:diabetesYes
-#> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionAPAC'
-#> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionEU'
-#> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionUSA'
-#> Detected subgroup variable 'comorbidity' from coefficient 'shpredeffect_trt:comorbidityYes'
-#> Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group>65'
-#> Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group50M65'
-#> Detected subgroup variable 'sex' from coefficient 'shpredeffect_trt:sexM'
-#> Detected subgroup variable 'diabetes' from coefficient 'shpredeffect_trt:diabetesYes'
+#> shpredeffect_trt:region_onehotAPAC
+#> shpredeffect_trt:region_onehotEU
+#> shpredeffect_trt:region_onehotUSA
+#> shpredeffect_trt:comorbidity_onehotNo
+#> shpredeffect_trt:comorbidity_onehotYes
+#> shpredeffect_trt:age_group_onehot<50
+#> shpredeffect_trt:age_group_onehot>65
+#> shpredeffect_trt:age_group_onehot50M65
+#> shpredeffect_trt:sex_onehotF
+#> shpredeffect_trt:sex_onehotM
+#> shpredeffect_trt:diabetes_onehotNo
+#> shpredeffect_trt:diabetes_onehotYes
+#> Detected subgroup variable 'region_onehot' from coefficient 'shpredeffect_trt:region_onehotAPAC'
+#> Detected subgroup variable 'region_onehot' from coefficient 'shpredeffect_trt:region_onehotEU'
+#> Detected subgroup variable 'region_onehot' from coefficient 'shpredeffect_trt:region_onehotUSA'
+#> Detected subgroup variable 'comorbidity_onehot' from coefficient 'shpredeffect_trt:comorbidity_onehotNo'
+#> Detected subgroup variable 'comorbidity_onehot' from coefficient 'shpredeffect_trt:comorbidity_onehotYes'
+#> Detected subgroup variable 'age_group_onehot' from coefficient 'shpredeffect_trt:age_group_onehot<50'
+#> Detected subgroup variable 'age_group_onehot' from coefficient 'shpredeffect_trt:age_group_onehot>65'
+#> Detected subgroup variable 'age_group_onehot' from coefficient 'shpredeffect_trt:age_group_onehot50M65'
+#> Detected subgroup variable 'sex_onehot' from coefficient 'shpredeffect_trt:sex_onehotF'
+#> Detected subgroup variable 'sex_onehot' from coefficient 'shpredeffect_trt:sex_onehotM'
+#> Detected subgroup variable 'diabetes_onehot' from coefficient 'shpredeffect_trt:diabetes_onehotNo'
+#> Detected subgroup variable 'diabetes_onehot' from coefficient 'shpredeffect_trt:diabetes_onehotYes'
 #> Checking for random effects parameters...
-#> Retrieved 31 total parameters from model
+#> Retrieved 39 total parameters from model
 #> Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'
 #> Found 0 matching random effect parameters
 #> No random effect parameters matching the pattern were found
-#> ...detected subgroup variable(s): region, comorbidity, age_group, sex, diabetes
+#> ...detected subgroup variable(s): region_onehot, comorbidity_onehot, age_group_onehot, sex_onehot, diabetes_onehot
 #> Step 2: Generating posterior predictions...
 #> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
 #> ... (predicting expected outcomes)...
 #> Step 3: Calculating marginal effects...
-#> ... processing region
-#> ... processing comorbidity
-#> ... processing age_group
-#> ... processing sex
-#> ... processing diabetes
+#> ... processing region_onehot
+#> ... processing comorbidity_onehot
+#> ... processing age_group_onehot
+#> ... processing sex_onehot
+#> ... processing diabetes_onehot
 #> Done.
 
 print(global_summary)
 #> $estimates
 #> # A tibble: 12 × 4
-#>    Subgroup         Median CI_Lower CI_Upper
-#>    <chr>             <dbl>    <dbl>    <dbl>
-#>  1 region: APAC      1.56     -1.24     4.77
-#>  2 region: EU        0.940    -1.89     3.62
-#>  3 region: USA       0.283    -2.60     3.12
-#>  4 comorbidity: No   0.796    -1.52     3.07
-#>  5 comorbidity: Yes  1.19     -1.30     3.98
-#>  6 age_group: <50    1.13     -1.26     3.87
-#>  7 age_group: >65    0.996    -1.74     3.92
-#>  8 age_group: 50-65  0.813    -1.95     3.26
-#>  9 sex: F            0.331    -2.14     2.84
-#> 10 sex: M            1.49     -1.04     4.20
-#> 11 diabetes: No      0.539    -1.66     2.83
-#> 12 diabetes: Yes     1.68     -1.17     4.73
+#>    Subgroup          Median CI_Lower CI_Upper
+#>    <chr>              <dbl>    <dbl>    <dbl>
+#>  1 region: APAC     1.53      -1.26      4.88
+#>  2 region: EU       0.764     -1.95      3.47
+#>  3 region: USA      0.379     -2.60      3.12
+#>  4 comorbidity: No  0.607     -1.75      3.11
+#>  5 comorbidity: Yes 1.28      -1.37      3.93
+#>  6 age_group: <50   1.28      -1.61      4.28
+#>  7 age_group: >65   0.852     -2.12      3.93
+#>  8 age_group: 50-65 0.661     -1.80      3.20
+#>  9 sex: F           0.00542   -2.87      2.66
+#> 10 sex: M           1.65      -0.775     4.30
+#> 11 diabetes: No     0.312     -2.21      2.72
+#> 12 diabetes: Yes    2.01      -0.845     5.15
 #> 
 #> $response_type
 #> [1] "continuous"
