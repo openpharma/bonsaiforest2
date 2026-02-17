@@ -44,8 +44,7 @@ test_that("run_brms_analysis works with GLOBAL fixed effects (continuous outcome
     response_formula = "outcome ~ trt",
     response_type = "continuous",
     shrunk_prognostic_formula = "~ 0 + age",
-    shrunk_predictive_formula = "~ 0 + trt:region",
-    sigma_ref = sd(test_data_run$outcome)
+    shrunk_predictive_formula = "~ 0 + trt:region"
   )
 
   expect_s3_class(fit, "brmsfit")
@@ -61,8 +60,7 @@ test_that("run_brms_analysis works with GLOBAL fixed effects (binary outcome)", 
     data = test_data_run,
     response_formula = "binary_outcome ~ trt",
     response_type = "binary",
-    shrunk_predictive_formula = "~ 0 + trt:region",
-    sigma_ref = 1  # Default for binary
+    shrunk_predictive_formula = "~ 0 + trt:region"
   )
 
   expect_s3_class(fit, "brmsfit")
@@ -74,8 +72,7 @@ test_that("run_brms_analysis works with GLOBAL fixed effects (survival outcome)"
     response_formula = "Surv(time, status) ~ trt",
     response_type = "survival",
     unshrunk_terms_formula = "~ age",
-    shrunk_predictive_formula = "~ 0 + trt:subgroup",
-    sigma_ref = 1  # Default for survival
+    shrunk_predictive_formula = "~ 0 + trt:subgroup"
   )
 
   expect_s3_class(fit, "brmsfit")
@@ -91,8 +88,7 @@ test_that("run_brms_analysis works with OVAT random effects (continuous outcome)
     response_formula = "outcome ~ trt",
     response_type = "continuous",
     unshrunk_terms_formula = "~ age",  # Put age in unshrunk instead
-    shrunk_predictive_formula = "~ (0 + trt || subgroup)",
-    sigma_ref = sd(test_data_run$outcome)
+    shrunk_predictive_formula = "~ (0 + trt || subgroup)"
   )
 
   expect_s3_class(fit, "brmsfit")
@@ -110,7 +106,6 @@ test_that("run_brms_analysis works with OVAT random effects (survival outcome)",
     response_type = "survival",
     unshrunk_terms_formula = "~ age",
     shrunk_predictive_formula = "~ (0 + trt || subgroup)",
-    sigma_ref = 1,
     shrunk_predictive_prior = NULL  # No fixed effects in random effects formula
   )
 
@@ -121,60 +116,28 @@ test_that("run_brms_analysis works with OVAT random effects (survival outcome)",
 # DEFAULT BEHAVIOR TESTS
 # ============================================================================
 
-test_that("run_brms_analysis uses default sigma_ref = 1", {
-  # Should work without specifying sigma_ref (defaults to 1)
-  fit <- run_quick_full_analysis(
-    data = test_data_run,
-    response_formula = "binary_outcome ~ trt",
-    response_type = "binary",
-    shrunk_predictive_formula = "~ 0 + trt:region"
-    # Note: sigma_ref not specified, should default to 1
-  )
-
-  expect_s3_class(fit, "brmsfit")
-})
-
-test_that("run_brms_analysis warns about default sigma_ref for continuous outcomes", {
-  # Don't use helper function that suppresses messages
-  expect_message(
-    run_brms_analysis(
-      data = test_data_run,
-      response_formula = "outcome ~ trt",
-      response_type = "continuous",
-      shrunk_predictive_formula = "~ 0 + trt:region",
-      # sigma_ref not specified - should warn
-      chains = 1, iter = 1000, warmup = 50, refresh = 0,
-      backend = "cmdstanr",
-      cores = 1
-    ),
-    "Using default sigma_ref = 1 for continuous outcome"
-  )
-})
-
 # ============================================================================
 # CUSTOM PRIOR TESTS
 # ============================================================================
 
-test_that("run_brms_analysis accepts custom priors with sigma_ref placeholder", {
+test_that("run_brms_analysis accepts custom priors", {
   fit <- run_quick_full_analysis(
     data = test_data_run,
     response_formula = "outcome ~ trt",
     response_type = "continuous",
     shrunk_prognostic_formula = "~ 0 + age",
     shrunk_predictive_formula = "~ 0 + trt:region",
-    sigma_ref = 5,
-    unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
+    unshrunk_prior = "normal(0, 2.5)",
     shrunk_prognostic_prior = "normal(0, 1)",
-    shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)"
+    shrunk_predictive_prior = "horseshoe(scale_global = 1)"
   )
 
   expect_s3_class(fit, "brmsfit")
 
-  # Verify sigma_ref was substituted in priors
+  # Verify custom priors were applied
   priors_df <- as.data.frame(fit$prior)
-  # Check for horseshoe with scale_global = 5 in shrunk predictive
   shpred_priors <- priors_df[priors_df$nlpar == "shpredeffect", "prior"]
-  expect_true(any(grepl("horseshoe.*5", shpred_priors, ignore.case = TRUE)))
+  expect_true(any(grepl("horseshoe", shpred_priors, ignore.case = TRUE)))
 })
 
 # ============================================================================
@@ -212,16 +175,7 @@ test_that("run_brms_analysis validates inputs correctly", {
     regexp = "Must be element of set"
   )
 
-  # Invalid sigma_ref (negative)
-  expect_error(
-    run_brms_analysis(
-      data = test_data_run,
-      response_formula = "outcome ~ trt",
-      response_type = "continuous",
-      sigma_ref = -1
-    ),
-    regexp = "Element 1 is not >= 0"
-  )
+
 
   # Invalid stanvars class
   expect_error(
@@ -247,7 +201,6 @@ test_that("run_brms_analysis works with mixed GLOBAL and OVAT syntax", {
     response_type = "continuous",
     shrunk_prognostic_formula = "~ 0 + age",  # GLOBAL (fixed effect)
     shrunk_predictive_formula = "~ (0 + trt || subgroup)",  # OVAT (random effect)
-    sigma_ref = sd(test_data_run$outcome),
     shrunk_predictive_prior = NULL  # No fixed effects in random effects formula
   )
 
@@ -263,8 +216,7 @@ test_that("run_brms_analysis preserves attributes in fitted model", {
     data = test_data_run,
     response_formula = "outcome ~ trt",
     response_type = "continuous",
-    shrunk_predictive_formula = "~ 0 + trt:region",
-    sigma_ref = sd(test_data_run$outcome)
+    shrunk_predictive_formula = "~ 0 + trt:region"
   )
 
   # Check that attributes are stored for downstream functions

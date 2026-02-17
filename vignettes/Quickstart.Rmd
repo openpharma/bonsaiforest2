@@ -34,12 +34,12 @@ The `bonsaiforest2` package consists of 3 core functions which are typically cal
 2.  `summary_subgroup_effects()` - Calculates the marginal subgroup treatment effects.
 3.  `plot()` - Creates a forest plot from the summary object.
 
-The package enables the implementation of both a **global modeling approach** [@wolbers2025using], that estimates all prognostic and predictive effects in a single model, and a **One-Variable-At-a-Time (OVAT)** approach [@wang2024bayesian], that estimates the predictive effects using a different model for each subgrouping variable.
+The package enables the implementation of both **global shrinkage models** [@wolbers2025using], that estimate all prognostic and predictive effects in a single model, and **one-way shrinkage models** [@wang2024bayesian], that estimate the predictive effects using a different model for each subgrouping variable.
 
 This vignette demonstrates how to use the package to fit and compare these different modeling formulas. You'll learn how to:
 
--   Fit OVAT models (one model per subgroup variable)
--   Fit a global model (all subgroup variables in one model)
+-   Fit one-way shrinkage models (one model per subgroup variable)
+-   Fit a global shrinkage model (all subgroup variables in one model)
 -   Generate summaries of subgroup treatment effects
 -   Visualize and compare results from different model specifications
 
@@ -88,176 +88,167 @@ continuous_data$trt <- factor(continuous_data$trt, levels = c(0, 1))
 print(head(continuous_data))
 ```
 
-# OVAT: One Variable At a Time
+# One-way Shrinkage Models
 
-This section demonstrates how to fit separate models, each examining one subgroup variable at a time. We'll fit a model for each of our 5 subgroup variables.
+This section demonstrates how to fit separate models, each examining one subgroup variable at a time. In one-way shrinkage models, we specify shrunk predictive effects using random effects notation (e.g., `~ (1 + trt || subgroup)`), which allows treatment effects to vary by subgroup with automatic hierarchical regularization.
 
-## OVAT: Region Only
+## One-way Model: Region Only
 
-```{r ovat-region, message=FALSE, warning=FALSE}
-# Write the sigma specified in the trial protocol
-priors <- c(
-  prior(normal(0, 5), class = "sd", coef = "Intercept", group = "SEX"),
-  prior(normal(0, 5), class = "sd", coef = "TRT01PN", group = "SEX"),
-  prior(gamma(2, 0.1), class = "shape")
-)
-
-sigma_ref <- 2
-
-# Fit model with only region as subgroup variable
-ovat_region <- run_brms_analysis(
+```{r oneway-region, message=FALSE, warning=FALSE}
+# Fit model with only region as subgroup variable using one-way shrinkage approach
+# Random effects notation (||) estimates varying treatment effects by region
+oneway_region <- run_brms_analysis(
   data = continuous_data,
-  response_formula = sbp_change ~ trt,
   response_type = "continuous",
+  response_formula = sbp_change ~ trt,
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0+ (1+trt||region),
-  sigma_ref = sigma_ref,
-  chains = 1, iter = 2000, warmup = 1000, cores = 1,
+  shrunk_predictive_formula = ~ (1 + trt || region),
+  chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 
-summary_ovat_region <- summary_subgroup_effects(brms_fit = ovat_region)
+summary_oneway_region <- summary_subgroup_effects(brms_fit = oneway_region)
+print(summary_oneway_region)
 ```
 
-## OVAT: Comorbidity Only
+## One-way Model: Comorbidity Only
 
-```{r ovat-comorbidity, message=FALSE, warning=FALSE}
-ovat_comorbidity <- run_brms_analysis(
+```{r oneway-comorbidity, message=FALSE, warning=FALSE}
+oneway_comorbidity <- run_brms_analysis(
   data = continuous_data,
-  response_formula = sbp_change ~ trt,
   response_type = "continuous",
+  response_formula = sbp_change ~ trt,
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (1+trt||comorbidity),
-  sigma_ref = sigma_ref,
-  chains = 1, iter = 2000, warmup = 1000, cores = 1,
+  shrunk_predictive_formula = ~ (1 + trt || comorbidity),
+  chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 
-summary_ovat_comorbidity <- summary_subgroup_effects(brms_fit = ovat_comorbidity)
+summary_oneway_comorbidity <- summary_subgroup_effects(brms_fit = oneway_comorbidity)
 ```
 
-## OVAT: Age Group Only
+## One-way Model: Age Group Only
 
-```{r ovat-age, message=FALSE, warning=FALSE}
-ovat_age <- run_brms_analysis(
+```{r oneway-age, message=FALSE, warning=FALSE}
+oneway_age <- run_brms_analysis(
   data = continuous_data,
-  response_formula = sbp_change ~ trt,
   response_type = "continuous",
+  response_formula = sbp_change ~ trt,
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (1+trt||age_group),
-  sigma_ref = sigma_ref,
-  chains = 1, iter = 2000, warmup = 1000, cores = 1,
+  shrunk_predictive_formula = ~ (1 + trt || age_group),
+  chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 
-summary_ovat_age <- summary_subgroup_effects(brms_fit = ovat_age, subgroup_vars = "age_group")
+summary_oneway_age <- summary_subgroup_effects(brms_fit = oneway_age)
 ```
 
-## OVAT: Sex Only
+## One-way Model: Sex Only
 
-```{r ovat-sex, message=FALSE, warning=FALSE}
-ovat_sex <- run_brms_analysis(
+```{r oneway-sex, message=FALSE, warning=FALSE}
+oneway_sex <- run_brms_analysis(
   data = continuous_data,
-  response_formula = sbp_change ~ trt,
   response_type = "continuous",
+  response_formula = sbp_change ~ trt,
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (1+trt||sex),
-  sigma_ref = sigma_ref,
-  chains = 1, iter = 2000, warmup = 1000, cores = 1,
+  shrunk_predictive_formula = ~ (1 + trt || sex),
+  chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 
-summary_ovat_sex <- summary_subgroup_effects(brms_fit = ovat_sex)
+summary_oneway_sex <- summary_subgroup_effects(brms_fit = oneway_sex)
 ```
 
-## OVAT: Diabetes Only
+## One-way Model: Diabetes Only
 
-```{r ovat-diabetes, message=FALSE, warning=FALSE}
-ovat_diabetes <- run_brms_analysis(
+```{r oneway-diabetes, message=FALSE, warning=FALSE}
+oneway_diabetes <- run_brms_analysis(
   data = continuous_data,
-  response_formula = sbp_change ~ trt,
   response_type = "continuous",
+  response_formula = sbp_change ~ trt,
   unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + (1+trt||diabetes),
-  sigma_ref = sigma_ref,
-  chains = 1, iter = 2000, warmup = 1000, cores = 1,
+  shrunk_predictive_formula = ~ (1 + trt || diabetes),
+  chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 
-summary_ovat_diabetes <- summary_subgroup_effects(brms_fit = ovat_diabetes)
+summary_oneway_diabetes <- summary_subgroup_effects(brms_fit = oneway_diabetes)
 ```
 
-## OVAT: Visualizing All Models
+## One-way Models: Visualizing All Models
 
 You can combine and visualize results from multiple models using `combine_summaries()`:
 
-```{r compare-all-ovat, fig.width=9, fig.height=8}
-# Combine all OVAT models
-combined_ovat <- combine_summaries(list(
-  "Region" = summary_ovat_region,
-  "Comorbidity" = summary_ovat_comorbidity,
-  "Age Group" = summary_ovat_age,
-  "Sex" = summary_ovat_sex,
-  "Diabetes" = summary_ovat_diabetes
+```{r compare-all-oneway, fig.width=9, fig.height=8}
+# Combine all one-way shrinkage models
+combined_oneway <- combine_summaries(list(
+  "Region" = summary_oneway_region,
+  "Comorbidity" = summary_oneway_comorbidity,
+  "Age Group" = summary_oneway_age,
+  "Sex" = summary_oneway_sex,
+  "Diabetes" = summary_oneway_diabetes
 ))
 
-plot(combined_ovat, title = "OVAT: All Subgroup Variables")
+plot(combined_oneway, title = "One-way Shrinkage Models: All Subgroup Variables")
 ```
 
-# Global Modeling Approach
+# Global Shrinkage Model
 
-This section demonstrates how to fit a single model that includes all subgroup variables simultaneously.
+This section demonstrates how to fit a single model that includes all subgroup variables simultaneously using the global shrinkage approach. All treatment-by-subgroup interactions are estimated in one unified model with strong regularization (Horseshoe prior) applied to the interaction terms.
 
-## Global Model: All Subgroups
+## Global Shrinkage Model: All Subgroups
 
 ```{r global-fit, message=FALSE, warning=FALSE}
-# Fit a single model with ALL subgroup variables
-global_model <- run_brms_analysis(
+# Fit a single model with ALL subgroup variables simultaneously
+# - Unshrunk terms: baseline_sbp with weak priors (will be reference-coded)
+# - Shrunk prognostic effects: subgroup main effects with strong regularization (one-hot coded)
+# - Shrunk predictive effects: treatment interactions with strong regularization (one-hot coded)
+global_shrinkage_model <- run_brms_analysis(
   data = continuous_data,
-  response_formula = sbp_change ~ trt,
   response_type = "continuous",
-  unshrunk_terms_formula = ~ baseline_sbp + region + comorbidity + age_group + sex + diabetes,
-  shrunk_predictive_formula = ~ 0 + trt:region+trt:comorbidity + trt:age_group + trt:sex + trt:diabetes,
-  shrunk_predictive_prior = "horseshoe(1)",
-  sigma_ref = sigma_ref,
-  chains = 1, iter = 2000, warmup = 1000, cores = 1,
+  response_formula = sbp_change ~ trt,
+  unshrunk_terms_formula = ~ baseline_sbp,
+  shrunk_prognostic_formula = ~ 0 + region + comorbidity + age_group + sex + diabetes,
+  shrunk_predictive_formula = ~ 0 + trt:region + trt:comorbidity + trt:age_group + trt:sex + trt:diabetes,
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
+  chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 ```
 
-## Global Model: Summary of Subgroup Effects
+## Global Shrinkage Model: Summary of Subgroup Effects
 
-Use `summary_subgroup_effects()` to generate marginal treatment effects for each subgroup. The function automatically extracts all necessary parameters from the fitted model:
+Use `summary_subgroup_effects()` to generate marginal treatment effects for each subgroup. The function automatically extracts all treatment interactions from the fitted model:
 
 ```{r global-summary}
-global_summary <- summary_subgroup_effects(
-  brms_fit = global_model
-)
+global_summary <- summary_subgroup_effects(brms_fit = global_shrinkage_model)
 
+# Print the summary of subgroup-specific treatment effects
 print(global_summary)
 ```
 
-## Global Model: Visualization
+## Global Shrinkage Model: Visualization
 
 Use the `plot()` function to create a forest plot from the summary object:
 
 ```{r global-plot, fig.width=8, fig.height=10}
-plot(global_summary, title = "Global Model: All Subgroup Variables")
+plot(global_summary, title = "Global Shrinkage Model: All Subgroup Variables")
 ```
 
 # Comparing Multiple Models in One Plot
 
 The `plot()` function supports comparing multiple models side-by-side. Pass a named list of `subgroup_summary` objects to create a comparative forest plot.
 
-## Example: Comparing OVAT vs Global Model
+## Example: Comparing One-way vs Global Shrinkage Models
 
 ```{r compare-models, fig.width=9, fig.height=7}
 # Combine summaries for comparison
 combined <- combine_summaries(list(
-  "OVAT" = combined_ovat,
-  "Global Model" = global_summary
+  "One-way Shrinkage" = combined_oneway,
+  "Global Shrinkage" = global_summary
 ))
 
 # Plot the comparison
-plot(combined, title = "Comparing OVAT vs Global Model")
+plot(combined, title = "Comparing One-way vs Global Shrinkage Models")
 ```

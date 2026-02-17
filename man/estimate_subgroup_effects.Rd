@@ -10,7 +10,8 @@ estimate_subgroup_effects(
   data = NULL,
   subgroup_vars = "auto",
   response_type = NULL,
-  ndraws = NULL
+  ndraws = NULL,
+  conf = 0.95
 )
 }
 \arguments{
@@ -39,6 +40,9 @@ for effect estimation.}
 \item{ndraws}{An integer or \code{NULL}. Number of posterior draws to use for estimation.
 If \code{NULL} (default), all available posterior draws are used. Reducing this can speed
 up computation at the cost of precision.}
+
+\item{conf}{A numeric scalar. Credible interval confidence level. Default is 0.95
+(corresponding to 95\% credible intervals). Example: use 0.90 for 90\% credible intervals.}
 }
 \value{
 \code{list} with two named elements:

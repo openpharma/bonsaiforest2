@@ -410,11 +410,11 @@ test_that("Predictive interaction overlaps create duplicates", {
   # Original variable in unshrunk (dummy encoding)
   expect_true("region" %in% get_formula_rhs(res$formula, "unshrunktermeffect"))
   expect_dummy_contrasts(res$data, "region")
-  
+
   # Duplicate variable with _onehot suffix in shrunk predictive (one-hot encoding)
   expect_equal(get_formula_rhs(res$formula, "shpredeffect"), "trt:region_onehot")
   expect_onehot_contrasts(res$data, "region_onehot")
-  
+
   # Both variables should exist in data
   expect_true("region" %in% names(res$data))
   expect_true("region_onehot" %in% names(res$data))

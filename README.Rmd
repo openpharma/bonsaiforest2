@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-The `bonsaiforest2` package is used for Bayesian shrinkage estimation of subgroup treatment effects in randomized clinical trials. It supports both One-Variable-at-a-Time (OVAT) and Global modeling approaches for estimating treatment-by-subgroup interactions, with built-in support for continuous, binary, time-to-event (Cox), and count outcomes. The package implements state-of-the-art shrinkage priors including Regularized Horseshoe and R2D2, combined with standardization (G-computation) to provide interpretable marginal treatment effects. By leveraging `brms` and `Stan`, `bonsaiforest2` provides a practical tool for obtaining more stable and reliable subgroup effect estimates in exploratory analyses.
+The `bonsaiforest2` package is used for Bayesian shrinkage estimation of subgroup treatment effects in randomized clinical trials. It supports both one-way shrinkage models and global shrinkage models for estimating treatment-by-subgroup interactions, with built-in support for continuous, binary, time-to-event (Cox), and count outcomes. The package allows the usage of state-of-the-art shrinkage priors including Regularized Horseshoe and R2D2, combined with standardization (G-computation) to provide interpretable marginal treatment effects. By leveraging `brms` and `Stan`, `bonsaiforest2` provides a practical tool for obtaining more stable and reliable subgroup effect estimates in exploratory analyses.
 
 ## Installation
 
@@ -26,45 +26,219 @@ The `bonsaiforest2` package is used for Bayesian shrinkage estimation of subgrou
 remotes::install_github("openpharma/bonsaiforest2")
 ```
 
-## Example
+## Key Concepts
 
-This example demonstrates the usage of `bonsaiforest2` for subgroup treatment effect estimation across multiple overlapping subgroups (Age, Region, and Biomarker) using a Global Modeling approach with a Regularized Horseshoe prior.
+### Modeling Approaches
 
-```{r example-1, message=FALSE, warning=FALSE, results='hide'}
+`bonsaiforest2` supports two main approaches for subgroup analysis:
+
+#### Global Shrinkage Models
+- Fit a single unified model with treatment-by-subgroup interactions specified as fixed effects using colon notation (e.g., `~ 0 + trt:subgroupvar1 + trt:subgroupvar2 + ...`)
+- Treat all subgroups symmetrically through one-hot encoding
+
+#### One-way Shrinkage Models
+- Fit one different model for each one of the subgrouping variables
+- Use random effects notation (e.g., `~ (0+trt || subgroup)`) to estimate varying treatment effects by subgroup
+
+### Shrinkage Framework
+
+The model decomposes into three components:
+
+1. **Unshrunk terms** (`unshrunktermeffect`): Main effects with weakly informative priors
+2. **Shrunk prognostic effects** (`shprogeffect`): Baseline covariate effects with strong regularization
+3. **Shrunk predictive effects** (`shpredeffect`): Treatment-by-subgroup interactions with strong regularization
+
+### Prior Specification
+
+The package includes sensible defaults that adapt to response type and model structure. You can override defaults by specifying:
+- `intercept_prior`: For the intercept we use the default non-informative prior given by brms
+- `unshrunk_prior`: Flat priors given by the brms default
+- `shrunk_prognostic_prior`: Strong regularization (e.g., Regularized Horseshoe)
+- `shrunk_predictive_prior`: Strong regularization (e.g., Regularized Horseshoe for global model and Hierarchical Normal for one-way).
+
+### Response Types
+
+The package supports four outcome types:
+- **continuous**: Linear regression with residual SD
+- **binary**: Logistic regression  
+- **count**: Poisson or negative binomial regression
+- **survival**: Cox proportional hazards model
+
+## Quick Start Example
+
+This example demonstrates Bayesian shrinkage estimation of treatment effects across subgroups using a **global shrinkage model** with a Regularized Horseshoe prior. Treatment effects are estimated with marginal standardization (G-computation) for interpretable population-level contrasts.
+
+```{r example-continuous, message=FALSE, warning=FALSE}
 library(bonsaiforest2)
 
-# 1. Simulate trial data
-set.seed(42)
-n <- 200
+# 1. Simulate continuous outcome trial data with treatment effects
+set.seed(123)
+n <- 300
 trial_data <- data.frame(
-  outcome  = rnorm(n),
-  trt      = factor(sample(c("Control", "Active"), n, replace = TRUE)),
-  age_cat  = factor(sample(c("<65", ">=65"), n, replace = TRUE)),
-  region   = factor(sample(c("US", "EU", "Asia"), n, replace = TRUE)),
-  biomarker = factor(sample(c("Pos", "Neg"), n, replace = TRUE))
+  y         = rnorm(n, mean = 50, sd = 15),
+  trt       = factor(rep(c("Control", "Active"), length.out = n)),
+  age_cat   = factor(rep(c("<65", ">=65"), each = n/2)),
+  region    = factor(rep(c("US", "EU", "Asia"), length.out = n))
 )
 
-# 2. Fit a Global Model with default priors
-fit <- run_brms_analysis(
+# Add realistic treatment and subgroup effects
+trial_data$y <- trial_data$y + 
+  (as.numeric(trial_data$trt) - 1) * 8 +  # Treatment effect
+  (as.numeric(trial_data$age_cat) - 1) * 3 +  # Age effect
+  (as.numeric(trial_data$trt) - 1) * (as.numeric(trial_data$age_cat) - 1) * 4  # Interaction
+
+# 2. Fit Global Model with Regularized Horseshoe prior
+fit_global <- run_brms_analysis(
   data = trial_data,
   response_type = "continuous",
-  response_formula = outcome ~ trt,
-  unshrunk_terms_formula = ~ age_cat + region + biomarker, 
-  shrunk_predictive_formula = ~ 0 + trt:age_cat + trt:region + trt:biomarker, 
-  sigma_ref = 3,
-  chains = 2, iter = 1000, warmup = 500 #
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ age_cat + region,
+  shrunk_predictive_formula = ~ 0 + trt:age_cat + trt:region,
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
+  chains = 2, iter = 2000, warmup = 1000,
+  backend = "cmdstanr", refresh = 0
 )
 
-# 3. Derive Marginal Treatment Effects
-subgroup_effects <- summary_subgroup_effects(
-  brms_fit = fit
-)
+# 3. Extract and visualize marginal treatment effects by subgroup
+subgroup_effects <- summary_subgroup_effects(brms_fit = fit_global)
+print(subgroup_effects)
+plot(subgroup_effects)
 ```
 
-```{r}
-# Print summary
-print(subgroup_effects)
+## Additional Examples
 
-# 4. Visualize Results
-plot(subgroup_effects)
+### Binary Outcome with Global Approach
+
+```{r example-binary, message=FALSE, warning=FALSE}
+# Simulate binary outcome trial
+set.seed(456)
+n <- 400
+trial_data_binary <- data.frame(
+  response   = rbinom(n, size = 1, prob = 0.3),
+  trt        = factor(rep(c("Control", "Active"), length.out = n)),
+  biomarker  = factor(rep(c("Neg", "Pos"), each = n/2))
+)
+
+# Add baseline and treatment effects
+trial_data_binary$response <- as.numeric(
+  plogis(qlogis(0.3) + 
+           (as.numeric(trial_data_binary$trt) - 1) * 0.8 +
+           (as.numeric(trial_data_binary$biomarker) - 1) * 0.5 +
+           (as.numeric(trial_data_binary$trt) - 1) * (as.numeric(trial_data_binary$biomarker) - 1) * 0.6) > 0.5
+)
+
+# Fit binary model
+fit_binary <- run_brms_analysis(
+  data = trial_data_binary,
+  response_type = "binary",
+  response_formula = response ~ trt,
+  unshrunk_terms_formula = ~ 1,
+  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  intercept_prior = "normal(0, 1.5)",
+  unshrunk_prior = "normal(0, 1.5)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  chains = 2, iter = 2000, warmup = 1000,
+  backend = "cmdstanr", refresh = 0
+)
+
+effects_binary <- summary_subgroup_effects(brms_fit = fit_binary)
+print(effects_binary)
+```
+
+### Survival Outcome with One-way Shrinkage Model
+
+```{r example-survival, message=FALSE, warning=FALSE}
+# Simulate survival data
+set.seed(789)
+n <- 250
+trial_data_surv <- data.frame(
+  time    = rexp(n, rate = 0.01),
+  status  = rbinom(n, size = 1, prob = 0.6),
+  trt     = factor(rep(c("Control", "Active"), length.out = n)),
+  region  = factor(rep(c("US", "EU"), each = n/2))
+)
+
+# Fit survival model using one-way shrinkage approach with random effects
+fit_surv <- run_brms_analysis(
+  data = trial_data_surv,
+  response_type = "survival",
+  response_formula = survival::Surv(time, status) ~ trt,
+  unshrunk_terms_formula = ~ 1,
+  shrunk_predictive_formula = ~ (trt || region),
+  unshrunk_prior = "normal(0, 1.5)",
+  signa_ref = 1,
+  chains = 2, iter = 2000, warmup = 1000,
+  backend = "cmdstanr", refresh = 0
+)
+
+effects_surv <- summary_subgroup_effects(brms_fit = fit_surv)
+print(effects_surv)
+```
+
+## Workflow
+
+The standard `bonsaiforest2` workflow follows these steps:
+
+1. **Prepare your data**: Ensure treatment is binary (0/1 or factor with 2 levels), subgroup variables are factors, and outcomes are properly formatted.
+
+2. **Choose modeling approach**: 
+   - Use **global shrinkage models** for most applications (colon syntax: `~ 0 + trt:subgroup`)
+   - Use **one-way shrinkage models** for many subgroups or hierarchical borrowing (pipe syntax: `~ (trt || subgroup)`)
+
+3. **Specify priors**:
+   - Use default priors (horseshoe(1) for shrunk terms) or customize for your analysis
+   - Specify regularization strength for shrunk terms (see Prior Selection below)
+
+4. **Fit the model** using `run_brms_analysis()`
+
+5. **Extract results** with `summary_subgroup_effects()` and `estimate_subgroup_effects()`
+
+6. **Visualize** using `plot()` on the summary object
+
+## Prior Selection Guidance
+
+### Choosing Regularization Strength
+
+The `scale_global` parameter in Horseshoe priors controls shrinkage:
+
+- **Mild regularization** (`scale_global = 1` or higher): Use when you expect substantial treatment heterogeneity
+- **Moderate regularization** (`scale_global = 0.5`): Default choice, balances bias and variance
+- **Strong regularization** (`scale_global = 0.1`): Use when you expect effects are mostly zero or very small
+
+### Alternative Priors
+
+You can use other shrinkage priors such as:
+- `"lasso(scale = 1)"`: Laplace prior, simpler but less flexible than Horseshoe
+- `"student_t(3, 0, 1)"`: Heavy-tailed, allows some outliers
+- `"normal(0, 1)"`: Standard normal, minimal shrinkage
+
+## Common Tips & Troubleshooting
+
+### Model Specification
+
+- **Always include main effects for subgroup variables**: If you specify `~ 0 + trt:subgroup` in `shrunk_predictive_formula`, include `subgroup` in `shrunk_prognostic_formula` to maintain marginality (e.g., `~ 0 + subgroup`)
+
+- **One-hot encoding for shrunk terms**: Use `~ 0 + var` with the intercept removed for shrunk terms to treat all factor levels symmetrically
+
+- **Reference coding for unshrunk terms**: Use standard `~ var` with intercept for unshrunk terms (reference level is automatically dropped)
+
+### MCMC Diagnostics
+
+- **Check Rhat**: Should be < 1.01 for reliable inference
+- **Check effective sample size**: Use `posterior::ndraws()` to verify adequate effective draws
+- **Increase iterations if needed**: Use `iter = 4000, warmup = 2000` or higher for difficult models
+
+### Computation
+
+- Use `backend = "cmdstanr"` for faster, more stable sampling (requires cmdstanr installation)
+- Set `cores = parallel::detectCores()` to parallelize chains
+- Use `refresh = 0` to suppress iteration printing for clean output
+
+## Learning More
+
+See the vignettes for in-depth examples:
+
+```{r, eval=FALSE}
+browseVignettes("bonsaiforest2")
 ```

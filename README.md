@@ -52,7 +52,7 @@ fit <- run_brms_analysis(
   response_formula = outcome ~ trt,
   unshrunk_terms_formula = ~ age_cat + region + biomarker, 
   shrunk_predictive_formula = ~ 0 + trt:age_cat + trt:region + trt:biomarker, 
-  sigma_ref = 3,
+  sigma_ref = sd(trial_data$outcome),  # Use observed sd or protocol value
   chains = 2, iter = 1000, warmup = 500 #
 )
 
