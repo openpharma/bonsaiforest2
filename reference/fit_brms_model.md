@@ -10,7 +10,6 @@ priors to the different non-linear components of the model.
 ``` r
 fit_brms_model(
   prepared_model,
-  sigma_ref = 1,
   intercept_prior = NULL,
   unshrunk_prior = NULL,
   shrunk_prognostic_prior = NULL,
@@ -33,22 +32,12 @@ fit_brms_model(
   model for use by downstream functions like
   [`estimate_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/estimate_subgroup_effects.md).
 
-- sigma_ref:
-
-  A numeric scalar. Reference scale for prior specification. Default
-  is 1. For continuous outcomes, recommended values are: (1) Assumed
-  standard deviation from trial protocol (preferred), or (2)
-  `sd(outcome_variable)` if protocol value unavailable. For binary,
-  survival and count outcomes, the default value of 1 is typically
-  appropriate. Can be referenced in prior strings using the placeholder
-  `sigma_ref` (e.g., `"normal(0, 2.5 * sigma_ref)"`).
-
 - intercept_prior:
 
   A character string, `brmsprior` object, or `NULL`. Prior specification
-  for the model intercept in the `unshrunktermeffect` component.
-  Supports `sigma_ref` placeholder substitution. Not used for survival
-  models (Cox models have no intercept). Example: `"normal(0, 10)"`.
+  for the model intercept in the `unshrunktermeffect` component. Not
+  used for survival models (Cox models have no intercept). Example:
+  `"normal(0, 10)"`.
 
 - unshrunk_prior:
 
@@ -99,8 +88,8 @@ for downstream analysis functions.
 Priors are specified separately for each model component using dedicated
 parameters. This provides explicit control and prevents errors. The
 function accepts prior definitions as character strings (e.g.,
-`"normal(0, 2.5 * sigma_ref)"`) or as `brmsprior` objects for complex
-hierarchical or parameter-specific priors.
+`"normal(0, 2.5)"`) or as `brmsprior` objects for complex hierarchical
+or parameter-specific priors.
 
 **Available prior parameters:**
 
@@ -115,86 +104,39 @@ hierarchical or parameter-specific priors.
 - `shrunk_predictive_prior`: Prior for shrunk predictive effects
   (regularized)
 
-**Using sigma_ref in priors:** You can reference `sigma_ref` in prior
-strings, and it will be automatically substituted. For example:
-`"normal(0, 2.5 * sigma_ref)"` becomes `"normal(0, 8)"` when sigma_ref =
-3.2.
-
 **Default Priors by Response Type and Model Structure:**
 
 If you don't specify priors, the function uses sensible defaults that
 adapt to the model structure and response type:
 
-**For models with fixed effects (GLOBAL) (colon `:` syntax):**
+**For all response types (continuous, binary, count, survival):**
 
-*Continuous outcomes:*
+- `intercept_prior`: `NULL` (brms default)
 
-- `intercept_prior`: `normal(outcome_mean, 2.5 * sigma_ref)` (weakly
-  informative, centered at outcome mean)
-
-- `unshrunk_prior`: `normal(0, 2.5 * sigma_ref)` (weakly informative)
+- `unshrunk_prior`: `NULL` (brms default)
 
 - `shrunk_prognostic_prior`: `horseshoe(1)` (strong regularization)
 
 - `shrunk_predictive_prior`: `horseshoe(1)` (strong regularization)
 
-- `sigma`: `student_t(3, 0, sigma_ref)` (half-t prior for residual SD)
-
-*Binary outcomes:*
-
-- `intercept_prior`: `normal(0, 1.5)` (weakly informative on logit
-  scale)
-
-- `unshrunk_prior`: `normal(0, 1.5)`
-
-- `shrunk_prognostic_prior`: `horseshoe(1)`
-
-- `shrunk_predictive_prior`: `horseshoe(1)`
-
-*Count outcomes:*
-
-- `intercept_prior`: `normal(0, 2)` (weakly informative on log scale)
-
-- `unshrunk_prior`: `normal(0, 2)`
-
-- `shrunk_prognostic_prior`: `horseshoe(1)`
-
-- `shrunk_predictive_prior`: `horseshoe(1)`
-
-- `shape`: Uses brms default prior for negative binomial shape parameter
-
-*Survival outcomes:*
-
-- No intercept (Cox models don't have intercepts)
-
-- `unshrunk_prior`: `normal(0, 1.5)` (weakly informative on log-hazard
-  scale)
-
-- `shrunk_prognostic_prior`: `horseshoe(1)`
-
-- `shrunk_predictive_prior`: `horseshoe(1)`
-
-**For models with random effects (One-variable-at-a-time (OVAT))
-(pipe-pipe `||` syntax):**
+**For models with random effects (One-way model) (pipe-pipe `||`
+syntax):**
 
 Random effects in shrunk predictive terms (e.g.,
-`~ (1 + trt || subgroup)`) automatically receive `normal(0, sigma_ref)`
-priors on the standard deviation scale for each coefficient and group
+`~ (0 + trt || subgroup)`) automatically receive `normal(0, 1)` priors
+on the standard deviation scale for each coefficient and group
 combination, regardless of the shrunk_predictive_prior setting. For
 example:
 
-- `prior(normal(0, sigma_ref), class = "sd", coef = "Intercept", group = "subgroup")`
-
-- `prior(normal(0, sigma_ref), class = "sd", coef = "trt", group = "subgroup")`
+- `prior(normal(0, 1), class = "sd", coef = "trt", group = "subgroup")`
 
 **Example:**
 
     fit_brms_model(
       prepared_model = prepared,
-      sigma_ref = 1,
-      unshrunk_prior = "normal(0, 2.5 * sigma_ref)",
-      shrunk_prognostic_prior = "horseshoe(scale_global = 0.5)",
-      shrunk_predictive_prior = "horseshoe(scale_global = 0.1)"
+      unshrunk_prior = "normal(0, 2.5)",
+      shrunk_prognostic_prior = "horseshoe(1)",
+      shrunk_predictive_prior = "horseshoe(1)"
     )
 
 ## Examples
@@ -229,17 +171,11 @@ if (require("brms") && require("survival")) {
 
   # 3. Fit the model
   if (FALSE) { # \dontrun{
-  # For survival models, typically use sigma_ref = 1
-  # For continuous outcomes, use protocol sigma (preferred) or sd(outcome) (fallback)
-  # Example: sigma_ref <- 12.5  # from protocol
-  # OR: sigma_ref <- sd(sim_data$outcome)  # if protocol value unavailable
-
   fit <- fit_brms_model(
     prepared_model = prepared_model,
-    sigma_ref = 1,
-    unshrunk_prior = "normal(0, 2 * sigma_ref)",
-    shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
-    shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
+    unshrunk_prior = "normal(0, 2)",
+    shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+    shrunk_predictive_prior = "horseshoe(scale_global = 1)",
     chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
   )
 

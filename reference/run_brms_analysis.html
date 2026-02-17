@@ -54,7 +54,6 @@ and fitting a complex Bayesian hierarchical model with <code>brms</code>.</p>
 <span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  stratification_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  sigma_ref <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  intercept_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  unshrunk_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  shrunk_prognostic_prior <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -111,33 +110,23 @@ use random effects notation (e.g., <code>~ (trt || subgroup)</code>). Passed to 
 For other models, models varying distributional parameters. Passed to <code><a href="prepare_formula_model.html">prepare_formula_model()</a></code>.</p></dd>
 
 
-<dt id="arg-sigma-ref">sigma_ref<a class="anchor" aria-label="anchor" href="#arg-sigma-ref"></a></dt>
-<dd><p>A numeric scalar. Reference scale for prior specification. Default is 1.
-For continuous outcomes, recommended values are: (1) Assumed standard deviation from trial
-protocol (preferred), or (2) <code>sd(outcome_variable)</code> if protocol value unavailable.
-For binary, survival and count outcomes, the default value of 1 is typically appropriate.
-Can be referenced in prior strings using the placeholder <code>sigma_ref</code>
-(e.g., <code>"normal(0, 2.5 * sigma_ref)"</code>). Passed to <code><a href="fit_brms_model.html">fit_brms_model()</a></code>.</p></dd>
-
-
 <dt id="arg-intercept-prior">intercept_prior<a class="anchor" aria-label="anchor" href="#arg-intercept-prior"></a></dt>
 <dd><p>A character string, <code>brmsprior</code> object, or <code>NULL</code>. Intercept prior for
-<code>unshrunktermeffect</code> component. Supports <code>sigma_ref</code> placeholder substitution.
-Not used for survival models (Cox models have no intercept).
-Example: <code>"normal(0, 10 * sigma_ref)"</code>. Passed to <code><a href="fit_brms_model.html">fit_brms_model()</a></code>.</p></dd>
+<code>unshrunktermeffect</code> component. Not used for survival models (Cox models have no intercept).
+Example: <code>"normal(0, 10)"</code>. Passed to <code><a href="fit_brms_model.html">fit_brms_model()</a></code>.</p></dd>
 
 
 <dt id="arg-unshrunk-prior">unshrunk_prior<a class="anchor" aria-label="anchor" href="#arg-unshrunk-prior"></a></dt>
 <dd><p>A character string, <code>brmsprior</code> object, or <code>NULL</code>. Prior for unshrunk
-terms (non-intercept coefficients in <code>unshrunktermeffect</code> component). Supports <code>sigma_ref</code>
-placeholder substitution. Example: <code>"normal(0, 2.5 * sigma_ref)"</code>. Passed to <code><a href="fit_brms_model.html">fit_brms_model()</a></code>.</p></dd>
+terms (non-intercept coefficients in <code>unshrunktermeffect</code> component).
+Example: <code>"normal(0, 2.5)"</code>. Passed to <code><a href="fit_brms_model.html">fit_brms_model()</a></code>.</p></dd>
 
 
 <dt id="arg-shrunk-prognostic-prior">shrunk_prognostic_prior<a class="anchor" aria-label="anchor" href="#arg-shrunk-prognostic-prior"></a></dt>
 <dd><p>A character string, <code>brmsprior</code> object, or <code>NULL</code>. Prior for
 regularized prognostic effects in <code>shprogeffect</code> component. For fixed effects (colon syntax),
-typically strong regularization like <code>"horseshoe(scale_global = sigma_ref)"</code>. For random
-effects (pipe-pipe syntax), automatically uses <code>normal(0, sigma_ref)</code> priors on the standard
+typically strong regularization like <code>"horseshoe(scale_global = 1)"</code>. For random
+effects (pipe-pipe syntax), automatically uses <code>normal(0, 1)</code> priors on the standard
 deviation scale. Passed to <code><a href="fit_brms_model.html">fit_brms_model()</a></code>.</p></dd>
 
 
@@ -145,8 +134,8 @@ deviation scale. Passed to <code><a href="fit_brms_model.html">fit_brms_model()<
 <dd><p>A character string, <code>brmsprior</code> object, or <code>NULL</code>. Prior for
 regularized predictive effects (treatment interactions) in <code>shpredeffect</code> component. For
 fixed effects (colon syntax), typically strong regularization like
-<code>"horseshoe(scale_global = 0.5 * sigma_ref)"</code>. For random effects (pipe-pipe syntax),
-automatically uses <code>normal(0, sigma_ref)</code> priors on the standard deviation scale. Passed to
+<code>"horseshoe(scale_global = 0.5)"</code>. For random effects (pipe-pipe syntax),
+automatically uses <code>normal(0, 1)</code> priors on the standard deviation scale. Passed to
 <code><a href="fit_brms_model.html">fit_brms_model()</a></code>.</p></dd>
 
 
@@ -191,11 +180,6 @@ then passes the results to <code><a href="fit_brms_model.html">fit_brms_model()<
 <span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="co"># 2. Run the full analysis using GLOBAL fixed effects (colon syntax)</span></span></span>
 <span class="r-in"><span>  <span class="kw">if</span> <span class="op">(</span><span class="cn">FALSE</span><span class="op">)</span> <span class="op">{</span> <span class="co"># \dontrun{</span></span></span>
-<span class="r-in"><span>  <span class="co"># For survival models, typically use sigma_ref = 1 (default)</span></span></span>
-<span class="r-in"><span>  <span class="co"># For continuous outcomes, use protocol sigma (preferred) or sd(outcome) (fallback)</span></span></span>
-<span class="r-in"><span>  <span class="co"># Example: sigma_ref &lt;- 12.5  # from protocol</span></span></span>
-<span class="r-in"><span>  <span class="co"># OR: sigma_ref &lt;- sd(sim_data$outcome)  # if protocol value unavailable</span></span></span>
-<span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="va">full_fit_global</span> <span class="op">&lt;-</span> <span class="fu">run_brms_analysis</span><span class="op">(</span></span></span>
 <span class="r-in"><span>    data <span class="op">=</span> <span class="va">sim_data</span>,</span></span>
 <span class="r-in"><span>    response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">time</span>, <span class="va">status</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span></span>
@@ -204,17 +188,16 @@ then passes the results to <code><a href="fit_brms_model.html">fit_brms_model()<
 <span class="r-in"><span>    shrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">region</span>,</span></span>
 <span class="r-in"><span>    shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">subgroup</span>,</span></span>
 <span class="r-in"><span>    stratification_formula <span class="op">=</span> <span class="op">~</span> <span class="va">region</span>,</span></span>
-<span class="r-in"><span>    sigma_ref <span class="op">=</span> <span class="fl">1</span>,  <span class="co"># Default for survival</span></span></span>
-<span class="r-in"><span>    unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2 * sigma_ref)"</span>,</span></span>
-<span class="r-in"><span>    shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = sigma_ref)"</span>,</span></span>
-<span class="r-in"><span>    shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = sigma_ref)"</span>,</span></span>
+<span class="r-in"><span>    unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2)"</span>,</span></span>
+<span class="r-in"><span>    shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span></span>
+<span class="r-in"><span>    shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span></span>
 <span class="r-in"><span>    chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">50</span>, warmup <span class="op">=</span> <span class="fl">10</span>, refresh <span class="op">=</span> <span class="fl">0</span> <span class="co"># For quick example</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">full_fit_global</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span>  <span class="co"># 3. Alternative: OVAT random effects (pipe-pipe syntax)</span></span></span>
-<span class="r-in"><span>  <span class="co"># Random effects automatically get normal(0, sigma_ref) priors on SD scale</span></span></span>
+<span class="r-in"><span>  <span class="co"># Random effects automatically get normal(0, 1) priors on SD scale</span></span></span>
 <span class="r-in"><span>  <span class="va">full_fit_ovat</span> <span class="op">&lt;-</span> <span class="fu">run_brms_analysis</span><span class="op">(</span></span></span>
 <span class="r-in"><span>    data <span class="op">=</span> <span class="va">sim_data</span>,</span></span>
 <span class="r-in"><span>    response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">time</span>, <span class="va">status</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span></span>
@@ -223,7 +206,6 @@ then passes the results to <code><a href="fit_brms_model.html">fit_brms_model()<
 <span class="r-in"><span>    shrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">1</span> <span class="op">||</span> <span class="va">region</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>    shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="va">trt</span> <span class="op">||</span> <span class="va">subgroup</span><span class="op">)</span>,</span></span>
 <span class="r-in"><span>    stratification_formula <span class="op">=</span> <span class="op">~</span> <span class="va">region</span>,</span></span>
-<span class="r-in"><span>    sigma_ref <span class="op">=</span> <span class="fl">1</span>,</span></span>
 <span class="r-in"><span>    chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">50</span>, warmup <span class="op">=</span> <span class="fl">10</span>, refresh <span class="op">=</span> <span class="fl">0</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>

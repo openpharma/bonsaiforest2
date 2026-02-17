@@ -99,7 +99,7 @@
 <span>  response_formula <span class="op">=</span> <span class="va">outcome</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age_cat</span> <span class="op">+</span> <span class="va">region</span> <span class="op">+</span> <span class="va">biomarker</span>, </span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">age_cat</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">region</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">biomarker</span>, </span>
-<span>  sigma_ref <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  sigma_ref <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/sd.html" class="external-link">sd</a></span><span class="op">(</span><span class="va">trial_data</span><span class="op">$</span><span class="va">outcome</span><span class="op">)</span>,  <span class="co"># Use observed sd or protocol value</span></span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span> <span class="co">#</span></span>
 <span><span class="op">)</span></span>
 <span></span>

@@ -54,7 +54,9 @@ summary_subgroup_effects(
 
 - `estimates`:
 
-  `tibble` with subgroup-specific treatment effect estimates
+  `tibble` where each row represents a subgroup, with columns for
+  `Subgroup`, `Median`, `CI_Lower`, and `CI_Upper` from posterior
+  distribution
 
 - `response_type`:
 
