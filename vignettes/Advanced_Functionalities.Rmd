@@ -32,32 +32,40 @@ This vignette demonstrates advanced functionalities for Bayesian shrinkage estim
 
 For count data (like disease exacerbations or event rates), the observed count often depends on the **exposure time** or **follow-up time**. Using an **offset** variable is the standard statistical method to properly account for this time variation by modeling the event **rate** (count per unit time) instead of the raw count.
 
-In `bonsaiforest2`, you can include the offset directly in the `response_formula` using the standard `brms` syntax: `outcome + offset(log_time) ~ trt`.
+In `bonsaiforest2`, you can include the offset directly in the `response_formula` using the standard `brms` syntax: `y + offset(log_exposure_time) ~ trt`.
 
 ## Example 1: Count Outcome with Offset (Disease Exacerbations)
 
 This scenario models exacerbation counts using a Negative Binomial distribution and explicitly accounts for the patient's exposure time.
 
-*Scenario*: Modeling exacerbation counts. Adjust for `baseline_severity` (unshrunk) and many exploratory `biomarkers` (shrunk). No interaction terms (overall treatment effect only).
+*Scenario*: Modeling count outcomes with exposure-time adjustment. Adjust for `baseline` (unshrunk prognostic effect) and multiple exploratory `biomarkers` (shrunk prognostic effects). Overall treatment effect on the rate scale.
 
 ```{r}
 # Data Simulation 
 set.seed(789)
 library(bonsaiforest2)
-n_patients <- 150
-biomarker_data <- as.data.frame(matrix(rnorm(n_patients * 10), ncol = 10))
-names(biomarker_data) <- paste0("biomarker_", 1:10)
-count_data <- data.frame(
-  exacerbation_count = rnbinom(n_patients, size = 1.5, mu = 3),
-  medication = sample(0:1, n_patients, replace = TRUE),
-  baseline_severity = rnorm(n_patients, 10, 2),
-  log_exposure_time = log(runif(n_patients, 0.5, 1.5))
-)
-count_data <- cbind(count_data, biomarker_data)
-count_data$medication <- factor(count_data$medication, levels = c(0, 1))
+set.seed(789)
+n <- 200
 
-# Create formula string for all biomarkers (Prognostic effects only here)
-shrunk_prog_str <- paste("~", paste(names(biomarker_data), collapse = " + "))
+# Create biomarker data with simple naming
+biomarker_data <- as.data.frame(matrix(rnorm(n * 8), ncol = 8))
+names(biomarker_data) <- paste0("B", 1:8)
+
+# Generate count data with treatment effect heterogeneity
+count_data <- data.frame(
+  y = rnbinom(n, size = 1.5, mu = 3),
+  trt = rep(0:1, length.out = n),
+  baseline = rnorm(n, 10, 2),
+  log_exposure_time = log(runif(n, 0.5, 1.5))
+)
+
+# Add biomarkers and account for heterogeneous treatment effects
+count_data <- cbind(count_data, biomarker_data)
+count_data$y <- rnbinom(n, size = 1.5, mu = exp(0.5 + 0.1 * count_data$baseline + 
+                        count_data$trt * (0.3 + 0.2 * (count_data$B1 > 0))))
+
+# Create formula string for all biomarkers
+shrunk_prog_str <- paste("~ 0 +", paste(names(biomarker_data), collapse = " + "))
 ```
 
 ```{r}
@@ -65,11 +73,15 @@ shrunk_prog_str <- paste("~", paste(names(biomarker_data), collapse = " + "))
 count_model_fit <- run_brms_analysis(
   data = count_data,
   # Include offset(log_exposure_time) directly in the response formula
-  response_formula = exacerbation_count + offset(log_exposure_time) ~ medication,
+  response_formula = y + offset(log_exposure_time) ~ trt,
   response_type = "count",
-  unshrunk_terms_formula = ~ 1 + baseline_severity,
+  unshrunk_terms_formula = ~ baseline,
   shrunk_prognostic_formula = as.formula(shrunk_prog_str),
-  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+  intercept_prior = "normal(0, 5)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 ```
 
@@ -85,8 +97,8 @@ Priors are specified using separate parameters for each component.
 |:---|:---|:---|:---|
 | **Intercept** | `intercept_prior` | `NULL` (brms default) | Optional custom prior |
 | **Unshrunk Terms** | `unshrunk_prior` | `NULL` (brms default) | Optional custom prior |
-| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(1)` | Strong shrinkage for fixed effects; `normal(0, 1)` for random effects |
-| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(1)` | Strong shrinkage for fixed effects; `normal(0, 1)` for random effects |
+| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = 1)` | Strong shrinkage for fixed effects (colon syntax); For random effects (pipe-pipe syntax), automatically uses `normal(0, 1)` on SD scale |
+| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = 1)` | Strong shrinkage for fixed effects (colon syntax); For random effects (pipe-pipe syntax), can be specified via `set_prior("normal(0, 1)", class = "sd")` |
 
 ## Practical Examples of Prior Setting
 
@@ -100,42 +112,46 @@ This dataset mimics a clinical trial with treatment effects that vary by subgrou
 # Load library
 library(bonsaiforest2)
 
-# 1. Create Sample Data
+# 1. Create Sample Data with treatment heterogeneity
 set.seed(123)
-n <- 100
+n <- 200
+
 sim_data <- data.frame(
   time = round(runif(n, 1, 100)),
   status = sample(0:1, n, replace = TRUE),
-  trt = sample(0:1, n, replace = TRUE),
+  trt = rep(0:1, length.out = n),
   age = rnorm(n, 50, 10),
-  region = sample(c("A", "B"), n, replace = TRUE),
-  subgroup = sample(c("S1", "S2", "S3"), n, replace = TRUE)
+  X1 = factor(sample(c("A", "B"), n, replace = TRUE)),
+  X2 = factor(sample(c("A", "B", "C"), n, replace = TRUE))
 )
 
-# Ensure variables are factors where appropriate
+# Ensure variables are factors
 sim_data$trt <- factor(sim_data$trt, levels = c(0, 1))
-sim_data$region <- as.factor(sim_data$region)
-sim_data$subgroup <- as.factor(sim_data$subgroup)
+sim_data$X1 <- as.factor(sim_data$X1)
+sim_data$X2 <- as.factor(sim_data$X2)
 
 # 2. Prepare the model formula
 prepared_model <- prepare_formula_model(
   data = sim_data,
   response_formula = Surv(time, status) ~ trt,
-  shrunk_predictive_formula = ~ 0 + trt:region,
+  shrunk_predictive_formula = ~ 0 + trt:X1,
   unshrunk_terms_formula = ~ age,
   response_type = "survival"
 )
 ```
 
-### Example 2: Using Default Priors (Recommended)
+### Example 2: Using Default Priors
 
 The simplest approach: use the package defaults that adapt to your outcome type (horseshoe(1) for shrunk effects, brms defaults for others).
 
 ```{r}
 fit_ex3 <- fit_brms_model(
   prepared_model = prepared_model,
-  # All priors use defaults - horseshoe(1) for shrunk effects, brms defaults for others
-  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+  intercept_prior = "normal(0, 5)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 
 # View the priors that were automatically set
@@ -152,11 +168,11 @@ The R2D2 prior is useful when you want to control the *global* shrinkage via the
 
 fit_ex4 <- fit_brms_model(
   prepared_model = prepared_model,
-  shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
-  # Can also customize other priors
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
-  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 
 cat("\n=== Priors Used ===\n")
@@ -185,12 +201,12 @@ prior_full_hierarchical <- brms::set_prior("normal(mu_pred, sigma_pred)")
 # 3. Pass both to fit_brms_model
 fit_ex5 <- fit_brms_model(
   prepared_model = prepared_model,
-  shrunk_predictive_prior = prior_full_hierarchical,
-  stanvars = stanvars_full_hierarchical,
-  # Other priors can be customized
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
-  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = prior_full_hierarchical,
+  stanvars = stanvars_full_hierarchical,
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 
 # View the used priors
@@ -212,8 +228,8 @@ You can set different priors for specific coefficients by passing a `brmsprior` 
 prepared_model <- prepare_formula_model(
   data = sim_data,
   response_formula = Surv(time, status) ~ trt,
-  shrunk_predictive_formula = ~ 0 + trt:region,
-  unshrunk_terms_formula = ~ age + trt*subgroup,
+  shrunk_predictive_formula = ~ 0 + trt:X1,
+  unshrunk_terms_formula = ~ age + trt*X2,
   response_type = "survival"
 )
 
@@ -226,21 +242,25 @@ print(prepared_model$stan_variable_names$X_unshrunktermeffect)
 
 cat("=== Prior Strategy ===\n")
 cat("General unshrunk prior: normal(0, 5)\n")
-cat("Specific for trt:subgroup: normal(0, 1)\n\n")
+cat("Specific for trt:X2 interactions: normal(0, 1)\n\n")
 
 # Create combined prior object
 # IMPORTANT: Use EXACT coefficient names from the prepared data
+# These names appear after contrast encoding in prepare_formula_model
 unshrunk_priors_combined <- c(
   brms::set_prior("normal(0, 5)", class = "b"),  # General
-  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:subgroupS2"),
-  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:subgroupS3")
+  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:X2B"),
+  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:X2C")
 )
 
 # Fit the model
 fit_specific <- fit_brms_model(
   prepared_model = prepared_model,
+  intercept_prior = "normal(0, 5)",
   unshrunk_prior = unshrunk_priors_combined,  # Pass the combined object
-  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 
 # View the used priors
@@ -257,41 +277,43 @@ Create correlated priors by sharing a common variance parameter estimated from t
 
 ```{r}
 cat("\n=== Hierarchical Prior Structure ===\n")
-cat("Instead of independent priors, we'll use a shared variance:\n")
-cat("  tau ~ half-normal(0, 1)  [shared variance parameter]\n")
-cat("  beta_Low ~ N(0, tau)\n")
-cat("  beta_Medium ~ N(0, tau)\n")
-cat("This creates exchangeability and adaptive shrinkage.\n\n")
+cat("Instead of independent priors per coefficient, we pool information through a shared scale:\n")
+cat("  tau ~ half-normal(0, 1)  [shared scale parameter]\n")
+cat("  beta_i ~ N(0, tau) for each coefficient i\n")
+cat("This creates exchangeability: coefficients are ~similar but with adaptive variation.\n\n")
 
 # Step 1: Declare tau as a parameter to be estimated
 tau_parameter <- brms::stanvar(
-  scode = "  real<lower=0> biomarker_tau;  // Shared variance\n",
+  scode = "  real<lower=0> biomarker_tau;  // Shared scale parameter\n",
   block = "parameters"
 )
 
 # Step 2: Add prior for tau
 tau_prior <- brms::stanvar(
-  scode = "  biomarker_tau ~ normal(0, 1);  // Hyperprior\n",
+  scode = "  biomarker_tau ~ half_normal(0, 1);  // Hyperprior on the scale\n",
   block = "model"
 )
 
 # Combine stanvars
 hierarchical_stanvars <- tau_parameter + tau_prior
 
-# Step 3: Create priors referencing general prior structures
+# Step 3: Create priors referencing the shared variance parameter
 # Note: We identified these coefficient names using prepare_formula_model above
 unshrunk_priors_hier <- c(
   brms::set_prior("normal(0, 5)", class = "b"),  # General
-  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:subgroupS2"),
-  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:subgroupS3")
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:X2B"),
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:X2C")
 )
 
 # Step 4: Fit the hierarchical model
 fit_hier <- fit_brms_model(
   prepared_model = prepared_model,
+  intercept_prior = "normal(0, 5)",
   unshrunk_prior = unshrunk_priors_hier,
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
   stanvars = hierarchical_stanvars,
-  chains = 1, iter = 400, warmup = 200, cores = 1, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 
 # View the used priors
@@ -306,35 +328,35 @@ This section demonstrates advanced features for controlling how your model repre
 
 ## Example 7: Custom Contrast Encoding for Shrunk Terms
 
-By default, `bonsaiforest2` uses one-hot encoding (all factor levels) for shrunk interaction terms, and dummy encoding (drop one level) for unshrunk terms. However, you can manually set custom contrasts in your data, and the library will respect your choice.
+By default, `bonsaiforest2` uses one-hot encoding (all factor levels, no reference category) for shrunk interaction terms specified with `~ 0 + ...` syntax, enabling full hierarchical shrinkage of all levels. For unshrunk terms, treatment contrasts (k-1 dummy variables with a reference level) are used by default. However, you can manually set custom contrasts in your data using `contrasts()`, and the library will preserve your choice throughout the analysis.
 
-*Scenario*: You want to use treatment contrasts (k-1 dummy variables with a reference level) or custom contrasts (e.g., Helmert, sum coding) instead of one-hot encoding for your shrunk predictive effects.
+*Scenario*: You want to use custom contrast coding for subgroup variables, such as Helmert contrasts or sum contrasts, instead of the default treatment contrasts. This is useful for specific hypothesis structures or when comparing non-orthogonal effects.
 
 *Key Technique*: Set contrasts using `contrasts()` before calling `prepare_formula_model()`. The library will preserve your choice.
 
 ```{r}
 # Create sample data with multiple subgroups
 set.seed(456)
-n_patients <- 180
+n <- 250
 sample_data_contrast <- data.frame(
-  id = 1:n_patients,
-  trt = factor(sample(0:1, n_patients, replace = TRUE)),
-  outcome = rnorm(n_patients, 50, 10),
-  age = rnorm(n_patients, 65, 10),
-  biomarker = factor(sample(c("Low", "Medium", "High"), n_patients, replace = TRUE))
+  id = 1:n,
+  trt = rep(0:1, length.out = n),
+  y = rnorm(n, 50, 10),
+  baseline = rnorm(n, 65, 10),
+  X1 = factor(sample(c("A", "B", "C"), n, replace = TRUE))
 )
 
-# Set Helmert contrasts for the biomarker variable
-contrasts(sample_data_contrast$biomarker) <- contr.helmert(3)
-cat("Contrast matrix for biomarker:\\n")
-print(contrasts(sample_data_contrast$biomarker))
+# Set Helmert contrasts for the X1 variable
+contrasts(sample_data_contrast$X1) <- contr.helmert(3)
+cat("Contrast matrix for X1:\n")
+print(contrasts(sample_data_contrast$X1))
 
 # Prepare model 
 prepared_custom_contrast <- prepare_formula_model(
   data = sample_data_contrast,
-  response_formula = outcome ~ trt,
-  unshrunk_terms_formula = ~ age,
-  shrunk_predictive_formula = ~ 0 + trt:biomarker, 
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_predictive_formula = ~ 0 + trt:X1, 
   response_type = "continuous"
 )
 
@@ -344,7 +366,11 @@ str(prepared_custom_contrast$data)
 # Fit the model
 fit_custom_contrast <- fit_brms_model(
   prepared_model = prepared_custom_contrast,
-  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+  intercept_prior = "normal(0, 5)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 
 estimate_custom_contrast <- summary_subgroup_effects(fit_custom_contrast)
@@ -364,19 +390,27 @@ After fitting a model, you can use `brms::predict()` to generate predictions for
 set.seed(789)
 new_patients <- data.frame(
   id = 1:20,
-  trt = as.numeric(rep(c(0, 1), each = 10), levels = c(0, 1)),
-  age = rnorm(20, 65, 10),
-  biomarker = factor(rep(c("Low", "Medium", "High"), length.out = 20))
+  trt = rep(0:1, length.out = 20),
+  baseline = rnorm(20, 65, 10),
+  X1 = factor(rep(c("A", "B", "C"), length.out = 20))
 )
 
 # IMPORTANT: Set the same contrasts as in Example 7
 # The prediction data must use the same encoding as the training data
-contrasts(new_patients$biomarker) <- contr.helmert(3)
+contrasts(new_patients$X1) <- contr.helmert(3)
 
+# Prepare new data
+prepared_custom_contrast <- prepare_formula_model(
+  data = new_patients,
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_predictive_formula = ~ 0 + trt:X1, 
+  response_type = "continuous"
+)
 
 # Generate predictions using brms::predict
 # This returns posterior predictive samples
-predictions <- predict(fit_custom_contrast, newdata = new_patients, summary = TRUE)
+predictions <- predict(fit_custom_contrast, newdata = prepared_custom_contrast$data, summary = TRUE)
 ```
 
 # Stratification for Nuisance Parameters
@@ -387,24 +421,26 @@ Use the `stratification_formula` argument to define the grouping factor(s).
 
 ## Example 9: Stratified Continuous Model
 
-*Scenario*: We model SBP change where the observation **variance** $\sigma^2$ differs by $\text{clinic\_site}$. This is modeled by stratifying the $\sigma$ parameter in the Normal distribution by the site variable.
+*Scenario*: We model outcomes where the observation error **standard deviation** $\sigma$ differs by site. Stratification uses `brms` distributional formulas to estimate separate residual variance parameters for each site, allowing for heterogeneity in measurement noise or outcome variability across sites.
 
 ```{r}
 set.seed(42)
-n_patients <- 180
-sigma_by_site <- c(SiteA = 6, SiteB = 12, SiteC = 18)
+n <- 250
+sigma_by_site <- c(A = 6, B = 12, C = 18)
 sample_data_strat_cont <- data.frame(
-    id = 1:n_patients,
-    clinic_site = factor(sample(c("SiteA", "SiteB", "SiteC"), n_patients, replace = TRUE))
+    id = 1:n,
+    site = factor(sample(c("A", "B", "C"), n, replace = TRUE))
 )
-sample_data_strat_cont$trt <- factor(sample(0:1, n_patients, replace = TRUE, prob = c(0.5, 0.5)))
-sample_data_strat_cont$baseline_sbp <- rnorm(n_patients, mean = 145, sd = 8)
-sample_data_strat_cont$age_group <- factor(sample(c("Under60", "Over60"), n_patients, replace = TRUE))
-noise <- rnorm(n_patients, mean = 0, sd = sigma_by_site[sample_data_strat_cont$clinic_site])
-sample_data_strat_cont$sbp_change <- -5 - (as.integer(sample_data_strat_cont$trt)-1) * 8 -
-                                     0.2 * (sample_data_strat_cont$baseline_sbp - 145) +
-                                     (as.integer(sample_data_strat_cont$trt)-1) * ifelse(sample_data_strat_cont$age_group == "Over60", -5, 0) +
-                                     noise
+sample_data_strat_cont$trt <- rep(0:1, length.out = n)
+sample_data_strat_cont$baseline <- rnorm(n, mean = 100, sd = 8)
+sample_data_strat_cont$X1 <- factor(sample(c("A", "B"), n, replace = TRUE))
+
+# Generate outcome with treatment heterogeneity and site-specific noise
+noise <- rnorm(n, mean = 0, sd = sigma_by_site[sample_data_strat_cont$site])
+sample_data_strat_cont$y <- 50 + 
+                            sample_data_strat_cont$trt * (-8 + 2 * (as.numeric(sample_data_strat_cont$X1) - 1)) +
+                            0.2 * (sample_data_strat_cont$baseline - 100) +
+                            noise
 ```
 
 ```{r}
@@ -412,12 +448,16 @@ sample_data_strat_cont$sbp_change <- -5 - (as.integer(sample_data_strat_cont$trt
 
 fit_continuous_stratified <- run_brms_analysis(
   data = sample_data_strat_cont,
-  response_formula = sbp_change ~ trt,
+  response_formula = y ~ trt,
   response_type = "continuous",
-  unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ 0 + trt:age_group,
-  stratification_formula = ~ clinic_site,
-  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_predictive_formula = ~ 0 + trt:X1,
+  stratification_formula = ~ site,
+  intercept_prior = "normal(0, 5)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 ```
 
@@ -433,22 +473,27 @@ plot(strat_continuous_summary, title = "Stratified Continuous: Subgroup Effects"
 
 ## Example 10: Stratified Survival Model
 
-*Scenario*: We model a time-to-event outcome where the **baseline hazard** $h_0(t)$ differs by $\text{country}$. This is particularly important for multi-regional trials where regional differences in standard of care affect baseline risk.
+*Scenario*: We model a time-to-event outcome with stratified baseline hazard by country using a piecewise exponential model. Stratification via `stratification_formula = ~ country` allows the baseline hazard to differ by country, accommodating regional differences in baseline risk or standard of care.
 
 ```{r}
 set.seed(123)
-n_patients <- 200
-lambda_by_country <- c(US = 0.01, EU = 0.03)
+n <- 250
+lambda_by_country <- c(A = 0.01, B = 0.03)
 surv_data_strat <- data.frame(
-    id = 1:n_patients,
-    country = factor(sample(c("US", "EU"), n_patients, replace = TRUE)),
-    trt = factor(sample(0:1, n_patients, replace = TRUE)),
-    age = rnorm(n_patients, 65, 10),
-    biomarker = factor(sample(c("Low", "High"), n_patients, replace = TRUE))
+    id = 1:n,
+    country = factor(sample(c("A", "B"), n, replace = TRUE)),
+    trt = rep(0:1, length.out = n),
+    age = rnorm(n, 65, 10),
+    X1 = factor(sample(c("A", "B"), n, replace = TRUE))
 )
-lp <- (as.integer(surv_data_strat$trt)-1) * -0.6 + (surv_data_strat$age - 65) * 0.03 +
-      (as.integer(surv_data_strat$trt)-1) * (as.integer(surv_data_strat$biomarker) - 1) * -0.5
-u <- runif(n_patients)
+
+# Linear predictor with treatment heterogeneity
+lp <- (as.numeric(surv_data_strat$trt) - 1) * -0.6 + 
+      (surv_data_strat$age - 65) * 0.03 +
+      (as.numeric(surv_data_strat$trt) - 1) * (as.numeric(surv_data_strat$X1) - 1) * -0.5
+
+# Generate event times
+u <- runif(n)
 lambda_vec <- lambda_by_country[surv_data_strat$country]
 gamma <- 1.5 # Weibull shape parameter
 true_event_time <- (-log(u) / (lambda_vec * exp(lp)))^(1/gamma)
@@ -464,9 +509,13 @@ fit_surv_stratified <- run_brms_analysis(
   response_formula = Surv(event_time, event_status) ~ trt,
   response_type = "survival",
   unshrunk_terms_formula = ~ age,
-  shrunk_predictive_formula = ~ 0 + trt:biomarker,
+  shrunk_predictive_formula = ~ 0 + trt:X1,
   stratification_formula = ~ country,
-  chains = 1, iter = 200, warmup = 100, cores = 1, refresh = 0, backend = "cmdstanr"
+  intercept_prior = "normal(0, 5)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 ```
 

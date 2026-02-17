@@ -159,16 +159,6 @@ estimate_subgroup_effects <- function(brms_fit,
 }
 
 
-#' Strip _onehot Suffix from Variable Name
-#'
-#' Removes the _onehot suffix used internally for duplicate variables.
-#' This is used to display clean variable names to users.
-#' @noRd
-.strip_onehot_suffix <- function(var_name) {
-  sub("_onehot$", "", var_name)
-}
-
-
 #' Prepare and Validate Subgroup Variables
 #'
 #' Detects treatment interaction terms from the fitted brms model.
