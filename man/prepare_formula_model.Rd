@@ -30,19 +30,20 @@ extracted and converted to a numeric binary variable (0/1).}
 for the \code{unshrunktermeffect} component. May include main effects and treatment interactions
 without regularization. Supports three syntaxes that can be combined: colon notation
 (e.g., \code{~ age + sex + trt:biomarker}), star notation (e.g., \code{~ age + trt*biomarker}),
-or random effects notation (e.g., \code{~ age + (trt || biomarker)}).}
+or random effects notation (e.g., \code{~ age + (0+trt || biomarker)}).}
 
 \item{shrunk_prognostic_formula}{A formula object or \code{NULL}. Formula specifying prognostic
 main effects to be regularized in the \code{shprogeffect} component. These are covariates
-where shrinkage/regularization is desired. Should use \code{~ 0 + ...} syntax to apply
-one-hot encoding for symmetric regularization across all levels without privileging
-a reference group.}
+where shrinkage/regularization is desired. Recommended: use \code{~ 0 + ...} or \code{~ -1 + ...} syntax
+to explicitly remove the intercept and apply one-hot encoding for symmetric regularization
+across all levels without privileging a reference group.}
 
 \item{shrunk_predictive_formula}{A formula object or \code{NULL}. Formula specifying predictive
 terms (treatment interactions) to be regularized in the \code{shpredeffect} component.
 Supports three syntaxes that can be combined: colon notation (e.g., \code{~ 0 + trt:region}),
 star notation (e.g., \code{~ 0 + trt*region}), or random effects notation
-(e.g., \code{~ (0 + trt || region)}). Should use \code{~ 0 + ...} syntax for one-hot encoding.}
+(e.g., \code{~ (0 + trt || region)}). Recommended: use \code{~ 0 + ...} or \code{~ -1 + ...} syntax to explicitly
+remove the intercept and apply one-hot encoding.}
 
 \item{response_type}{A character string. Type of outcome variable, one of \code{"binary"},
 \code{"count"}, \code{"continuous"}, or \code{"survival"}. This determines the appropriate likelihood
@@ -72,7 +73,7 @@ non-linear formula by classifying covariates into three distinct categories:
 unshrunk terms, shrunk prognostic, and shrunk predictive.
 }
 \details{
-This classification allows for applying differential shrinkage (regularization)
+This classification allows for applying different priors (non-informative or shrinkage)
 to different parts of the model. The function also prepares the corresponding
 data using R's contrast coding system for proper factor handling and interactions.
 }
@@ -86,8 +87,8 @@ This allows for assigning different priors to each component.
 \item \strong{Automated Interaction Handling:} Predictive terms support three syntaxes
 that can be used together or separately: colon notation (e.g., \code{~ trt:subgroup}),
 star notation (e.g., \code{~ trt*subgroup}), or random effects notation (e.g.,
-\code{~ (trt || subgroup)}). You can mix these syntaxes in the same model (e.g.,
-\code{~ trt:var1 + trt*var2 + (trt || var3)}). All variables involved in interactions
+\code{~ (0 + trt || subgroup)}). You can mix these syntaxes in the same model (e.g.,
+\code{~ trt:var1 + trt*var2 + (0 + trt || var3)}). All variables involved in interactions
 are converted to factors with appropriate contrasts (reference coding for unshrunk,
 one-hot for shrunk), enabling proper model fitting and prediction on new data
 without manual dummy variable creation.
@@ -135,11 +136,13 @@ becomes 0, the second becomes 1.
 \item \strong{Factor covariates:} Automatic contrast coding based on shrinkage type:
 \itemize{
 \item \strong{Shrunk terms:} One-hot encoding (all factor levels represented).
-For proper regularization, specify these using \code{~ 0 + var} to explicitly remove
-the intercept and treat all subgroups symmetrically without privileging a specific
-reference group (ensures the exchangeability assumption).
+This removes the reference group and treats all subgroups symmetrically without
+privileging a specific reference level (ensures the exchangeability assumption).
+Recommended: explicitly remove the intercept using \code{~ 0 + var} or \code{~ -1 + var} syntax.
+If not specified, the function will still apply one-hot encoding but may include
+a redundant intercept that could complicate interpretation.
 \item \strong{Unshrunk terms:} Dummy encoding (reference level dropped).
-Use standard formula syntax \code{~ var} with intercept.
+Recommended: Use standard formula syntax \code{~ var} with intercept for clarity and proper reference coding.
 }
 \item \strong{Custom contrasts:} If you have pre-specified contrasts via
 \verb{contrasts(data$var) <- <matrix>} before calling this function, they will
@@ -178,12 +181,12 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2a. Example with colon interaction syntax
+  # 2a. Example with colon interaction syntax (recommended: use ~ 0 + for shrunk terms)
   prepared_model <- prepare_formula_model(
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
     unshrunk_terms_formula = ~ age + subgroup,
-    shrunk_predictive_formula = ~ trt:subgroup,
+    shrunk_predictive_formula = ~ 0 + trt:subgroup,
     response_type = "survival",
     stratification_formula = ~ region
   )

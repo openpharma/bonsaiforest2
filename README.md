@@ -5,14 +5,15 @@
 
 The `bonsaiforest2` package is used for Bayesian shrinkage estimation of
 subgroup treatment effects in randomized clinical trials. It supports
-both One-Variable-at-a-Time (OVAT) and Global modeling approaches for
-estimating treatment-by-subgroup interactions, with built-in support for
-continuous, binary, time-to-event (Cox), and count outcomes. The package
-implements state-of-the-art shrinkage priors including Regularized
-Horseshoe and R2D2, combined with standardization (G-computation) to
-provide interpretable marginal treatment effects. By leveraging `brms`
-and `Stan`, `bonsaiforest2` provides a practical tool for obtaining more
-stable and reliable subgroup effect estimates in exploratory analyses.
+both one-way models (random effects) and fixed effects modeling
+approaches for estimating treatment-by-subgroup interactions, with
+built-in support for continuous, binary, time-to-event (Cox), and count
+outcomes. The package allows the usage of state-of-the-art shrinkage
+priors including Regularized Horseshoe and R2D2, combined with
+standardization (G-computation) to provide interpretable marginal
+treatment effects. By leveraging `brms` and `Stan`, `bonsaiforest2`
+provides a practical tool for obtaining more stable and reliable
+subgroup effect estimates in exploratory and confirmatory analyses.
 
 ## Installation
 
@@ -24,58 +25,132 @@ of `bonsaiforest2` from its GitLab repository:
 remotes::install_github("openpharma/bonsaiforest2")
 ```
 
-## Example
+## Key Concepts
 
-This example demonstrates the usage of `bonsaiforest2` for subgroup
-treatment effect estimation across multiple overlapping subgroups (Age,
-Region, and Biomarker) using a Global Modeling approach with a
-Regularized Horseshoe prior.
+### Modeling Approaches
+
+`bonsaiforest2` supports two main approaches for subgroup analysis:
+
+#### Fixed Effects Models
+
+- Fit a single unified model with treatment-by-subgroup interactions
+  specified as fixed effects using colon notation (e.g.,
+  `~ 0 + trt:subgroupvar1 + trt:subgroupvar2 + ...`)
+- Treat all subgroups symmetrically through one-hot encoding
+- Recommended: Use this approach for most applications
+
+#### One-way Models (Random Effects)
+
+- Fit random effects for treatment slopes varying by subgroup
+- Use pipe-pipe notation (e.g., `~ (0 + trt || subgroupvar)`) to
+  estimate treatment effects varying by subgroup
+- Each subgroup gets its own treatment effect with automatic pooling via
+  random effects
+
+### Shrinkage Framework
+
+The model decomposes into three components:
+
+1.  **Unshrunk terms** (`unshrunktermeffect`): Main effects with weakly
+    informative priors
+2.  **Shrunk prognostic effects** (`shprogeffect`): Baseline covariate
+    effects with strong regularization
+3.  **Shrunk predictive effects** (`shpredeffect`):
+    Treatment-by-subgroup interactions with strong regularization
+
+### Prior Specification
+
+The package supports flexible prior specification for all model
+components. You must specify four priors: - `intercept_prior`: Prior for
+the intercept (example: `"normal(0, 10)"`) - `unshrunk_prior`: Prior for
+unshrunk terms/main effects (example: `"normal(0, 2.5)"`) -
+`shrunk_prognostic_prior`: Prior for shrunk prognostic effects/baseline
+covariates (example: `"horseshoe(scale_global = 1)"`) -
+`shrunk_predictive_prior`: Prior for shrunk predictive effects/treatment
+interactions (example: `"horseshoe(scale_global = 0.5)"`)
+
+For one-way models (random effects), random effect SDs automatically use
+`normal(0, 1)` priors.
+
+### Response Types
+
+The package supports four outcome types: - **continuous**: Linear
+regression with residual SD - **binary**: Logistic regression  
+- **count**: Poisson or negative binomial regression - **survival**: Cox
+proportional hazards model
+
+## Quick Start Example
+
+This example demonstrates Bayesian shrinkage estimation of treatment
+effects across subgroups using a **fixed effects model** with a
+Regularized Horseshoe prior. We simulate data with real treatment effect
+heterogeneity across five subgrouping variables.
 
 ``` r
 library(bonsaiforest2)
 
-# 1. Simulate trial data
-set.seed(42)
-n <- 200
-trial_data <- data.frame(
-  outcome  = rnorm(n),
-  trt      = factor(sample(c("Control", "Active"), n, replace = TRUE)),
-  age_cat  = factor(sample(c("<65", ">=65"), n, replace = TRUE)),
-  region   = factor(sample(c("US", "EU", "Asia"), n, replace = TRUE)),
-  biomarker = factor(sample(c("Pos", "Neg"), n, replace = TRUE))
+# 1. Simulate continuous outcome trial data with treatment heterogeneity
+set.seed(123)
+n <- 500
+dat <- data.frame(
+  y    = rnorm(n, mean = 50, sd = 15),
+  trt  = rep(0:1, length.out = n),
+  x1   = factor(sample(c("A", "B"), n, replace = TRUE)),
+  x2   = factor(sample(c("A", "B", "C"), n, replace = TRUE)),
+  x3   = factor(sample(c("A", "B"), n, replace = TRUE)),
+  x4   = factor(sample(c("A", "B"), n, replace = TRUE)),
+  x5   = factor(sample(c("A", "B"), n, replace = TRUE))
 )
 
-# 2. Fit a Global Model with default priors
-fit <- run_brms_analysis(
-  data = trial_data,
+# Add baseline effect and heterogeneous treatment effects by subgroup
+trt_effect <- dat$trt * (
+  0.35 +                                           # Base treatment effect
+  0.35 * (as.numeric(dat$x1 == "B") - 0.35)       # Heterogeneity by x1
+)
+dat$y <- trt_effect + rnorm(n, 0, 1.2)
+
+# 2. Fit fixed effects model with heterogeneous shrinkage
+fit_fixed <- run_brms_analysis(
+  data = dat,
   response_type = "continuous",
-  response_formula = outcome ~ trt,
-  unshrunk_terms_formula = ~ age_cat + region + biomarker, 
-  shrunk_predictive_formula = ~ 0 + trt:age_cat + trt:region + trt:biomarker, 
-  sigma_ref = sd(trial_data$outcome),  # Use observed sd or protocol value
-  chains = 2, iter = 1000, warmup = 500 #
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ x1 + x2 + x3 + x4 + x5,
+  shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3 + trt:x4 + trt:x5,
+  intercept_prior = "normal(50, 15)",
+  unshrunk_prior = "normal(0, 5)",
+  shrunk_prognostic_prior = NULL,
+  shrunk_predictive_prior = "horseshoe(1)",
+  chains = 2, iter = 1000, warmup = 500,
+  backend = "cmdstanr", refresh = 0
 )
+#> Running MCMC with 2 sequential chains...
+#> 
+#> Chain 1 finished in 2.1 seconds.
+#> Chain 2 finished in 2.0 seconds.
+#> 
+#> Both chains finished successfully.
+#> Mean chain execution time: 2.0 seconds.
+#> Total execution time: 4.2 seconds.
 
-# 3. Derive Marginal Treatment Effects
-subgroup_effects <- summary_subgroup_effects(
-  brms_fit = fit
-)
-```
-
-``` r
-# Print summary
+# 3. Extract and visualize marginal treatment effects by subgroup
+subgroup_effects <- summary_subgroup_effects(fit_fixed)
 print(subgroup_effects)
 #> $estimates
-#> # A tibble: 7 × 4
-#>   Subgroup         Median CI_Lower CI_Upper
-#>   <chr>             <dbl>    <dbl>    <dbl>
-#> 1 age_cat: <65    0.128    -0.241     0.516
-#> 2 age_cat: >=65  -0.184    -0.566     0.219
-#> 3 region: Asia   -0.109    -0.544     0.366
-#> 4 region: EU     -0.349    -0.828     0.101
-#> 5 region: US      0.387    -0.0988    0.918
-#> 6 biomarker: Neg -0.0508   -0.426     0.258
-#> 7 biomarker: Pos -0.00256  -0.326     0.346
+#> # A tibble: 11 × 4
+#>    Subgroup Median CI_Lower CI_Upper
+#>    <chr>     <dbl>    <dbl>    <dbl>
+#>  1 x1: A     0.212  -0.113     0.501
+#>  2 x1: B     0.554   0.249     0.908
+#>  3 x2: A     0.412   0.161     0.739
+#>  4 x2: B     0.325  -0.0227    0.581
+#>  5 x2: C     0.398   0.140     0.701
+#>  6 x3: A     0.376   0.120     0.616
+#>  7 x3: B     0.369   0.127     0.609
+#>  8 x4: A     0.382   0.163     0.632
+#>  9 x4: B     0.360   0.0824    0.619
+#> 10 x5: A     0.401   0.168     0.703
+#> 11 x5: B     0.344   0.0918    0.585
 #> 
 #> $response_type
 #> [1] "continuous"
@@ -88,12 +163,7 @@ print(subgroup_effects)
 #> 
 #> attr(,"class")
 #> [1] "subgroup_summary"
-
-# 4. Visualize Results
 plot(subgroup_effects)
-#> Preparing data for plotting...
-#> Generating plot...
-#> Done.
 ```
 
-<img src="man/figures/README-unnamed-chunk-3-1.png" width="100%" />
+<img src="man/figures/README-example-continuous-1.png" width="100%" />

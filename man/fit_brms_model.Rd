@@ -23,8 +23,7 @@ for use by downstream functions like \code{estimate_subgroup_effects()}.}
 
 \item{intercept_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior specification
 for the model intercept in the \code{unshrunktermeffect} component.
-Not used for survival models (Cox models have no intercept).
-Example: \code{"normal(0, 10)"}.}
+Not used for survival models (Cox models have no intercept).}
 
 \item{unshrunk_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior specification
 for unshrunk terms in the \code{unshrunktermeffect} component (excludes intercept). These are
@@ -76,7 +75,7 @@ definitions as character strings (e.g., \code{"normal(0, 2.5)"}) or as
 \strong{Default Priors by Response Type and Model Structure:}
 
 If you don't specify priors, the function uses sensible defaults that adapt to
-the model structure and response type:
+the model structure:
 
 \strong{For all response types (continuous, binary, count, survival):}
 \itemize{
@@ -124,16 +123,26 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2. Prepare the formula and data using colon syntax
+  # 2. Prepare the formula and data using colon syntax with recommended ~ 0 + for shrunk terms
   prepared_model <- prepare_formula_model(
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
-    shrunk_predictive_formula = ~ trt:subgroup,
+    shrunk_predictive_formula = ~ 0 + trt:subgroup,
     unshrunk_terms_formula = ~ age,
-    shrunk_prognostic_formula = ~ region,
+    shrunk_prognostic_formula = ~ 0 + subgroup,
     response_type = "survival",
     stratification_formula = ~ region
   )
+
+  # 2b. Alternatively, using one-way model (random effects) with pipe-pipe notation
+  # prepared_model <- prepare_formula_model(
+  #   data = sim_data,
+  #   response_formula = Surv(time, status) ~ trt,
+  #   unshrunk_terms_formula = ~ age,
+  #   shrunk_predictive_formula = ~ (0 + trt || subgroup),
+  #   response_type = "survival",
+  #   stratification_formula = ~ region
+  # )
 
   # 3. Fit the model
   \dontrun{
@@ -142,7 +151,8 @@ if (require("brms") && require("survival")) {
     unshrunk_prior = "normal(0, 2)",
     shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
     shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-    chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
+    backend = "cmdstanr",
+    chains = 2, iter = 1000, warmup = 500, refresh = 0
   )
 
   print(fit)

@@ -119,7 +119,7 @@ summary_subgroup_effects <- function(brms_fit,
 #' summary2 <- summary_subgroup_effects(brms_fit = model2)
 #' 
 #' combined <- combine_summaries(list(
-#'   "OVAT" = summary1,
+#'   "One-way model" = summary1,
 #'   "Global" = summary2
 #' ))
 #' plot(combined)
@@ -181,7 +181,7 @@ combine_summaries <- function(summary_list) {
 #' 
 #' **Multiple Model Comparison**: When `x` is a named list of `subgroup_summary` objects,
 #' creates a comparative plot where different models are distinguished by colors and shapes.
-#' This is useful for comparing OVAT vs global models, different prior specifications, or
+#' This is useful for comparing one-way models vs global models, different prior specifications, or
 #' sensitivity analyses.
 #'
 #' @examples

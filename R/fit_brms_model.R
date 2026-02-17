@@ -20,7 +20,7 @@
 #' **Default Priors by Response Type and Model Structure:**
 #'
 #' If you don't specify priors, the function uses sensible defaults that adapt to
-#' the model structure and response type:
+#' the model structure:
 #'
 #' **For all response types (continuous, binary, count, survival):**
 #'
@@ -55,7 +55,6 @@
 #' @param intercept_prior A character string, `brmsprior` object, or `NULL`. Prior specification
 #'   for the model intercept in the `unshrunktermeffect` component.
 #'   Not used for survival models (Cox models have no intercept).
-#'   Example: `"normal(0, 10)"`.
 #' @param unshrunk_prior A character string, `brmsprior` object, or `NULL`. Prior specification
 #'   for unshrunk terms in the `unshrunktermeffect` component (excludes intercept). These are
 #'   main effects and interactions for which no regularization is desired.
@@ -98,16 +97,26 @@
 #'   sim_data$region <- as.factor(sim_data$region)
 #'   sim_data$subgroup <- as.factor(sim_data$subgroup)
 #'
-#'   # 2. Prepare the formula and data using colon syntax
+#'   # 2. Prepare the formula and data using colon syntax with recommended ~ 0 + for shrunk terms
 #'   prepared_model <- prepare_formula_model(
 #'     data = sim_data,
 #'     response_formula = Surv(time, status) ~ trt,
-#'     shrunk_predictive_formula = ~ trt:subgroup,
+#'     shrunk_predictive_formula = ~ 0 + trt:subgroup,
 #'     unshrunk_terms_formula = ~ age,
-#'     shrunk_prognostic_formula = ~ region,
+#'     shrunk_prognostic_formula = ~ 0 + subgroup,
 #'     response_type = "survival",
 #'     stratification_formula = ~ region
 #'   )
+#'
+#'   # 2b. Alternatively, using one-way model (random effects) with pipe-pipe notation
+#'   # prepared_model <- prepare_formula_model(
+#'   #   data = sim_data,
+#'   #   response_formula = Surv(time, status) ~ trt,
+#'   #   unshrunk_terms_formula = ~ age,
+#'   #   shrunk_predictive_formula = ~ (0 + trt || subgroup),
+#'   #   response_type = "survival",
+#'   #   stratification_formula = ~ region
+#'   # )
 #'
 #'   # 3. Fit the model
 #'   \dontrun{
@@ -116,7 +125,8 @@
 #'     unshrunk_prior = "normal(0, 2)",
 #'     shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
 #'     shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-#'     chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
+#'     backend = "cmdstanr",
+#'     chains = 2, iter = 1000, warmup = 500, refresh = 0
 #'   )
 #'
 #'   print(fit)
@@ -157,23 +167,12 @@ fit_brms_model <- function(prepared_model,
 
   checkmate::assert_class(stanvars, "stanvars", null.ok = TRUE)
 
-  # --- Unpack  ---
+  # --- Unpack prepared_model components ---
   formula <- prepared_model$formula
   data <- prepared_model$data
   response_type <- prepared_model$response_type
-  has_intercept <- prepared_model$has_intercept  # Extract intercept information
-  has_random_effects <- prepared_model$has_random_effects  # Extract random effects flag
-
-  # Calculate outcome mean for continuous models (used for intercept prior centering)
-  outcome_mean <- NULL
-
-  if (response_type == "continuous") {
-    response_vars <- all.vars(formula$formula[[2]])
-    response_var <- response_vars[1]
-    if (response_var %in% names(data)) {
-      outcome_mean <- mean(data[[response_var]], na.rm = TRUE)
-    }
-  }
+  has_intercept <- prepared_model$has_intercept
+  has_random_effects <- prepared_model$has_random_effects
 
   # --- 2. Determine brms Family ---
   model_family <- switch(
@@ -189,36 +188,31 @@ fit_brms_model <- function(prepared_model,
 
   # --- 3. Construct the Prior List  ---
 
-  # Process prior specifications
-  intercept_prior_processed <- intercept_prior
-  unshrunk_prior_processed <- unshrunk_prior
-  shrunk_prognostic_prior_processed <- shrunk_prognostic_prior
-  shrunk_predictive_prior_processed <- shrunk_predictive_prior
-
   # Set default priors (same for all response types)
-  # For shrunk terms: use horseshoe(1) for fixed effects, normal(0, 1) for random effects
+  # For shrunk terms (fixed effects): use horseshoe(1) for strong regularization
+  # For random effects (sd class): use normal(0, 1) - handled separately in the prior loop
   # For unshrunk terms and intercept: use NULL to allow brms defaults
-  default_intercept <- NULL  # Use brms default
-  default_unshrunk <- NULL   # Use brms default
-  default_shrunk_prog <- "horseshoe(1)"  # Regularizing horseshoe for fixed effects
-  default_shrunk_pred <- "horseshoe(1)"  # For fixed effects; random effects handled separately with normal(0, 1)
+  default_intercept <- NULL         # Use brms default
+  default_unshrunk <- NULL          # Use brms default
+  default_shrunk_prog <- "horseshoe(1)"  # Regularizing prior for shrunk prognostic
+  default_shrunk_pred <- "horseshoe(1)"  # Regularizing prior for shrunk predictive (fixed effects)
 
   # Define prior configuration for three-component model architecture:
-  # - unshrunktermeffect: Consolidated component for all unshrunk terms (no separate prog/pred)
-  # - shprogeffect: Shrunk prognostic effects with strong regularization (e.g., horseshoe)
-  # - shpredeffect: Shrunk predictive effects (treatment interactions) with strong regularization
+  # - unshrunktermeffect: All unshrunk terms (main effects and interactions without regularization)
+  # - shprogeffect: Shrunk prognostic effects (main effects with regularization)
+  # - shpredeffect: Shrunk predictive effects (treatment interactions with regularization)
   # This architecture enables differential prior specification across model components
   prior_config <- list(
     # Intercept for unshrunk terms
     list(nlpar = "unshrunktermeffect", class = "b", coef = "Intercept",
-         user_prior = intercept_prior_processed,
+         user_prior = intercept_prior,
          default = default_intercept,
          label = "intercept"),
 
     # Unshrunk terms (all non-intercept coefficients in unshrunktermeffect)
     # This includes both prognostic and predictive terms that are not regularized
     list(nlpar = "unshrunktermeffect", class = "b", coef = NULL,
-         user_prior = unshrunk_prior_processed,
+         user_prior = unshrunk_prior,
          default = default_unshrunk,
          label = "unshrunk terms"),
 
@@ -226,7 +220,7 @@ fit_brms_model <- function(prepared_model,
     # Applied to prognostic biomarkers/covariates with strong regularization
     # Prognostic effects are main effects only (no treatment interactions)
     list(nlpar = "shprogeffect", class = "b", coef = NULL,
-         user_prior = shrunk_prognostic_prior_processed,
+         user_prior = shrunk_prognostic_prior,
          default = default_shrunk_prog,
          label = "shrunk prognostic"),
 
@@ -236,7 +230,7 @@ fit_brms_model <- function(prepared_model,
     list(nlpar = "shpredeffect",
          class = if (has_random_effects) "sd" else "b",
          coef = NULL,
-         user_prior = shrunk_predictive_prior_processed,
+         user_prior = shrunk_predictive_prior,
          default = default_shrunk_pred,
          label = "shrunk predictive",
          is_random_effect = has_random_effects)
@@ -245,14 +239,19 @@ fit_brms_model <- function(prepared_model,
   # Add mixed notation config ONLY if has_random_effects is TRUE
   # This handles the case: (1+trt||subvar1) + trt:subvar2
   # where trt:subvar2 are fixed effects that need horseshoe priors
-  if (has_random_effects) {
+  # BUT: Don't add it if user provided an SD prior (which is only for random effects)
+  user_provided_sd_prior <- !is.null(shrunk_predictive_prior) && 
+                             inherits(shrunk_predictive_prior, "brmsprior") &&
+                             all(shrunk_predictive_prior$class == "sd")
+  
+  if (has_random_effects && !user_provided_sd_prior) {
     prior_config <- c(prior_config, list(
       list(nlpar = "shpredeffect",
            class = "b",
            coef = NULL,
-           user_prior = shrunk_predictive_prior_processed,
+           user_prior = shrunk_predictive_prior,
            default = default_shrunk_pred,
-           label = "shrunk predictive (fixed)",
+           label = "shrunk predictive (fixed effects)",
            is_mixed_notation_fixed = TRUE)
     ))
   }
@@ -261,8 +260,6 @@ fit_brms_model <- function(prepared_model,
   random_effects_structure <- list()
   if (has_random_effects) {
     random_effects_structure <- .extract_random_effects_structure(formula, nlpar = "shpredeffect")
-
-    # Random effects structure detected in shrunk predictive component
   }
 
   defined_nlpars <- names(formula$pforms)
@@ -285,7 +282,11 @@ fit_brms_model <- function(prepared_model,
       }
 
       # Special handling for random effects in shrunk predictive
-      if (isTRUE(conf$is_random_effect) && length(random_effects_structure) > 0) {
+      # Check if user provided a brmsprior with class="sd" (for random effects)
+      is_sd_prior_object <- !is.null(conf$user_prior) && inherits(conf$user_prior, "brmsprior") && 
+                            all(conf$user_prior$class == "sd")
+      
+      if (isTRUE(conf$is_random_effect) && length(random_effects_structure) > 0 && !is_sd_prior_object) {
         # For each random effect structure, create specific priors for each coefficient
         # Random effects use normal(0, 1) as the default
         for (re in random_effects_structure) {
@@ -314,6 +315,16 @@ fit_brms_model <- function(prepared_model,
             }
           }
         }
+      } else if (is_sd_prior_object) {
+        # User provided an SD prior object like set_prior("normal(0, 1)", class = "sd")
+        # Apply it directly to the nlpar without modification
+        processed <- .process_and_retarget_prior(
+          user_prior = conf$user_prior,
+          target_nlpar = conf$nlpar,
+          default_str = NULL,
+          target_class = "sd"
+        )
+        priors_list <- c(priors_list, list(processed$prior))
       } else if (isTRUE(conf$is_mixed_notation_fixed)) {
         # For mixed notation: apply horseshoe(1) to fixed effects (b class)
         # even when random effects are present

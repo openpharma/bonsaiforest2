@@ -5,7 +5,7 @@
 #' non-linear formula by classifying covariates into three distinct categories:
 #' unshrunk terms, shrunk prognostic, and shrunk predictive.
 #'
-#' This classification allows for applying differential shrinkage (regularization)
+#' This classification allows for applying different priors (non-informative or shrinkage)
 #' to different parts of the model. The function also prepares the corresponding
 #' data using R's contrast coding system for proper factor handling and interactions.
 #'
@@ -18,8 +18,8 @@
 #'   \item \strong{Automated Interaction Handling:} Predictive terms support three syntaxes
 #'     that can be used together or separately: colon notation (e.g., `~ trt:subgroup`),
 #'     star notation (e.g., `~ trt*subgroup`), or random effects notation (e.g.,
-#'     `~ (trt || subgroup)`). You can mix these syntaxes in the same model (e.g.,
-#'     `~ trt:var1 + trt*var2 + (trt || var3)`). All variables involved in interactions
+#'     `~ (0 + trt || subgroup)`). You can mix these syntaxes in the same model (e.g.,
+#'     `~ trt:var1 + trt*var2 + (0 + trt || var3)`). All variables involved in interactions
 #'     are converted to factors with appropriate contrasts (reference coding for unshrunk,
 #'     one-hot for shrunk), enabling proper model fitting and prediction on new data
 #'     without manual dummy variable creation.
@@ -63,11 +63,13 @@
 #'   \item \strong{Factor covariates:} Automatic contrast coding based on shrinkage type:
 #'     \itemize{
 #'       \item \strong{Shrunk terms:} One-hot encoding (all factor levels represented).
-#'         For proper regularization, specify these using `~ 0 + var` to explicitly remove
-#'         the intercept and treat all subgroups symmetrically without privileging a specific
-#'         reference group (ensures the exchangeability assumption).
+#'         This removes the reference group and treats all subgroups symmetrically without
+#'         privileging a specific reference level (ensures the exchangeability assumption).
+#'         Recommended: explicitly remove the intercept using `~ 0 + var` or `~ -1 + var` syntax.
+#'         If not specified, the function will still apply one-hot encoding but may include
+#'         a redundant intercept that could complicate interpretation.
 #'       \item \strong{Unshrunk terms:} Dummy encoding (reference level dropped).
-#'       Use standard formula syntax `~ var` with intercept.
+#'       Recommended: Use standard formula syntax `~ var` with intercept for clarity and proper reference coding.
 #'     }
 #'   \item \strong{Custom contrasts:} If you have pre-specified contrasts via
 #'     `contrasts(data$var) <- <matrix>` before calling this function, they will
@@ -99,17 +101,18 @@
 #'   for the `unshrunktermeffect` component. May include main effects and treatment interactions
 #'   without regularization. Supports three syntaxes that can be combined: colon notation
 #'   (e.g., `~ age + sex + trt:biomarker`), star notation (e.g., `~ age + trt*biomarker`),
-#'   or random effects notation (e.g., `~ age + (trt || biomarker)`).
+#'   or random effects notation (e.g., `~ age + (0+trt || biomarker)`).
 #' @param shrunk_prognostic_formula A formula object or `NULL`. Formula specifying prognostic
 #'   main effects to be regularized in the `shprogeffect` component. These are covariates
-#'   where shrinkage/regularization is desired. Should use `~ 0 + ...` syntax to apply
-#'   one-hot encoding for symmetric regularization across all levels without privileging
-#'   a reference group.
+#'   where shrinkage/regularization is desired. Recommended: use `~ 0 + ...` or `~ -1 + ...` syntax
+#'   to explicitly remove the intercept and apply one-hot encoding for symmetric regularization
+#'   across all levels without privileging a reference group.
 #' @param shrunk_predictive_formula A formula object or `NULL`. Formula specifying predictive
 #'   terms (treatment interactions) to be regularized in the `shpredeffect` component.
 #'   Supports three syntaxes that can be combined: colon notation (e.g., `~ 0 + trt:region`),
 #'   star notation (e.g., `~ 0 + trt*region`), or random effects notation
-#'   (e.g., `~ (0 + trt || region)`). Should use `~ 0 + ...` syntax for one-hot encoding.
+#'   (e.g., `~ (0 + trt || region)`). Recommended: use `~ 0 + ...` or `~ -1 + ...` syntax to explicitly
+#'   remove the intercept and apply one-hot encoding.
 #' @param response_type A character string. Type of outcome variable, one of `"binary"`,
 #'   `"count"`, `"continuous"`, or `"survival"`. This determines the appropriate likelihood
 #'   function and link function for the model.
@@ -152,12 +155,12 @@
 #'   sim_data$region <- as.factor(sim_data$region)
 #'   sim_data$subgroup <- as.factor(sim_data$subgroup)
 #'
-#'   # 2a. Example with colon interaction syntax
+#'   # 2a. Example with colon interaction syntax (recommended: use ~ 0 + for shrunk terms)
 #'   prepared_model <- prepare_formula_model(
 #'     data = sim_data,
 #'     response_formula = Surv(time, status) ~ trt,
 #'     unshrunk_terms_formula = ~ age + subgroup,
-#'     shrunk_predictive_formula = ~ trt:subgroup,
+#'     shrunk_predictive_formula = ~ 0 + trt:subgroup,
 #'     response_type = "survival",
 #'     stratification_formula = ~ region
 #'   )
@@ -211,6 +214,7 @@ prepare_formula_model <- function(data,
                                             choices = c("binary", "count", "continuous", "survival")
   )
 
+  # Handle offset for count data and converts trt to numerical
   initial_parts <- .parse_initial_formula(data, response_formula_str)
   processed_data <- initial_parts$data
   response_term <- initial_parts$response_term
@@ -244,7 +248,7 @@ prepare_formula_model <- function(data,
     sub_formulas <- c(sub_formulas, strat_formulas)
   }
 
-  # --- 3. Process and Resolve Formula Terms  ---
+  # --- 3a. Process and Resolve Formula Terms  ---
   # Check if shrunk_prognostic_formula contains interaction or random effects syntax
   # Prognostic effects should be main effects only
   if (!is.null(shrunk_prognostic_formula_str) && shrunk_prognostic_formula_str != "") {
@@ -257,7 +261,7 @@ prepare_formula_model <- function(data,
       )
     }
   }
-  
+
   term_lists <- .resolve_term_overlaps_and_defaults(
     unshrunk_str = unshrunk_terms_formula_str,
     shrunk_prognostic_str = shrunk_prognostic_formula_str,
@@ -265,7 +269,7 @@ prepare_formula_model <- function(data,
     trt_var = trt_var
   )
 
-  # 3b. Create duplicate variables for overlapping terms
+  # --- 3b. Create duplicate variables for overlapping terms ---
   # This allows different contrast encodings for shrunk vs unshrunk contexts
   # Only applies to variables in interactions (shrunk_predictive), not prognostic main effects
   duplicate_result <- .create_duplicate_vars(
@@ -274,8 +278,8 @@ prepare_formula_model <- function(data,
     suffix = "_onehot"
   )
   processed_data <- duplicate_result$data
-  var_mapping <- duplicate_result$mapping  # Maps original name -> duplicate name
-  
+  var_mapping <- duplicate_result$mapping
+
   # Update ONLY shrunk_predictive_formula to use duplicated variable names
   # (shrunk_prognostic should NOT have any overlaps per the validation above)
   # IMPORTANT: Do NOT replace grouping variables (right side of ||) in random effects
@@ -287,20 +291,20 @@ prepare_formula_model <- function(data,
         # First, protect the grouping variables by temporarily replacing them
         pipe_pattern <- paste0("\\|\\|\\s*", orig_var, "\\b")
         temp_placeholder <- paste0("||__GROUPING_", orig_var, "__")
-        
+
         shrunk_predictive_formula_str <- stringr::str_replace_all(
           shrunk_predictive_formula_str,
           pipe_pattern,
           temp_placeholder
         )
-        
+
         # Now replace other occurrences (colon, star interactions) with duplicated name
         shrunk_predictive_formula_str <- stringr::str_replace_all(
           shrunk_predictive_formula_str,
           paste0("\\b", orig_var, "\\b"),
           var_mapping[orig_var]
         )
-        
+
         # Restore protected grouping variables with original name
         shrunk_predictive_formula_str <- stringr::str_replace_all(
           shrunk_predictive_formula_str,
@@ -311,7 +315,7 @@ prepare_formula_model <- function(data,
     }
   }
 
-  # 4. Process Predictive Terms
+  # --- 4. Process Predictive Terms ---
   # Process the full unshrunk formula (both main effects and interactions together)
   # This will be used as a single unshrunktermeffect component
   # Use dummy encoding (reference level dropped) for unshrunk terms
@@ -452,13 +456,13 @@ prepare_formula_model <- function(data,
 #'
 .extract_interaction_vars <- function(formula_str, trt_var) {
   if (is.null(formula_str) || formula_str == "") return(character(0))
-  
+
   interaction_vars <- character(0)
-  
+
   # Remove the ~ and any leading 0/1
   formula_rhs <- stringr::str_remove(formula_str, "^~\\s*")
   formula_rhs <- stringr::str_remove(formula_rhs, "^(0|\\-1)\\s*\\+\\s*")
-  
+
   # Extract from colon notation: trt:var or var:trt
   colon_matches <- stringr::str_match_all(formula_rhs, "(\\w+):(\\w+)")[[1]]
   if (nrow(colon_matches) > 0) {
@@ -467,7 +471,7 @@ prepare_formula_model <- function(data,
       interaction_vars <- c(interaction_vars, setdiff(vars, trt_var))
     }
   }
-  
+
   # Extract from star notation: trt*var or var*trt
   star_matches <- stringr::str_match_all(formula_rhs, "(\\w+)\\*(\\w+)")[[1]]
   if (nrow(star_matches) > 0) {
@@ -476,7 +480,7 @@ prepare_formula_model <- function(data,
       interaction_vars <- c(interaction_vars, setdiff(vars, trt_var))
     }
   }
-  
+
   # Extract from pipe-pipe notation: (var1 || var2) or (0 + var1 || var2)
   # For random effects, ONLY extract the LEFT side (effect terms), NOT the right side (grouping variable)
   # The grouping variable should NOT be duplicated - it must remain the original factor
@@ -495,7 +499,7 @@ prepare_formula_model <- function(data,
       interaction_vars <- c(interaction_vars, setdiff(var1_terms, trt_var))
     }
   }
-  
+
   return(unique(interaction_vars))
 }
 
@@ -515,33 +519,32 @@ prepare_formula_model <- function(data,
 #' @noRd
 #'
 .create_duplicate_vars <- function(data, vars, suffix = "_onehot") {
-  checkmate::assert_data_frame(data)
   checkmate::assert_character(vars)
   checkmate::assert_string(suffix)
-  
+
   if (length(vars) == 0) {
     return(list(data = data, mapping = character(0)))
   }
-  
+
   mapping <- character(length(vars))
   names(mapping) <- vars
-  
+
   for (var in vars) {
     if (!var %in% names(data)) {
       warning("Variable '", var, "' not found in data. Skipping duplication.")
       next
     }
-    
+
     # Create new variable name
     new_var <- paste0(var, suffix)
-    
+
     # Duplicate the column
     data[[new_var]] <- data[[var]]
-    
+
     # Store mapping
     mapping[var] <- new_var
   }
-  
+
   return(list(data = data, mapping = mapping))
 }
 
@@ -563,7 +566,6 @@ prepare_formula_model <- function(data,
 #' @noRd
 #'
 .set_factor_contrasts <- function(data, var_name, is_shrunken, user_contrast_vars = character(0)) {
-  checkmate::assert_data_frame(data)
   checkmate::assert_string(var_name)
   checkmate::assert_logical(is_shrunken, len = 1)
   checkmate::assert_character(user_contrast_vars)
@@ -616,9 +618,8 @@ prepare_formula_model <- function(data,
 #' @noRd
 #'
 .parse_initial_formula <- function(data, response_formula_str) {
-  # --- Assertions ---
-  checkmate::assert_data_frame(data)
-  checkmate::assert_string(response_formula_str, pattern = "~")
+  # Note: data and response_formula_str are pre-validated by the main function
+  # No need for redundant assertions here
 
   formula_parts <- stringr::str_squish(stringr::str_split(response_formula_str, "~", n = 2)[[1]])
   lhs_str <- formula_parts[1]
@@ -627,17 +628,17 @@ prepare_formula_model <- function(data,
   # Parse RHS to separate treatment variable from offset
   rhs_terms <- stringr::str_squish(stringr::str_split(rhs_str, "\\+")[[1]])
   is_offset_rhs <- stringr::str_starts(rhs_terms, "offset\\(")
-  
+
   # Extract treatment variable (first non-offset term on RHS)
   trt_var <- rhs_terms[!is_offset_rhs][1]
-  
+
   # Extract offset from RHS if present
   offset_term <- if (any(is_offset_rhs)) rhs_terms[is_offset_rhs][1] else NULL
-  
+
   # Also check LHS for backwards compatibility
   lhs_terms <- stringr::str_squish(stringr::str_split(lhs_str, "\\+")[[1]])
   is_offset_lhs <- stringr::str_starts(lhs_terms, "offset\\(")
-  
+
   if (any(is_offset_lhs)) {
     if (!is.null(offset_term)) {
       warning("Offset specified on both sides of formula. Using RHS offset only.")
@@ -645,7 +646,7 @@ prepare_formula_model <- function(data,
       offset_term <- lhs_terms[is_offset_lhs][1]
     }
   }
-  
+
   response_term <- paste(lhs_terms[!is_offset_lhs], collapse = " + ")
 
   checkmate::assert_string(trt_var, min.chars = 1)
@@ -743,7 +744,6 @@ prepare_formula_model <- function(data,
 .handle_survival_response <- function(response_part, data, stratification_formula_str) {
   # --- Assertions ---
   checkmate::assert_string(response_part, pattern = "^Surv\\(")
-  checkmate::assert_data_frame(data)
   checkmate::assert_string(stratification_formula_str, null.ok = TRUE)
 
   surv_vars <- stringr::str_match(response_part, "Surv\\((.*?),(.*?)\\)")
@@ -831,16 +831,16 @@ prepare_formula_model <- function(data,
          "Overlapping variables: ", paste(prognostic_overlap, collapse = ", "),
          call. = FALSE)
   }
-  
+
   # Extract variables involved in interactions from shrunk_predictive
   # These are the variables we'll check for overlaps with unshrunk terms
   predictive_interaction_vars <- .extract_interaction_vars(shrunk_predictive_str, trt_var)
-  
+
   # Check for overlaps between unshrunk main effects and shrunk PREDICTIVE interactions
   # This IS allowed - we'll create duplicates for the interaction terms
   predictive_overlap <- intersect(all_unshrunk_terms, predictive_interaction_vars)
   vars_to_duplicate <- character(0)
-  
+
   if (length(predictive_overlap) > 0) {
     vars_to_duplicate <- predictive_overlap
     # Keep original terms in unshrunk, duplicates will be used in shrunk predictive
@@ -961,7 +961,6 @@ prepare_formula_model <- function(data,
 .process_predictive_terms <- function(formula_str, .data, .trt_var, .user_contrast_vars = character(0), .is_shrunken = FALSE, .formula_type = "unshrunk") {
   # --- Assertions ---
   checkmate::assert_string(formula_str, null.ok = TRUE)
-  checkmate::assert_data_frame(.data)
   checkmate::assert_string(.trt_var)
   checkmate::assert_logical(.is_shrunken, len = 1)
   checkmate::assert_string(.formula_type)
@@ -973,9 +972,9 @@ prepare_formula_model <- function(data,
   # Validate and convert treatment to numeric binary (0/1)
   .data <- .ensure_numeric_binary_treatment(.data, .trt_var)
 
-  # Encoding depends on shrinkage category, not intercept specification
-  # Shrunk terms: one-hot encoding (all levels)
-  # Unshrunk terms: dummy encoding (reference level dropped)
+  # Encoding depends on shrinkage category
+  # Shrunk terms: one-hot encoding (all levels) - recommended with ~ 0 + syntax
+  # Unshrunk terms: dummy encoding (reference level dropped) - recommended with standard ~ syntax
   use_onehot <- .is_shrunken
 
   # Detect ALL syntax types present in the formula (can have multiple)
@@ -1322,7 +1321,7 @@ prepare_formula_model <- function(data,
   # Do NOT protect contrasts set during interaction processing
   # This allows prognostic terms to apply their own encoding even if the same
   # variable was used in predictive interactions with different encoding
-  
+
   # Delegate to unified function
   # For prognostic terms: don't auto-convert to factors (they should already be factors or will be handled elsewhere)
   .apply_factor_contrasts_to_vars(
@@ -1388,7 +1387,6 @@ prepare_formula_model <- function(data,
   # --- Assertions ---
   checkmate::assert_choice(response_type, choices = c("continuous", "count"))
   checkmate::assert_string(stratification_formula_str)
-  checkmate::assert_data_frame(data)
 
   strat_var <- stringr::str_squish(stringr::str_remove(stratification_formula_str, "~"))
   checkmate::assert_subset(strat_var, names(data))
@@ -1520,19 +1518,15 @@ prepare_formula_model <- function(data,
       # Add intercept removal if specified by user
       if (remove_intercept) {
         rhs <- paste("0 +", rhs)
+      } else if (name %in% c("shprogeffect", "shpredeffect")) {
+        # Warn if shrunk terms (prognostic or predictive) have intercept included
+        warning("Formula '", name, "' contains an intercept. ",
+                "For proper regularization/interpretation, consider removing it by adding ",
+                "'~ 0 + ...' or '~ -1 + ...' to your input formula.",
+                call. = FALSE)
       }
 
       formula_str <- paste(name, "~", rhs)
-
-      # Warn if shrunk formulas have intercepts when they shouldn't
-      # Only shrunk terms (shprogeffect, shpredeffect) should have no intercept
-      if (name %in% c("shprogeffect", "shpredeffect")) {
-        if (!.has_no_intercept(formula_str)) {
-          warning("Formula '", name, "' contains an intercept. ",
-                  "For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' ",
-                  "to your input formula.", call. = FALSE)
-        }
-      }
 
       sub_formulas[[name]] <<- brms::lf(formula_str)
     }
