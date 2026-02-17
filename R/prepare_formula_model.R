@@ -278,15 +278,34 @@ prepare_formula_model <- function(data,
   
   # Update ONLY shrunk_predictive_formula to use duplicated variable names
   # (shrunk_prognostic should NOT have any overlaps per the validation above)
+  # IMPORTANT: Do NOT replace grouping variables (right side of ||) in random effects
   if (length(var_mapping) > 0) {
     # Update shrunk predictive formula string to reference duplicated variables
     if (!is.null(shrunk_predictive_formula_str) && shrunk_predictive_formula_str != "") {
       for (orig_var in names(var_mapping)) {
-        # Use word boundaries to avoid partial matches
+        # For random effects (||), only replace on LEFT side (effects), NOT right side (grouping)
+        # First, protect the grouping variables by temporarily replacing them
+        pipe_pattern <- paste0("\\|\\|\\s*", orig_var, "\\b")
+        temp_placeholder <- paste0("||__GROUPING_", orig_var, "__")
+        
+        shrunk_predictive_formula_str <- stringr::str_replace_all(
+          shrunk_predictive_formula_str,
+          pipe_pattern,
+          temp_placeholder
+        )
+        
+        # Now replace other occurrences (colon, star interactions) with duplicated name
         shrunk_predictive_formula_str <- stringr::str_replace_all(
           shrunk_predictive_formula_str,
           paste0("\\b", orig_var, "\\b"),
           var_mapping[orig_var]
+        )
+        
+        # Restore protected grouping variables with original name
+        shrunk_predictive_formula_str <- stringr::str_replace_all(
+          shrunk_predictive_formula_str,
+          paste0("\\|\\|__GROUPING_", orig_var, "__"),
+          paste0("|| ", orig_var)
         )
       }
     }
@@ -321,9 +340,7 @@ prepare_formula_model <- function(data,
   # Check if random effects are present
   has_random_effects <- isTRUE(unshrunk_out$has_random_effects) || isTRUE(shrunk_pred_out$has_random_effects)
 
-  if (has_random_effects) {
-    message("Note: Random effects (||) detected. Grouping factors will be handled by brms.")
-  }
+  # has_random_effects flag set
 
   # --- 5. Check for missing prognostic main effects  ---
   # Note: Variables in star notation are excluded because star automatically includes main effects
@@ -461,14 +478,21 @@ prepare_formula_model <- function(data,
   }
   
   # Extract from pipe-pipe notation: (var1 || var2) or (0 + var1 || var2)
+  # For random effects, ONLY extract the LEFT side (effect terms), NOT the right side (grouping variable)
+  # The grouping variable should NOT be duplicated - it must remain the original factor
   pipe_matches <- stringr::str_match_all(formula_rhs, "\\(\\s*([^|]+?)\\s*\\|\\|\\s*([^)]+?)\\s*\\)")[[1]]
   if (nrow(pipe_matches) > 0) {
     for (i in seq_len(nrow(pipe_matches))) {
+      # Only extract from LEFT side of || (the effect terms)
       var1 <- stringr::str_remove(pipe_matches[i, 2], "^(0|\\-1)\\s*\\+\\s*")
       var1 <- stringr::str_squish(var1)
-      var2 <- stringr::str_squish(pipe_matches[i, 3])
-      vars <- c(var1, var2)
-      interaction_vars <- c(interaction_vars, setdiff(vars, trt_var))
+      # Extract variables from var1 (could be multiple like "1 + trt")
+      var1_terms <- stringr::str_split(var1, "\\+")[[1]]
+      var1_terms <- stringr::str_squish(var1_terms)
+      var1_terms <- var1_terms[var1_terms != "1" & var1_terms != "0"]  # Remove intercept terms
+      # var2 is the grouping variable - DO NOT include it
+      # var2 <- stringr::str_squish(pipe_matches[i, 3])
+      interaction_vars <- c(interaction_vars, setdiff(var1_terms, trt_var))
     }
   }
   
@@ -516,8 +540,6 @@ prepare_formula_model <- function(data,
     
     # Store mapping
     mapping[var] <- new_var
-    
-    message("Created duplicate variable '", new_var, "' for one-hot encoding (original '", var, "' will use dummy encoding)")
   }
   
   return(list(data = data, mapping = mapping))
@@ -548,13 +570,11 @@ prepare_formula_model <- function(data,
 
   # Skip contrast setting for numeric variables (e.g., binary 0/1 treatment)
   if (is.numeric(data[[var_name]])) {
-    message("Skipping contrast setting for numeric variable '", var_name, "'")
     return(data)
   }
 
   # Ensure variable is a factor
   if (!is.factor(data[[var_name]])) {
-    message("Note: Converting '", var_name, "' to factor for proper contrast coding.")
     data[[var_name]] <- as.factor(data[[var_name]])
   }
 
@@ -563,7 +583,6 @@ prepare_formula_model <- function(data,
 
   # Always preserve user-specified contrasts
   if (is_user_specified) {
-    message("Variable '", var_name, "' has user-specified contrasts. Keeping them.")
     return(data)
   }
 
@@ -573,11 +592,9 @@ prepare_formula_model <- function(data,
   if (is_shrunken) {
     # One-hot encoding for shrunk terms (to be used with ~ 0 + ... formula syntax)
     contrasts(data[[var_name]], nlevels(data[[var_name]])) <- contr.treatment(levels(data[[var_name]]), contrasts = FALSE)
-    message("Note: Applied one-hot encoding to shrunken factor '", var_name, "' (will be used with ~ 0 + ...)")
   } else {
     # Dummy encoding for unshrunk terms (reference level serves as baseline)
     contrasts(data[[var_name]]) <- contr.treatment(levels(data[[var_name]]))
-    message("Note: Applied dummy encoding (contr.treatment) to unshrunken factor '", var_name, "'")
   }
 
   return(data)
@@ -626,7 +643,6 @@ prepare_formula_model <- function(data,
       warning("Offset specified on both sides of formula. Using RHS offset only.")
     } else {
       offset_term <- lhs_terms[is_offset_lhs][1]
-      message("Note: Offset on LHS is deprecated. Please use 'response ~ treatment + offset(...)' syntax instead.")
     }
   }
   
@@ -651,8 +667,6 @@ prepare_formula_model <- function(data,
     # Convert to 0/1, where the first value in sorted order becomes 0
     sorted_values <- sort(trt_values)
     data[[trt_var]] <- as.numeric(data[[trt_var]] == sorted_values[2])
-    message("Converting treatment variable '", trt_var, "' to numeric binary (0/1). ",
-            "'", sorted_values[1], "' = 0, '", sorted_values[2], "' = 1")
   } else {
     # Ensure it's 0/1 if already numeric
     if (!all(data[[trt_var]] %in% c(0, 1))) {
@@ -660,8 +674,6 @@ prepare_formula_model <- function(data,
               "Recoding to 0/1 based on sorted unique values.")
       sorted_values <- sort(trt_values)
       data[[trt_var]] <- as.numeric(data[[trt_var]] == sorted_values[2])
-    } else {
-      message("Treatment variable '", trt_var, "' is already numeric binary (0/1).")
     }
   }
 
@@ -807,7 +819,6 @@ prepare_formula_model <- function(data,
 
   # Automatically add treatment to unshrunk terms if not already present
   if (!(trt_var %in% all_unshrunk_terms) && !(trt_var %in% shrunk_prog)) {
-    message("Note: Treatment '", trt_var, "' automatically added to unshrunk terms.")
     all_unshrunk_terms <- c(all_unshrunk_terms, trt_var)
   }
 
@@ -831,9 +842,6 @@ prepare_formula_model <- function(data,
   vars_to_duplicate <- character(0)
   
   if (length(predictive_overlap) > 0) {
-    message("Note: Variables appear as main effects (unshrunk) and in interactions (shrunk predictive): ", 
-            paste(predictive_overlap, collapse = ", "), 
-            ". Creating duplicates to allow different contrast encodings.")
     vars_to_duplicate <- predictive_overlap
     # Keep original terms in unshrunk, duplicates will be used in shrunk predictive
   }
@@ -884,7 +892,6 @@ prepare_formula_model <- function(data,
 
     # Convert to factor if needed and requested
     if (convert_to_factor && !is.factor(.data[[var]])) {
-      message(paste("Note: Converting", var, "to factor for", .formula_type, "."))
       .data[[var]] <- as.factor(.data[[var]])
     }
 
@@ -1273,10 +1280,7 @@ prepare_formula_model <- function(data,
 
     # Convert to factor if needed, but don't set custom contrasts
     if (!is.factor(.data[[var]])) {
-      message("Note: Converting '", var, "' to factor for random effects grouping.")
       .data[[var]] <- as.factor(.data[[var]])
-    } else {
-      message("Note: Using '", var, "' as random effects grouping factor (brms will handle contrasts).")
     }
   }
 
