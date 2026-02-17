@@ -12,7 +12,6 @@ run_brms_analysis(
   shrunk_prognostic_formula = NULL,
   shrunk_predictive_formula = NULL,
   stratification_formula = NULL,
-  sigma_ref = 1,
   intercept_prior = NULL,
   unshrunk_prior = NULL,
   shrunk_prognostic_prior = NULL,
@@ -51,33 +50,25 @@ use random effects notation (e.g., \code{~ (trt || subgroup)}). Passed to \code{
 (e.g., \code{~ strata_var}). For survival models, estimates separate baseline hazards per stratum.
 For other models, models varying distributional parameters. Passed to \code{prepare_formula_model()}.}
 
-\item{sigma_ref}{A numeric scalar. Reference scale for prior specification. Default is 1.
-For continuous outcomes, recommended values are: (1) Assumed standard deviation from trial
-protocol (preferred), or (2) \code{sd(outcome_variable)} if protocol value unavailable.
-For binary, survival and count outcomes, the default value of 1 is typically appropriate.
-Can be referenced in prior strings using the placeholder \code{sigma_ref}
-(e.g., \code{"normal(0, 2.5 * sigma_ref)"}). Passed to \code{fit_brms_model()}.}
-
 \item{intercept_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Intercept prior for
-\code{unshrunktermeffect} component. Supports \code{sigma_ref} placeholder substitution.
-Not used for survival models (Cox models have no intercept).
-Example: \code{"normal(0, 10 * sigma_ref)"}. Passed to \code{fit_brms_model()}.}
+\code{unshrunktermeffect} component. Not used for survival models (Cox models have no intercept).
+Example: \code{"normal(0, 10)"}. Passed to \code{fit_brms_model()}.}
 
 \item{unshrunk_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior for unshrunk
-terms (non-intercept coefficients in \code{unshrunktermeffect} component). Supports \code{sigma_ref}
-placeholder substitution. Example: \code{"normal(0, 2.5 * sigma_ref)"}. Passed to \code{fit_brms_model()}.}
+terms (non-intercept coefficients in \code{unshrunktermeffect} component).
+Example: \code{"normal(0, 2.5)"}. Passed to \code{fit_brms_model()}.}
 
 \item{shrunk_prognostic_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior for
 regularized prognostic effects in \code{shprogeffect} component. For fixed effects (colon syntax),
-typically strong regularization like \code{"horseshoe(scale_global = sigma_ref)"}. For random
-effects (pipe-pipe syntax), automatically uses \code{normal(0, sigma_ref)} priors on the standard
+typically strong regularization like \code{"horseshoe(scale_global = 1)"}. For random
+effects (pipe-pipe syntax), automatically uses \code{normal(0, 1)} priors on the standard
 deviation scale. Passed to \code{fit_brms_model()}.}
 
 \item{shrunk_predictive_prior}{A character string, \code{brmsprior} object, or \code{NULL}. Prior for
 regularized predictive effects (treatment interactions) in \code{shpredeffect} component. For
 fixed effects (colon syntax), typically strong regularization like
-\code{"horseshoe(scale_global = 0.5 * sigma_ref)"}. For random effects (pipe-pipe syntax),
-automatically uses \code{normal(0, sigma_ref)} priors on the standard deviation scale. Passed to
+\code{"horseshoe(scale_global = 0.5)"}. For random effects (pipe-pipe syntax),
+automatically uses \code{normal(0, 1)} priors on the standard deviation scale. Passed to
 \code{fit_brms_model()}.}
 
 \item{stanvars}{A \code{stanvars} object or \code{NULL}. Custom Stan code created via \code{brms::stanvar()}
@@ -117,11 +108,6 @@ if (require("brms") && require("survival")) {
 
   # 2. Run the full analysis using GLOBAL fixed effects (colon syntax)
   \dontrun{
-  # For survival models, typically use sigma_ref = 1 (default)
-  # For continuous outcomes, use protocol sigma (preferred) or sd(outcome) (fallback)
-  # Example: sigma_ref <- 12.5  # from protocol
-  # OR: sigma_ref <- sd(sim_data$outcome)  # if protocol value unavailable
-
   full_fit_global <- run_brms_analysis(
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
@@ -130,17 +116,16 @@ if (require("brms") && require("survival")) {
     shrunk_prognostic_formula = ~ 0 + region,
     shrunk_predictive_formula = ~ 0 + trt:subgroup,
     stratification_formula = ~ region,
-    sigma_ref = 1,  # Default for survival
-    unshrunk_prior = "normal(0, 2 * sigma_ref)",
-    shrunk_prognostic_prior = "horseshoe(scale_global = sigma_ref)",
-    shrunk_predictive_prior = "horseshoe(scale_global = sigma_ref)",
+    unshrunk_prior = "normal(0, 2)",
+    shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+    shrunk_predictive_prior = "horseshoe(scale_global = 1)",
     chains = 1, iter = 50, warmup = 10, refresh = 0 # For quick example
   )
 
   print(full_fit_global)
 
   # 3. Alternative: OVAT random effects (pipe-pipe syntax)
-  # Random effects automatically get normal(0, sigma_ref) priors on SD scale
+  # Random effects automatically get normal(0, 1) priors on SD scale
   full_fit_ovat <- run_brms_analysis(
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
@@ -149,7 +134,6 @@ if (require("brms") && require("survival")) {
     shrunk_prognostic_formula = ~ (1 || region),
     shrunk_predictive_formula = ~ (trt || subgroup),
     stratification_formula = ~ region,
-    sigma_ref = 1,
     chains = 1, iter = 50, warmup = 10, refresh = 0
   )
 

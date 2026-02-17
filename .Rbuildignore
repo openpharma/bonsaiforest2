@@ -26,3 +26,5 @@ TODO
 ^Detailed_functions_explanation_for_software_developers\.Rmd$
 ^brms_lf_contrast\.Rmd$
 ^test_new_interface\.Rmd$
+^Good_examples\.txt$
+^vignettes/JAGS_to_bonsaiforest2_comparison\.Rmd$

@@ -32,7 +32,8 @@ interactions from all formula components (\code{unshrunktermeffect}, \code{shpro
 \value{
 \code{subgroup_summary}. S3 object containing:
 \describe{
-\item{\code{estimates}}{\code{tibble} with subgroup-specific treatment effect estimates}
+\item{\code{estimates}}{\code{tibble} where each row represents a subgroup, with columns
+for \code{Subgroup}, \code{Median}, \code{CI_Lower}, and \code{CI_Upper} from posterior distribution}
 \item{\code{response_type}}{\code{character(1)} indicating outcome type}
 \item{\code{ci_level}}{\code{numeric(1)} credible interval level (default 0.95)}
 \item{\code{trt_var}}{\code{character(1)} treatment variable name}

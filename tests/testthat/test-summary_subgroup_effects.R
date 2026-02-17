@@ -20,7 +20,6 @@ minimal_brms_fit_summary <- suppressMessages(
     response_type = "continuous",
     shrunk_prognostic_formula = "~ 0 + age",  # Use ~ 0 + to avoid intercept warning
     shrunk_predictive_formula = "~ 0 + trt:region + trt:sex",  # Use ~ 0 + to avoid intercept warning
-    sigma_ref = sd(original_test_data_summary$outcome),
     chains = 1, iter = 10, warmup = 5, refresh = 0,
     backend = "cmdstanr", cores = 1
   )
@@ -95,19 +94,19 @@ test_that("summary_subgroup_effects assertions catch invalid inputs", {
     summary_subgroup_effects(brms_fit = list()),
     regexp = "Must inherit from class 'brmsfit'"
   )
-  
+
   # trt_var not in data when explicitly provided
   expect_error(
     summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, trt_var = "treatment"),
     regexp = "Must be a subset of"
   )
-  
+
   # Invalid subgroup_vars type (number instead of char or 'auto')
   expect_error(
     summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, subgroup_vars = 123),
     regexp = "Assertion failed"
   )
-  
+
   # subgroup_vars not in data
   expect_error(
     summary_subgroup_effects(brms_fit = minimal_brms_fit_summary, subgroup_vars = c("region", "missing_var")),

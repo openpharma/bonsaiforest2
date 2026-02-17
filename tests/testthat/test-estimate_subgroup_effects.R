@@ -24,7 +24,6 @@ minimal_brms_fit <- suppressMessages(
     response_type = "continuous",
     shrunk_prognostic_formula = "~ 0 + age",  # Use ~ 0 + to avoid intercept warning
     shrunk_predictive_formula = "~ 0 + trt:region + trt:sex", # Interactions needed for 'auto', use ~ 0 + to avoid intercept warning
-    sigma_ref = sd(original_test_data$outcome),
     chains = 1, iter = 10, warmup = 5, refresh = 0,
     backend = "cmdstanr", # Use faster backend if available
     cores = 1
