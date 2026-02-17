@@ -288,9 +288,9 @@ tau_parameter <- brms::stanvar(
   block = "parameters"
 )
 
-# Step 2: Add prior for tau
+# Step 2: Add prior for tau (using normal truncated to positive values with constraint)
 tau_prior <- brms::stanvar(
-  scode = "  biomarker_tau ~ half_normal(0, 1);  // Hyperprior on the scale\n",
+  scode = "  biomarker_tau ~ normal(0, 1);  // Hyperprior on the scale\n",
   block = "model"
 )
 
@@ -304,7 +304,9 @@ unshrunk_priors_hier <- c(
   brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:X2B"),
   brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:X2C")
 )
+```
 
+```{r, eval=FALSE}
 # Step 4: Fit the hierarchical model
 fit_hier <- fit_brms_model(
   prepared_model = prepared_model,
@@ -411,6 +413,8 @@ prepared_custom_contrast <- prepare_formula_model(
 # Generate predictions using brms::predict
 # This returns posterior predictive samples
 predictions <- predict(fit_custom_contrast, newdata = prepared_custom_contrast$data, summary = TRUE)
+
+head(predictions)
 ```
 
 # Stratification for Nuisance Parameters
