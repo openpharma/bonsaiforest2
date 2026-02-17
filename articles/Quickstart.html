@@ -171,7 +171,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.0 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.9 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_region</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_region</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -192,7 +192,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.3 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 4.3 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_comorbidity</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_comorbidity</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -213,7 +213,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.0 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 4.0 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_age</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_age</span>, subgroup_vars <span class="op">=</span> <span class="st">"age_group"</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -234,7 +234,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 4.4 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_sex</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_sex</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -255,7 +255,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.6 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 4.2 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_ovat_diabetes</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">ovat_diabetes</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -305,7 +305,7 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.7 seconds.</span></span></code></pre></div>
+<span><span class="co">#&gt; Chain 1 finished in 4.0 seconds.</span></span></code></pre></div>
 </div>
 <div class="section level3" number="4.2">
 <h3 id="global-model-summary-of-subgroup-effects">
@@ -395,20 +395,20 @@
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">global_summary</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $estimates</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 12 × 4</span></span></span>
-<span><span class="co">#&gt;    Subgroup          Median CI_Lower CI_Upper</span></span>
-<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> region: APAC     1.53      -<span style="color: #BB0000;">1.26</span>      4.88</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> region: EU       0.764     -<span style="color: #BB0000;">1.95</span>      3.47</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> region: USA      0.379     -<span style="color: #BB0000;">2.60</span>      3.12</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> comorbidity: No  0.607     -<span style="color: #BB0000;">1.75</span>      3.11</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> comorbidity: Yes 1.28      -<span style="color: #BB0000;">1.37</span>      3.93</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> age_group: &lt;50   1.28      -<span style="color: #BB0000;">1.61</span>      4.28</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> age_group: &gt;65   0.852     -<span style="color: #BB0000;">2.12</span>      3.93</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> age_group: 50-65 0.661     -<span style="color: #BB0000;">1.80</span>      3.20</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> sex: F           0.005<span style="text-decoration: underline;">42</span>   -<span style="color: #BB0000;">2.87</span>      2.66</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> sex: M           1.65      -<span style="color: #BB0000;">0.775</span>     4.30</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> diabetes: No     0.312     -<span style="color: #BB0000;">2.21</span>      2.72</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> diabetes: Yes    2.01      -<span style="color: #BB0000;">0.845</span>     5.15</span></span>
+<span><span class="co">#&gt;    Subgroup         Median CI_Lower CI_Upper</span></span>
+<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>             <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> region: APAC     1.55     -<span style="color: #BB0000;">1.44</span>      4.77</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> region: EU       0.861    -<span style="color: #BB0000;">2.13</span>      3.63</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> region: USA      0.430    -<span style="color: #BB0000;">2.77</span>      3.32</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> comorbidity: No  0.676    -<span style="color: #BB0000;">1.83</span>      3.37</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> comorbidity: Yes 1.29     -<span style="color: #BB0000;">1.74</span>      4.05</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> age_group: &lt;50   1.22     -<span style="color: #BB0000;">1.78</span>      4.32</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> age_group: &gt;65   0.879    -<span style="color: #BB0000;">2.09</span>      3.91</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> age_group: 50-65 0.729    -<span style="color: #BB0000;">2.02</span>      3.41</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> sex: F           0.037<span style="text-decoration: underline;">4</span>   -<span style="color: #BB0000;">2.89</span>      2.68</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> sex: M           1.73     -<span style="color: #BB0000;">0.857</span>     4.52</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> diabetes: No     0.286    -<span style="color: #BB0000;">2.27</span>      2.84</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> diabetes: Yes    2.05     -<span style="color: #BB0000;">1.03</span>      5.22</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>

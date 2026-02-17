@@ -263,15 +263,9 @@ if (require("brms") && require("survival")) {
   print(prepared_model$formula)
   print(head(prepared_model$data))
 }
-#> Converting treatment variable 'trt' to numeric binary (0/1). '0' = 0, '1' = 1
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 #> Applying stratification: estimating separate baseline hazards by 'region'.
-#> Note: Treatment 'trt' automatically added to unshrunk terms.
-#> Note: Variables appear as main effects (unshrunk) and in interactions (shrunk predictive): subgroup. Creating duplicates to allow different contrast encodings.
-#> Created duplicate variable 'subgroup_onehot' for one-hot encoding (original 'subgroup' will use dummy encoding)
-#> Note: Applied one-hot encoding to shrunken factor 'subgroup_onehot' (will be used with ~ 0 + ...)
 #> Note: Marginality principle not followed - interaction term 'subgroup_onehot' is used without its main effect. Consider adding 'subgroup_onehot' to prognostic terms for proper model hierarchy.
-#> Note: Applied dummy encoding (contr.treatment) to unshrunken factor 'subgroup'
 #> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
 #> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect 
 #> unshrunktermeffect ~ 0 + age + subgroup + trt

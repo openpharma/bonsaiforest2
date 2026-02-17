@@ -118,7 +118,7 @@ ovat_region <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.0 seconds.
+#> Chain 1 finished in 3.9 seconds.
 
 summary_ovat_region <- summary_subgroup_effects(brms_fit = ovat_region)
 ```
@@ -138,7 +138,7 @@ ovat_comorbidity <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.3 seconds.
+#> Chain 1 finished in 4.3 seconds.
 
 summary_ovat_comorbidity <- summary_subgroup_effects(brms_fit = ovat_comorbidity)
 ```
@@ -158,7 +158,7 @@ ovat_age <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.0 seconds.
+#> Chain 1 finished in 4.0 seconds.
 
 summary_ovat_age <- summary_subgroup_effects(brms_fit = ovat_age, subgroup_vars = "age_group")
 ```
@@ -178,7 +178,7 @@ ovat_sex <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 1 finished in 4.4 seconds.
 
 summary_ovat_sex <- summary_subgroup_effects(brms_fit = ovat_sex)
 ```
@@ -198,7 +198,7 @@ ovat_diabetes <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.6 seconds.
+#> Chain 1 finished in 4.2 seconds.
 
 summary_ovat_diabetes <- summary_subgroup_effects(brms_fit = ovat_diabetes)
 ```
@@ -248,7 +248,7 @@ global_model <- run_brms_analysis(
 )
 #> Running MCMC with 1 chain...
 #> 
-#> Chain 1 finished in 3.7 seconds.
+#> Chain 1 finished in 4.0 seconds.
 ```
 
 ### 4.2 Global Model: Summary of Subgroup Effects
@@ -341,20 +341,20 @@ global_summary <- summary_subgroup_effects(
 print(global_summary)
 #> $estimates
 #> # A tibble: 12 × 4
-#>    Subgroup          Median CI_Lower CI_Upper
-#>    <chr>              <dbl>    <dbl>    <dbl>
-#>  1 region: APAC     1.53      -1.26      4.88
-#>  2 region: EU       0.764     -1.95      3.47
-#>  3 region: USA      0.379     -2.60      3.12
-#>  4 comorbidity: No  0.607     -1.75      3.11
-#>  5 comorbidity: Yes 1.28      -1.37      3.93
-#>  6 age_group: <50   1.28      -1.61      4.28
-#>  7 age_group: >65   0.852     -2.12      3.93
-#>  8 age_group: 50-65 0.661     -1.80      3.20
-#>  9 sex: F           0.00542   -2.87      2.66
-#> 10 sex: M           1.65      -0.775     4.30
-#> 11 diabetes: No     0.312     -2.21      2.72
-#> 12 diabetes: Yes    2.01      -0.845     5.15
+#>    Subgroup         Median CI_Lower CI_Upper
+#>    <chr>             <dbl>    <dbl>    <dbl>
+#>  1 region: APAC     1.55     -1.44      4.77
+#>  2 region: EU       0.861    -2.13      3.63
+#>  3 region: USA      0.430    -2.77      3.32
+#>  4 comorbidity: No  0.676    -1.83      3.37
+#>  5 comorbidity: Yes 1.29     -1.74      4.05
+#>  6 age_group: <50   1.22     -1.78      4.32
+#>  7 age_group: >65   0.879    -2.09      3.91
+#>  8 age_group: 50-65 0.729    -2.02      3.41
+#>  9 sex: F           0.0374   -2.89      2.68
+#> 10 sex: M           1.73     -0.857     4.52
+#> 11 diabetes: No     0.286    -2.27      2.84
+#> 12 diabetes: Yes    2.05     -1.03      5.22
 #> 
 #> $response_type
 #> [1] "continuous"

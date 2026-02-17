@@ -262,13 +262,9 @@ if (require("brms") && require("survival")) {
 #> The following object is masked from ‘package:brms’:
 #> 
 #>     kidney
-#> Converting treatment variable 'trt' to numeric binary (0/1). '0' = 0, '1' = 1
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 #> Applying stratification: estimating separate baseline hazards by 'region'.
-#> Note: Treatment 'trt' automatically added to unshrunk terms.
-#> Note: Applied one-hot encoding to shrunken factor 'subgroup' (will be used with ~ 0 + ...)
 #> Note: Marginality principle not followed - interaction term 'subgroup' is used without its main effect. Consider adding 'subgroup' to prognostic terms for proper model hierarchy.
-#> Note: Applied one-hot encoding to shrunken factor 'region' (will be used with ~ 0 + ...)
 #> Warning: Formula 'shprogeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
 #> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
 ```
