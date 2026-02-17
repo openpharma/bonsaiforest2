@@ -28,6 +28,8 @@
 #' @param ndraws An integer or `NULL`. Number of posterior draws to use for estimation.
 #'   If `NULL` (default), all available posterior draws are used. Reducing this can speed
 #'   up computation at the cost of precision.
+#' @param conf A numeric scalar. Credible interval confidence level. Default is 0.95
+#'   (corresponding to 95% credible intervals). Example: use 0.90 for 90% credible intervals.
 #'
 #' @return `list` with two named elements:
 #'   \describe{
@@ -49,7 +51,8 @@ estimate_subgroup_effects <- function(brms_fit,
                                       data = NULL,
                                       subgroup_vars = "auto",
                                       response_type = NULL,
-                                      ndraws = NULL) {
+                                      ndraws = NULL,
+                                      conf = 0.95) {
 
   # --- 1. Validate inputs and determine which subgroups to analyze ---
   checkmate::assert_class(brms_fit, "brmsfit")
@@ -92,6 +95,7 @@ estimate_subgroup_effects <- function(brms_fit,
   response_type <- checkmate::assert_choice(response_type,
                                             choices = c("continuous", "binary", "count", "survival"))
   checkmate::assert_count(ndraws, null.ok = TRUE, positive = TRUE)
+  checkmate::assert_number(conf, lower = 0, upper = 1)
 
   # Use the data extracted from attributes or provided by user
   # This ensures consistency between predictions and subgroup membership
@@ -137,7 +141,8 @@ estimate_subgroup_effects <- function(brms_fit,
     subgroup_vars = prep$subgroup_vars,
     display_names = prep$display_names,
     is_overall = prep$is_overall,
-    response_type = response_type
+    response_type = response_type,
+    conf = conf
   )
 
   message("Done.")
@@ -629,7 +634,7 @@ estimate_subgroup_effects <- function(brms_fit,
 
 #' Calculate and Summarize Marginal Effects
 #' @noRd
-.calculate_and_summarize_effects <- function(posterior_preds, original_data, subgroup_vars, display_names, is_overall, response_type) {
+.calculate_and_summarize_effects <- function(posterior_preds, original_data, subgroup_vars, display_names, is_overall, response_type, conf = 0.95) {
 
   all_results_list <- list()
   all_draws_list <- list()
@@ -699,7 +704,8 @@ estimate_subgroup_effects <- function(brms_fit,
       all_draws_list[[subgroup_name]] <- effect_draws
 
       point_estimate <- median(effect_draws, na.rm = TRUE)
-      ci <- quantile(effect_draws, probs = c(0.025, 0.975), na.rm = TRUE)
+      alpha <- 1 - conf
+      ci <- quantile(effect_draws, probs = c(alpha / 2, 1 - alpha / 2), na.rm = TRUE)
 
       level_results_list[[level]] <- tibble::tibble(
         Subgroup = subgroup_name,
@@ -769,38 +775,52 @@ estimate_subgroup_effects <- function(brms_fit,
 #' Calculate Vectorized Marginal Survival Curve
 #'
 #' Computes marginal survival curves by averaging over individual-level
-#' survival predictions for a given subgroup.
+#' survival predictions for a given subgroup. Uses vectorized operations
+#' to avoid loops and improve performance.
 #' @noRd
 .get_marginal_survival_vectorized <- function(linpred_posterior, H0_post_list, sub_indices, strat_variable, full_data) {
   subgroup_linpred <- linpred_posterior[, sub_indices, drop = FALSE]
   n_draws <- nrow(subgroup_linpred)
+  n_individuals <- ncol(subgroup_linpred)
+  
+  # Pre-compute exp(eta) once for all draws
+  exp_linpred <- exp(subgroup_linpred)
 
   if (is.null(strat_variable)) {
     H0_post <- H0_post_list[["_default_"]]
-    exp_eta <- exp(subgroup_linpred)
-    S_marginal <- matrix(NA, nrow = n_draws, ncol = nrow(H0_post))
-    for (i in 1:n_draws) {
-       S_marginal[i, ] <- exp(-H0_post[, i] * mean(exp_eta[i, ]))
-    }
+    n_times <- nrow(H0_post)
+    
+    # Vectorized approach: compute all draws at once using lapply
+    # Then rbind the results
+    S_list <- lapply(seq_len(n_draws), function(i) {
+      # Use tcrossprod instead of outer (slightly faster)
+      # tcrossprod(a, b) = a %*% t(b) which is same as outer(a, b) for our case
+      S_indiv <- exp(-tcrossprod(H0_post[, i], exp_linpred[i, ]))
+      rowMeans(S_indiv)
+    })
+    
+    S_marginal <- do.call(rbind, S_list)
     return(S_marginal)
   }
 
-  # Stratified logic
+  # Stratified logic (vectorized across draws)
   subgroup_strata <- full_data[[strat_variable]][sub_indices]
   unique_strata <- unique(subgroup_strata)
   n_times <- nrow(H0_post_list[[unique_strata[1]]])
-  S_marginal <- matrix(NA, nrow = n_draws, ncol = n_times)
-
-  for (i in 1:n_draws) {
-    S_indiv <- matrix(NA, nrow = n_times, ncol = length(sub_indices))
+  
+  # Vectorized approach for stratified case
+  S_list <- lapply(seq_len(n_draws), function(i) {
+    S_indiv <- matrix(NA, nrow = n_times, ncol = n_individuals)
     for (s in unique_strata) {
-       idx <- which(subgroup_strata == s)
-       h0 <- H0_post_list[[s]][, i]
-       eta <- subgroup_linpred[i, idx]
-       S_indiv[, idx] <- exp(-outer(h0, exp(eta)))
+      idx <- which(subgroup_strata == s)
+      h0 <- H0_post_list[[s]][, i]
+      eta_s <- exp_linpred[i, idx]
+      S_indiv[, idx] <- exp(-tcrossprod(h0, eta_s))
     }
-    S_marginal[i, ] <- rowMeans(S_indiv, na.rm=TRUE)
-  }
+    rowMeans(S_indiv, na.rm = TRUE)
+  })
+  
+  S_marginal <- do.call(rbind, S_list)
   return(S_marginal)
 }
 
