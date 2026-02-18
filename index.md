@@ -24,60 +24,6 @@ of `bonsaiforest2` from its GitLab repository:
 remotes::install_github("openpharma/bonsaiforest2")
 ```
 
-## Key Concepts
-
-### Modeling Approaches
-
-`bonsaiforest2` supports two main approaches for subgroup analysis:
-
-#### Fixed Effects Models
-
-- Fit a single unified model with treatment-by-subgroup interactions
-  specified as fixed effects using colon notation (e.g.,
-  `~ 0 + trt:subgroupvar1 + trt:subgroupvar2 + ...`)
-- Treat all subgroups symmetrically through one-hot encoding
-- Recommended: Use this approach for most applications
-
-#### One-way Models (Random Effects)
-
-- Fit random effects for treatment slopes varying by subgroup
-- Use pipe-pipe notation (e.g., `~ (0 + trt || subgroupvar)`) to
-  estimate treatment effects varying by subgroup
-- Each subgroup gets its own treatment effect with automatic pooling via
-  random effects
-
-### Shrinkage Framework
-
-The model decomposes into three components:
-
-1.  **Unshrunk terms** (`unshrunktermeffect`): Main effects with weakly
-    informative priors
-2.  **Shrunk prognostic effects** (`shprogeffect`): Baseline covariate
-    effects with strong regularization
-3.  **Shrunk predictive effects** (`shpredeffect`):
-    Treatment-by-subgroup interactions with strong regularization
-
-### Prior Specification
-
-The package supports flexible prior specification for all model
-components. You must specify four priors: - `intercept_prior`: Prior for
-the intercept (example: `"normal(0, 10)"`) - `unshrunk_prior`: Prior for
-unshrunk terms/main effects (example: `"normal(0, 2.5)"`) -
-`shrunk_prognostic_prior`: Prior for shrunk prognostic effects/baseline
-covariates (example: `"horseshoe(scale_global = 1)"`) -
-`shrunk_predictive_prior`: Prior for shrunk predictive effects/treatment
-interactions (example: `"horseshoe(scale_global = 0.5)"`)
-
-For one-way models (random effects), random effect SDs automatically use
-`normal(0, 1)` priors.
-
-### Response Types
-
-The package supports four outcome types: - **continuous**: Linear
-regression with residual SD - **binary**: Logistic regression  
-- **count**: Poisson or negative binomial regression - **survival**: Cox
-proportional hazards model
-
 ## Quick Start Example
 
 This example demonstrates Bayesian shrinkage estimation of treatment
@@ -130,7 +76,7 @@ fit_fixed <- run_brms_analysis(
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 2.0 seconds.
-#> Total execution time: 4.2 seconds.
+#> Total execution time: 4.3 seconds.
 
 # 3. Extract and visualize marginal treatment effects by subgroup
 subgroup_effects <- summary_subgroup_effects(fit_fixed)

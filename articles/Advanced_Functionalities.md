@@ -77,12 +77,12 @@ count_model_fit <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 2.8 seconds.
-#> Chain 1 finished in 3.1 seconds.
+#> Chain 2 finished in 2.7 seconds.
+#> Chain 1 finished in 3.0 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 2.9 seconds.
-#> Total execution time: 3.2 seconds.
+#> Total execution time: 3.1 seconds.
 #> Warning: 3 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
@@ -173,12 +173,12 @@ fit_ex3 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 2.2 seconds.
-#> Chain 1 finished in 2.3 seconds.
+#> Chain 1 finished in 2.4 seconds.
+#> Chain 2 finished in 2.3 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.3 seconds.
-#> Total execution time: 2.4 seconds.
+#> Mean chain execution time: 2.4 seconds.
+#> Total execution time: 2.5 seconds.
 
 # View the priors that were automatically set
 cat("\n=== Priors Used ===\n")
@@ -225,11 +225,11 @@ fit_ex4 <- fit_brms_model(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 2 finished in 1.7 seconds.
-#> Chain 1 finished in 2.1 seconds.
+#> Chain 1 finished in 2.2 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 1.9 seconds.
-#> Total execution time: 2.2 seconds.
+#> Mean chain execution time: 2.0 seconds.
+#> Total execution time: 2.3 seconds.
 #> Warning: 19 of 1000 (2.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -291,12 +291,12 @@ fit_ex5 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 2.9 seconds.
-#> Chain 2 finished in 3.1 seconds.
+#> Chain 1 finished in 3.0 seconds.
+#> Chain 2 finished in 3.2 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.0 seconds.
-#> Total execution time: 3.2 seconds.
+#> Mean chain execution time: 3.1 seconds.
+#> Total execution time: 3.3 seconds.
 #> Warning: 59 of 1000 (6.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -431,7 +431,7 @@ fit_specific <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.5 seconds.
+#> Chain 1 finished in 1.6 seconds.
 #> Chain 2 finished in 2.7 seconds.
 #> 
 #> Both chains finished successfully.
@@ -619,50 +619,19 @@ fit_custom_contrast <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.2 seconds.
+#> Chain 1 finished in 1.3 seconds.
 #> Chain 2 finished in 1.3 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 1.3 seconds.
-#> Total execution time: 1.4 seconds.
+#> Total execution time: 1.5 seconds.
 
 estimate_custom_contrast <- summary_subgroup_effects(fit_custom_contrast)
-#> Using trt_var from model attributes: trt
-#> Using response_type from model attributes: continuous
 #> --- Calculating specific subgroup effects... ---
-#> Using data from model attributes
 #> Step 1: Identifying subgroups and creating counterfactuals...
-#> `subgroup_vars` set to 'auto'. Detecting from model...
-#> Model data has 250 rows and 5 columns
-#> Column names: id, trt, y, baseline, X1
-#> Treatment variable: 'trt'
-#> All coefficient names:
-#> unshrunktermeffect_Intercept
-#> unshrunktermeffect_baseline
-#> unshrunktermeffect_trt
-#> shpredeffect_trt:X1A
-#> shpredeffect_trt:X1B
-#> shpredeffect_trt:X1C
-#> Looking for treatment interactions with pattern: 'trt:'
-#> Found 3 treatment interaction coefficients
-#> Treatment interaction coefficients found:
-#> shpredeffect_trt:X1A
-#> shpredeffect_trt:X1B
-#> shpredeffect_trt:X1C
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1A'
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1B'
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1C'
-#> Checking for random effects parameters...
-#> Retrieved 14 total parameters from model
-#> Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'
-#> Found 0 matching random effect parameters
-#> No random effect parameters matching the pattern were found
 #> ...detected subgroup variable(s): X1
 #> Step 2: Generating posterior predictions...
-#> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
-#> ... (predicting expected outcomes)...
 #> Step 3: Calculating marginal effects...
-#> ... processing X1
 #> Done.
 
 print(estimate_custom_contrast)
@@ -801,12 +770,12 @@ fit_continuous_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 2.6 seconds.
-#> Chain 1 finished in 3.0 seconds.
+#> Chain 2 finished in 2.7 seconds.
+#> Chain 1 finished in 3.1 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.8 seconds.
-#> Total execution time: 3.1 seconds.
+#> Mean chain execution time: 2.9 seconds.
+#> Total execution time: 3.2 seconds.
 #> 
 #> Analysis complete.
 ```
@@ -816,42 +785,11 @@ strat_continuous_summary <- summary_subgroup_effects(
   brms_fit = fit_continuous_stratified
   # All parameters automatically extracted!
 )
-#> Using trt_var from model attributes: trt
-#> Using response_type from model attributes: continuous
 #> --- Calculating specific subgroup effects... ---
-#> Using data from model attributes
 #> Step 1: Identifying subgroups and creating counterfactuals...
-#> `subgroup_vars` set to 'auto'. Detecting from model...
-#> Model data has 250 rows and 6 columns
-#> Column names: id, site, trt, baseline, X1, y
-#> Treatment variable: 'trt'
-#> All coefficient names:
-#> sigma_Intercept
-#> unshrunktermeffect_Intercept
-#> unshrunktermeffect_baseline
-#> unshrunktermeffect_trt
-#> sigma_siteB
-#> sigma_siteC
-#> shpredeffect_trt:X1A
-#> shpredeffect_trt:X1B
-#> Looking for treatment interactions with pattern: 'trt:'
-#> Found 2 treatment interaction coefficients
-#> Treatment interaction coefficients found:
-#> shpredeffect_trt:X1A
-#> shpredeffect_trt:X1B
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1A'
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1B'
-#> Checking for random effects parameters...
-#> Retrieved 15 total parameters from model
-#> Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'
-#> Found 0 matching random effect parameters
-#> No random effect parameters matching the pattern were found
 #> ...detected subgroup variable(s): X1
 #> Step 2: Generating posterior predictions...
-#> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
-#> ... (predicting expected outcomes)...
 #> Step 3: Calculating marginal effects...
-#> ... processing X1
 #> Done.
 
 print(strat_continuous_summary$estimates)
@@ -928,12 +866,12 @@ fit_surv_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 5.8 seconds.
-#> Chain 2 finished in 6.6 seconds.
+#> Chain 1 finished in 5.9 seconds.
+#> Chain 2 finished in 6.7 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 6.2 seconds.
-#> Total execution time: 6.6 seconds.
+#> Mean chain execution time: 6.3 seconds.
+#> Total execution time: 6.8 seconds.
 #> Warning: 12 of 1000 (1.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 
@@ -945,40 +883,13 @@ strat_surv_summary <- summary_subgroup_effects(
   brms_fit = fit_surv_stratified
   # All parameters automatically extracted!
 )
-#> Using trt_var from model attributes: trt
-#> Using response_type from model attributes: survival
 #> --- Calculating specific subgroup effects... ---
-#> Using data from model attributes
 #> Step 1: Identifying subgroups and creating counterfactuals...
-#> `subgroup_vars` set to 'auto'. Detecting from model...
-#> Model data has 250 rows and 7 columns
-#> Column names: id, country, trt, age, X1, event_status, event_time
-#> Treatment variable: 'trt'
-#> All coefficient names:
-#> unshrunktermeffect_age
-#> unshrunktermeffect_trt
-#> shpredeffect_trt:X1A
-#> shpredeffect_trt:X1B
-#> Looking for treatment interactions with pattern: 'trt:'
-#> Found 2 treatment interaction coefficients
-#> Treatment interaction coefficients found:
-#> shpredeffect_trt:X1A
-#> shpredeffect_trt:X1B
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1A'
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1B'
-#> Checking for random effects parameters...
-#> Retrieved 22 total parameters from model
-#> Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'
-#> Found 0 matching random effect parameters
-#> No random effect parameters matching the pattern were found
 #> ...detected subgroup variable(s): X1
 #> Step 2: Generating posterior predictions...
-#> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
-#> ... (reconstructing baseline hazard and getting linear predictors)...
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Step 3: Calculating marginal effects...
-#> ... processing X1
 #> Done.
 
 print(strat_surv_summary$estimates)

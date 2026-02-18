@@ -75,58 +75,6 @@
 <span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"openpharma/bonsaiforest2"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="key-concepts">Key Concepts<a class="anchor" aria-label="anchor" href="#key-concepts"></a>
-</h2>
-<div class="section level3">
-<h3 id="modeling-approaches">Modeling Approaches<a class="anchor" aria-label="anchor" href="#modeling-approaches"></a>
-</h3>
-<p><code>bonsaiforest2</code> supports two main approaches for subgroup analysis:</p>
-<div class="section level4">
-<h4 id="fixed-effects-models">Fixed Effects Models<a class="anchor" aria-label="anchor" href="#fixed-effects-models"></a>
-</h4>
-<ul>
-<li>Fit a single unified model with treatment-by-subgroup interactions specified as fixed effects using colon notation (e.g., <code>~ 0 + trt:subgroupvar1 + trt:subgroupvar2 + ...</code>)</li>
-<li>Treat all subgroups symmetrically through one-hot encoding</li>
-<li>Recommended: Use this approach for most applications</li>
-</ul>
-</div>
-<div class="section level4">
-<h4 id="one-way-models-random-effects">One-way Models (Random Effects)<a class="anchor" aria-label="anchor" href="#one-way-models-random-effects"></a>
-</h4>
-<ul>
-<li>Fit random effects for treatment slopes varying by subgroup</li>
-<li>Use pipe-pipe notation (e.g., <code>~ (0 + trt || subgroupvar)</code>) to estimate treatment effects varying by subgroup</li>
-<li>Each subgroup gets its own treatment effect with automatic pooling via random effects</li>
-</ul>
-</div>
-</div>
-<div class="section level3">
-<h3 id="shrinkage-framework">Shrinkage Framework<a class="anchor" aria-label="anchor" href="#shrinkage-framework"></a>
-</h3>
-<p>The model decomposes into three components:</p>
-<ol style="list-style-type: decimal">
-<li>
-<strong>Unshrunk terms</strong> (<code>unshrunktermeffect</code>): Main effects with weakly informative priors</li>
-<li>
-<strong>Shrunk prognostic effects</strong> (<code>shprogeffect</code>): Baseline covariate effects with strong regularization</li>
-<li>
-<strong>Shrunk predictive effects</strong> (<code>shpredeffect</code>): Treatment-by-subgroup interactions with strong regularization</li>
-</ol>
-</div>
-<div class="section level3">
-<h3 id="prior-specification">Prior Specification<a class="anchor" aria-label="anchor" href="#prior-specification"></a>
-</h3>
-<p>The package supports flexible prior specification for all model components. You must specify four priors: - <code>intercept_prior</code>: Prior for the intercept (example: <code>"normal(0, 10)"</code>) - <code>unshrunk_prior</code>: Prior for unshrunk terms/main effects (example: <code>"normal(0, 2.5)"</code>) - <code>shrunk_prognostic_prior</code>: Prior for shrunk prognostic effects/baseline covariates (example: <code>"horseshoe(scale_global = 1)"</code>) - <code>shrunk_predictive_prior</code>: Prior for shrunk predictive effects/treatment interactions (example: <code>"horseshoe(scale_global = 0.5)"</code>)</p>
-<p>For one-way models (random effects), random effect SDs automatically use <code>normal(0, 1)</code> priors.</p>
-</div>
-<div class="section level3">
-<h3 id="response-types">Response Types<a class="anchor" aria-label="anchor" href="#response-types"></a>
-</h3>
-<p>The package supports four outcome types: - <strong>continuous</strong>: Linear regression with residual SD - <strong>binary</strong>: Logistic regression<br>
-- <strong>count</strong>: Poisson or negative binomial regression - <strong>survival</strong>: Cox proportional hazards model</p>
-</div>
-</div>
-<div class="section level2">
 <h2 id="quick-start-example">Quick Start Example<a class="anchor" aria-label="anchor" href="#quick-start-example"></a>
 </h2>
 <p>This example demonstrates Bayesian shrinkage estimation of treatment effects across subgroups using a <strong>fixed effects model</strong> with a Regularized Horseshoe prior. We simulate data with real treatment effect heterogeneity across five subgrouping variables.</p>
@@ -175,7 +123,7 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
 <span><span class="co">#&gt; Mean chain execution time: 2.0 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 4.2 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 4.3 seconds.</span></span>
 <span></span>
 <span><span class="co"># 3. Extract and visualize marginal treatment effects by subgroup</span></span>
 <span><span class="va">subgroup_effects</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span><span class="va">fit_fixed</span><span class="op">)</span></span>

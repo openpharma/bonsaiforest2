@@ -122,12 +122,12 @@ oneway_X1 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.1 seconds.
+#> Chain 1 finished in 3.2 seconds.
 #> Chain 2 finished in 3.4 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.3 seconds.
-#> Total execution time: 3.5 seconds.
+#> Total execution time: 3.6 seconds.
 
 summary_oneway_X1 <- summary_subgroup_effects(brms_fit = oneway_X1)
 print(summary_oneway_X1)
@@ -171,11 +171,11 @@ oneway_X2 <- run_brms_analysis(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 2 finished in 3.0 seconds.
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 1 finished in 3.3 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.1 seconds.
-#> Total execution time: 3.2 seconds.
+#> Total execution time: 3.3 seconds.
 
 summary_oneway_X2 <- summary_subgroup_effects(brms_fit = oneway_X2)
 ```
@@ -199,7 +199,7 @@ oneway_X3 <- run_brms_analysis(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 2 finished in 3.2 seconds.
-#> Chain 1 finished in 3.5 seconds.
+#> Chain 1 finished in 3.6 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.4 seconds.
@@ -226,7 +226,7 @@ oneway_X4 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.3 seconds.
+#> Chain 1 finished in 3.4 seconds.
 #> Chain 2 finished in 3.6 seconds.
 #> 
 #> Both chains finished successfully.
@@ -254,11 +254,11 @@ oneway_X5 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 3.5 seconds.
-#> Chain 1 finished in 3.7 seconds.
+#> Chain 2 finished in 3.6 seconds.
+#> Chain 1 finished in 3.8 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.6 seconds.
+#> Mean chain execution time: 3.7 seconds.
 #> Total execution time: 3.8 seconds.
 
 summary_oneway_X5 <- summary_subgroup_effects(brms_fit = oneway_X5)
@@ -318,12 +318,12 @@ global_shrinkage_model <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 8.5 seconds.
-#> Chain 1 finished in 9.0 seconds.
+#> Chain 2 finished in 8.9 seconds.
+#> Chain 1 finished in 9.2 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 8.8 seconds.
-#> Total execution time: 9.1 seconds.
+#> Mean chain execution time: 9.1 seconds.
+#> Total execution time: 9.3 seconds.
 ```
 
 ### 4.2 Global Model: Summary of Subgroup Effects
@@ -335,85 +335,11 @@ automatically extracts all treatment interactions from the fitted model:
 
 ``` r
 global_summary <- summary_subgroup_effects(brms_fit = global_shrinkage_model)
-#> Using trt_var from model attributes: trt
-#> Using response_type from model attributes: continuous
 #> --- Calculating specific subgroup effects... ---
-#> Using data from model attributes
 #> Step 1: Identifying subgroups and creating counterfactuals...
-#> `subgroup_vars` set to 'auto'. Detecting from model...
-#> Model data has 500 rows and 9 columns
-#> Column names: id, trt, baseline, X1, X2, X3, X4, X5, y
-#> Treatment variable: 'trt'
-#> All coefficient names:
-#> unshrunktermeffect_Intercept
-#> unshrunktermeffect_baseline
-#> unshrunktermeffect_trt
-#> shprogeffect_X1A
-#> shprogeffect_X1B
-#> shprogeffect_X1C
-#> shprogeffect_X2A
-#> shprogeffect_X2B
-#> shprogeffect_X3A
-#> shprogeffect_X3B
-#> shprogeffect_X3C
-#> shprogeffect_X4A
-#> shprogeffect_X4B
-#> shprogeffect_X5A
-#> shprogeffect_X5B
-#> shpredeffect_trt:X1A
-#> shpredeffect_trt:X1B
-#> shpredeffect_trt:X1C
-#> shpredeffect_trt:X2A
-#> shpredeffect_trt:X2B
-#> shpredeffect_trt:X3A
-#> shpredeffect_trt:X3B
-#> shpredeffect_trt:X3C
-#> shpredeffect_trt:X4A
-#> shpredeffect_trt:X4B
-#> shpredeffect_trt:X5A
-#> shpredeffect_trt:X5B
-#> Looking for treatment interactions with pattern: 'trt:'
-#> Found 12 treatment interaction coefficients
-#> Treatment interaction coefficients found:
-#> shpredeffect_trt:X1A
-#> shpredeffect_trt:X1B
-#> shpredeffect_trt:X1C
-#> shpredeffect_trt:X2A
-#> shpredeffect_trt:X2B
-#> shpredeffect_trt:X3A
-#> shpredeffect_trt:X3B
-#> shpredeffect_trt:X3C
-#> shpredeffect_trt:X4A
-#> shpredeffect_trt:X4B
-#> shpredeffect_trt:X5A
-#> shpredeffect_trt:X5B
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1A'
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1B'
-#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1C'
-#> Detected subgroup variable 'X2' from coefficient 'shpredeffect_trt:X2A'
-#> Detected subgroup variable 'X2' from coefficient 'shpredeffect_trt:X2B'
-#> Detected subgroup variable 'X3' from coefficient 'shpredeffect_trt:X3A'
-#> Detected subgroup variable 'X3' from coefficient 'shpredeffect_trt:X3B'
-#> Detected subgroup variable 'X3' from coefficient 'shpredeffect_trt:X3C'
-#> Detected subgroup variable 'X4' from coefficient 'shpredeffect_trt:X4A'
-#> Detected subgroup variable 'X4' from coefficient 'shpredeffect_trt:X4B'
-#> Detected subgroup variable 'X5' from coefficient 'shpredeffect_trt:X5A'
-#> Detected subgroup variable 'X5' from coefficient 'shpredeffect_trt:X5B'
-#> Checking for random effects parameters...
-#> Retrieved 58 total parameters from model
-#> Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'
-#> Found 0 matching random effect parameters
-#> No random effect parameters matching the pattern were found
 #> ...detected subgroup variable(s): X1, X2, X3, X4, X5
 #> Step 2: Generating posterior predictions...
-#> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
-#> ... (predicting expected outcomes)...
 #> Step 3: Calculating marginal effects...
-#> ... processing X1
-#> ... processing X2
-#> ... processing X3
-#> ... processing X4
-#> ... processing X5
 #> Done.
 
 # Print the summary of subgroup-specific treatment effects

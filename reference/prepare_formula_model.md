@@ -269,7 +269,6 @@ if (require("brms") && require("survival")) {
 }
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 #> Applying stratification: estimating separate baseline hazards by 'region'.
-#> Note: Marginality principle not followed - interaction term 'subgroup_onehot' is used without its main effect. Consider adding 'subgroup_onehot' to prognostic terms for proper model hierarchy.
 #> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect 
 #> unshrunktermeffect ~ 0 + age + subgroup + trt
 #> shpredeffect ~ 0 + trt:subgroup_onehot
