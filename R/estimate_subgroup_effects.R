@@ -63,7 +63,6 @@ estimate_subgroup_effects <- function(brms_fit,
     if (is.null(trt_var)) {
       stop("trt_var must be specified or stored in the model attributes (via fit_brms_model()).")
     }
-    message("Using trt_var from model attributes: ", trt_var)
   }
   checkmate::assert_string(trt_var, min.chars = 1)
 
@@ -73,9 +72,6 @@ estimate_subgroup_effects <- function(brms_fit,
     if (is.null(data)) {
       # Fallback to brms_fit$data if model_data attribute is not available
       data <- brms_fit$data
-      message("Using data from brms_fit$data (model_data attribute not found)")
-    } else {
-      message("Using data from model attributes")
     }
   }
   checkmate::assert_data_frame(data, min.rows = 1)
@@ -89,7 +85,6 @@ estimate_subgroup_effects <- function(brms_fit,
     if (is.null(response_type)) {
       stop("response_type must be specified or stored in the model attributes (via fit_brms_model()).")
     }
-    message("Using response_type from model attributes: ", response_type)
   }
   # Check response type
   response_type <- checkmate::assert_choice(response_type,
@@ -178,11 +173,6 @@ estimate_subgroup_effects <- function(brms_fit,
     is_overall <- TRUE
     subgroup_vars <- "Overall"
   } else if (identical(subgroup_vars, "auto")) {
-    message("`subgroup_vars` set to 'auto'. Detecting from model...")
-    message(sprintf("Model data has %d rows and %d columns", nrow(model_data), ncol(model_data)))
-    message(sprintf("Column names: %s", paste(names(model_data), collapse = ", ")))
-    message(sprintf("Treatment variable: '%s'", trt_var))
-    
     detected_vars <- character(0)
 
     # A. Detect FIXED interactions (Colon syntax)
@@ -194,25 +184,15 @@ estimate_subgroup_effects <- function(brms_fit,
     fixef_matrix <- brms::fixef(brms_fit)
     all_coefs <- rownames(fixef_matrix)
     
-    message("All coefficient names:")
-    message(paste(all_coefs, collapse = "\n"))
-    
     # Look for any coefficient containing "trt:" pattern
     # This will find ALL treatment interactions regardless of formula component
     interaction_pattern <- paste0(trt_var, ":")
-    message(sprintf("Looking for treatment interactions with pattern: '%s'", interaction_pattern))
     interaction_coefs <- grep(interaction_pattern, all_coefs, value = TRUE, fixed = TRUE)
     
     # Also check for reverse order: "var:trt" 
     reverse_pattern <- paste0(":", trt_var)
     reverse_coefs <- grep(reverse_pattern, all_coefs, value = TRUE, fixed = TRUE)
     interaction_coefs <- unique(c(interaction_coefs, reverse_coefs))
-    
-    message(sprintf("Found %d treatment interaction coefficients", length(interaction_coefs)))
-    if (length(interaction_coefs) > 0) {
-      message("Treatment interaction coefficients found:")
-      message(paste(interaction_coefs, collapse = "\n"))
-    }
     
     if (length(interaction_coefs) > 0) {
       # Extract the variable names from the interaction terms
@@ -254,7 +234,6 @@ estimate_subgroup_effects <- function(brms_fit,
             # e.g., "biomarkerLow" starts with "biomarker", "x_10a" starts with "x_10"
             if (startsWith(varname_with_level, var_name)) {
               detected_vars <- c(detected_vars, var_name)
-              message(sprintf("Detected subgroup variable '%s' from coefficient '%s'", var_name, coef))
               break
             }
           }
@@ -286,16 +265,12 @@ estimate_subgroup_effects <- function(brms_fit,
     # This pattern indicates treatment slopes varying by biomarker levels.
     # Random effects are typically used for shrunk predictive effects (treatment interactions)
     # specified with pipe syntax: ~ (0 + trt || biomarker)
-    message("Checking for random effects parameters...")
     all_params <- tryCatch(
       brms::variables(brms_fit),
       error = function(e) {
-        message("Error retrieving variables: ", e$message)
         character(0)
       }
     )
-    
-    message(sprintf("Retrieved %d total parameters from model", length(all_params)))
     
     if (length(all_params) > 0) {
       # Look for random effects parameters with treatment
@@ -304,39 +279,23 @@ estimate_subgroup_effects <- function(brms_fit,
       # Need to handle special characters in level names AND underscores in variable names
       # Use __ (double underscore) as the delimiter between grouping var and term
       re_pattern <- sprintf("^r_(.+)__[^\\[]+\\[[^,]+,%s\\]", trt_var)
-      message(sprintf("Using regex pattern: '%s'", re_pattern))
       re_params <- grep(re_pattern, all_params, value = TRUE)
       
-      message(sprintf("Found %d matching random effect parameters", length(re_params)))
-      
       if (length(re_params) > 0) {
-        message(sprintf("Found %d random effect parameters with treatment slopes:", length(re_params)))
-        message(paste("  ", head(re_params, 3), collapse = "\n"))
-        if (length(re_params) > 3) message(sprintf("  ... and %d more", length(re_params) - 3))
         
         # Extract grouping variable names
         for (param in re_params) {
           # Extract the grouping variable name from r_GROUPVAR__...
           # Use the double underscore __ as delimiter
           grouping_var <- sub("^r_(.+)__.*", "\\1", param)
-          message(sprintf("Extracted grouping variable: '%s' from parameter: '%s'", grouping_var, param))
           # Verify this variable exists in the model data
           if (grouping_var %in% names(model_data)) {
             if (is.factor(model_data[[grouping_var]]) || is.character(model_data[[grouping_var]])) {
               detected_vars <- c(detected_vars, grouping_var)
-              message(sprintf("Detected subgroup variable '%s' from random effects (treatment slopes)", grouping_var))
-            } else {
-              message(sprintf("Variable '%s' exists but is not a factor/character", grouping_var))
             }
-          } else {
-            message(sprintf("Variable '%s' not found in model data", grouping_var))
           }
         }
-      } else {
-        message("No random effect parameters matching the pattern were found")
       }
-    } else {
-      message("Could not retrieve model variables")
     }
 
     detected_vars <- unique(detected_vars)
@@ -490,19 +449,12 @@ estimate_subgroup_effects <- function(brms_fit,
     
     if (length(re_params) > 0) {
       has_random_trt <- TRUE
-      message(sprintf("... found %d random treatment slope parameters", length(re_params)))
     }
   }
 
   # re_formula = NULL includes all random effects
   # re_formula = NA includes NO random effects (Fixed only)
   prediction_re_formula <- if (has_random_trt) NULL else NA
-
-  if (has_random_trt) {
-    message("... detected Random Effects (Pipe model). Predicting with re_formula = NULL.")
-  } else {
-    message("... detected Fixed Effects (Colon model). Predicting with re_formula = NA.")
-  }
 
   data_control$._sim_group <- "control"
   data_treatment$._sim_group <- "treatment"
@@ -513,7 +465,6 @@ estimate_subgroup_effects <- function(brms_fit,
     # 1. Extract linear predictors from fitted model
     # 2. Reconstruct baseline hazard via B-spline basis (computed during model fitting)
     # This approach leverages brms' internal spline representation for computational efficiency
-    message("... (reconstructing baseline hazard and getting linear predictors)...")
 
     linpred_combined <- if (is.null(ndraws)) {
       brms::posterior_linpred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula,
@@ -540,8 +491,6 @@ estimate_subgroup_effects <- function(brms_fit,
     ))
 
   } else {
-    message("... (predicting expected outcomes)...")
-
     pred_combined <- if (is.null(ndraws)) {
       brms::posterior_epred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, 
                            allow_new_levels = FALSE)
@@ -641,8 +590,6 @@ estimate_subgroup_effects <- function(brms_fit,
   }
 
   for (current_subgroup_var in subgroup_vars) {
-    if (!is_overall) message(paste("... processing", current_subgroup_var))
-
     if (is_overall) {
       current_data_subgroups <- as.factor(rep("Overall", nrow(original_data)))
       subgroup_levels <- "Overall"
