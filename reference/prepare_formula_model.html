@@ -87,15 +87,15 @@ extracted and converted to a numeric binary variable (0/1).</p></dd>
 for the <code>unshrunktermeffect</code> component. May include main effects and treatment interactions
 without regularization. Supports three syntaxes that can be combined: colon notation
 (e.g., <code>~ age + sex + trt:biomarker</code>), star notation (e.g., <code>~ age + trt*biomarker</code>),
-or random effects notation (e.g., <code>~ age + (trt || biomarker)</code>).</p></dd>
+or random effects notation (e.g., <code>~ age + (0+trt || biomarker)</code>).</p></dd>
 
 
 <dt id="arg-shrunk-prognostic-formula">shrunk_prognostic_formula<a class="anchor" aria-label="anchor" href="#arg-shrunk-prognostic-formula"></a></dt>
 <dd><p>A formula object or <code>NULL</code>. Formula specifying prognostic
 main effects to be regularized in the <code>shprogeffect</code> component. These are covariates
-where shrinkage/regularization is desired. Should use <code>~ 0 + ...</code> syntax to apply
-one-hot encoding for symmetric regularization across all levels without privileging
-a reference group.</p></dd>
+where shrinkage/regularization is desired. Recommended: use <code>~ 0 + ...</code> or <code>~ -1 + ...</code> syntax
+to explicitly remove the intercept and apply one-hot encoding for symmetric regularization
+across all levels without privileging a reference group.</p></dd>
 
 
 <dt id="arg-shrunk-predictive-formula">shrunk_predictive_formula<a class="anchor" aria-label="anchor" href="#arg-shrunk-predictive-formula"></a></dt>
@@ -103,7 +103,8 @@ a reference group.</p></dd>
 terms (treatment interactions) to be regularized in the <code>shpredeffect</code> component.
 Supports three syntaxes that can be combined: colon notation (e.g., <code>~ 0 + trt:region</code>),
 star notation (e.g., <code>~ 0 + trt*region</code>), or random effects notation
-(e.g., <code>~ (0 + trt || region)</code>). Should use <code>~ 0 + ...</code> syntax for one-hot encoding.</p></dd>
+(e.g., <code>~ (0 + trt || region)</code>). Recommended: use <code>~ 0 + ...</code> or <code>~ -1 + ...</code> syntax to explicitly
+remove the intercept and apply one-hot encoding.</p></dd>
 
 
 <dt id="arg-response-type">response_type<a class="anchor" aria-label="anchor" href="#arg-response-type"></a></dt>
@@ -144,7 +145,7 @@ standard deviation (<code>sigma</code>). For count models, models varying overdi
 </dl></div>
     <div class="section level2">
     <h2 id="details">Details<a class="anchor" aria-label="anchor" href="#details"></a></h2>
-    <p>This classification allows for applying differential shrinkage (regularization)
+    <p>This classification allows for applying different priors (non-informative or shrinkage)
 to different parts of the model. The function also prepares the corresponding
 data using R's contrast coding system for proper factor handling and interactions.</p>
     </div>
@@ -159,8 +160,8 @@ This allows for assigning different priors to each component.</p></li>
 <li><p><strong>Automated Interaction Handling:</strong> Predictive terms support three syntaxes
 that can be used together or separately: colon notation (e.g., <code>~ trt:subgroup</code>),
 star notation (e.g., <code>~ trt*subgroup</code>), or random effects notation (e.g.,
-<code>~ (trt || subgroup)</code>). You can mix these syntaxes in the same model (e.g.,
-<code>~ trt:var1 + trt*var2 + (trt || var3)</code>). All variables involved in interactions
+<code>~ (0 + trt || subgroup)</code>). You can mix these syntaxes in the same model (e.g.,
+<code>~ trt:var1 + trt*var2 + (0 + trt || var3)</code>). All variables involved in interactions
 are converted to factors with appropriate contrasts (reference coding for unshrunk,
 one-hot for shrunk), enabling proper model fitting and prediction on new data
 without manual dummy variable creation.</p></li>
@@ -202,11 +203,13 @@ to <code><a href="fit_brms_model.html">fit_brms_model()</a></code>, not the orig
 multi-level factor interactions. The first level (alphabetically or numerically)
 becomes 0, the second becomes 1.</p></li>
 <li><p><strong>Factor covariates:</strong> Automatic contrast coding based on shrinkage type:</p><ul><li><p><strong>Shrunk terms:</strong> One-hot encoding (all factor levels represented).
-For proper regularization, specify these using <code>~ 0 + var</code> to explicitly remove
-the intercept and treat all subgroups symmetrically without privileging a specific
-reference group (ensures the exchangeability assumption).</p></li>
+This removes the reference group and treats all subgroups symmetrically without
+privileging a specific reference level (ensures the exchangeability assumption).
+Recommended: explicitly remove the intercept using <code>~ 0 + var</code> or <code>~ -1 + var</code> syntax.
+If not specified, the function will still apply one-hot encoding but may include
+a redundant intercept that could complicate interpretation.</p></li>
 <li><p><strong>Unshrunk terms:</strong> Dummy encoding (reference level dropped).
-Use standard formula syntax <code>~ var</code> with intercept.</p></li>
+Recommended: Use standard formula syntax <code>~ var</code> with intercept for clarity and proper reference coding.</p></li>
 </ul></li>
 <li><p><strong>Custom contrasts:</strong> If you have pre-specified contrasts via
 <code>contrasts(data$var) &lt;- &lt;matrix&gt;</code> before calling this function, they will
@@ -243,12 +246,12 @@ across levels of the stratification variable.</p></li>
 <span class="r-in"><span>  <span class="va">sim_data</span><span class="op">$</span><span class="va">region</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">region</span><span class="op">)</span></span></span>
 <span class="r-in"><span>  <span class="va">sim_data</span><span class="op">$</span><span class="va">subgroup</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">subgroup</span><span class="op">)</span></span></span>
 <span class="r-in"><span></span></span>
-<span class="r-in"><span>  <span class="co"># 2a. Example with colon interaction syntax</span></span></span>
+<span class="r-in"><span>  <span class="co"># 2a. Example with colon interaction syntax (recommended: use ~ 0 + for shrunk terms)</span></span></span>
 <span class="r-in"><span>  <span class="va">prepared_model</span> <span class="op">&lt;-</span> <span class="fu">prepare_formula_model</span><span class="op">(</span></span></span>
 <span class="r-in"><span>    data <span class="op">=</span> <span class="va">sim_data</span>,</span></span>
 <span class="r-in"><span>    response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">time</span>, <span class="va">status</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span></span>
 <span class="r-in"><span>    unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span> <span class="op">+</span> <span class="va">subgroup</span>,</span></span>
-<span class="r-in"><span>    shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="va">trt</span><span class="op">:</span><span class="va">subgroup</span>,</span></span>
+<span class="r-in"><span>    shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">subgroup</span>,</span></span>
 <span class="r-in"><span>    response_type <span class="op">=</span> <span class="st">"survival"</span>,</span></span>
 <span class="r-in"><span>    stratification_formula <span class="op">=</span> <span class="op">~</span> <span class="va">region</span></span></span>
 <span class="r-in"><span>  <span class="op">)</span></span></span>
@@ -270,10 +273,9 @@ across levels of the stratification variable.</p></li>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Applying stratification: estimating separate baseline hazards by 'region'.</span>
 <span class="r-msg co"><span class="r-pr">#&gt;</span> Note: Marginality principle not followed - interaction term 'subgroup_onehot' is used without its main effect. Consider adding 'subgroup_onehot' to prognostic terms for proper model hierarchy.</span>
-<span class="r-wrn co"><span class="r-pr">#&gt;</span> <span class="warning">Warning: </span>Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> unshrunktermeffect ~ 0 + age + subgroup + trt</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ trt:subgroup_onehot</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> shpredeffect ~ 0 + trt:subgroup_onehot</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   time status trt      age region subgroup subgroup_onehot</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1   29      0   1 57.87739      B       S2              S2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2   79      1   1 57.69042      B       S1              S1</span>

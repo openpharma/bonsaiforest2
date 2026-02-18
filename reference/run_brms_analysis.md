@@ -2,6 +2,7 @@
 
 This high-level wrapper function streamlines the entire process of
 preparing and fitting a complex Bayesian hierarchical model with `brms`.
+It serves as a convenient single entry point for the complete workflow.
 
 ## Usage
 
@@ -57,20 +58,28 @@ run_brms_analysis(
 - shrunk_prognostic_formula:
 
   A formula object or `NULL`. Prognostic effects for strong
-  regularization in the `shprogeffect` component. For colon syntax
-  (GLOBAL), use `~ 0 + ...` syntax for one-hot encoding (e.g.,
-  `~ 0 + biomarker1 + biomarker2`). For pipe-pipe syntax (OVAT), use
-  random effects notation (e.g., `~ (1 || biomarker)`). Passed to
-  [`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md).
+  regularization in the `shprogeffect` component.
+
+  - **Fixed effects (colon syntax):** Use `~ 0 + ...` syntax for one-hot
+    encoding (e.g., `~ 0 + biomarker1 + biomarker2`).
+
+  - **Random effects (one-way model, pipe-pipe syntax):** Use random
+    effects notation (e.g., `~ (0 + 1 || biomarker)`) with automatic
+    `normal(0, 1)` priors on SD scale. Passed to
+    [`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md).
 
 - shrunk_predictive_formula:
 
   A formula object or `NULL`. Treatment interactions for strong
-  regularization in the `shpredeffect` component. For colon syntax
-  (GLOBAL), use `~ 0 + ...` syntax for one-hot encoding (e.g.,
-  `~ 0 + trt:subgroup`). For pipe-pipe syntax (OVAT), use random effects
-  notation (e.g., `~ (trt || subgroup)`). Passed to
-  [`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md).
+  regularization in the `shpredeffect` component.
+
+  - **Fixed effects (colon syntax):** Use `~ 0 + ...` syntax for one-hot
+    encoding (e.g., `~ 0 + trt:subgroup`).
+
+  - **Random effects (one-way model, pipe-pipe syntax):** Use random
+    effects notation (e.g., `~ (0 + trt || subgroup)`) with automatic
+    `normal(0, 1)` priors on SD scale. Passed to
+    [`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md).
 
 - stratification_formula:
 
@@ -97,22 +106,27 @@ run_brms_analysis(
 - shrunk_prognostic_prior:
 
   A character string, `brmsprior` object, or `NULL`. Prior for
-  regularized prognostic effects in `shprogeffect` component. For fixed
-  effects (colon syntax), typically strong regularization like
-  `"horseshoe(scale_global = 1)"`. For random effects (pipe-pipe
-  syntax), automatically uses `normal(0, 1)` priors on the standard
-  deviation scale. Passed to
-  [`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md).
+  regularized prognostic effects in `shprogeffect` component.
+
+  - **Fixed effects:** Typically strong regularization like
+    `"horseshoe(scale_global = 1)"`.
+
+  - **Random effects (one-way model):** Automatically uses
+    `normal(0, 1)` priors on SD scale. Passed to
+    [`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md).
 
 - shrunk_predictive_prior:
 
   A character string, `brmsprior` object, or `NULL`. Prior for
   regularized predictive effects (treatment interactions) in
-  `shpredeffect` component. For fixed effects (colon syntax), typically
-  strong regularization like `"horseshoe(scale_global = 0.5)"`. For
-  random effects (pipe-pipe syntax), automatically uses `normal(0, 1)`
-  priors on the standard deviation scale. Passed to
-  [`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md).
+  `shpredeffect` component.
+
+  - **Fixed effects:** Typically strong regularization like
+    `"horseshoe(scale_global = 0.5)"`.
+
+  - **Random effects (one-way model):** Automatically uses
+    `normal(0, 1)` priors on SD scale. Passed to
+    [`fit_brms_model()`](https://openpharma.github.io/bonsaiforest2/reference/fit_brms_model.md).
 
 - stanvars:
 
@@ -132,8 +146,10 @@ run_brms_analysis(
 
 ## Value
 
-`brmsfit`. Fitted Bayesian model object with stored attributes for
-downstream analysis.
+`brmsfit`. Fitted Bayesian model object with attached attributes:
+`response_type`, `model_data` (the processed data used for fitting), and
+`trt_var` (treatment variable name) for use by downstream analysis
+functions.
 
 ## Details
 
@@ -163,9 +179,9 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2. Run the full analysis using GLOBAL fixed effects (colon syntax)
+  # 2. Run the full analysis using fixed effects (colon syntax)
   if (FALSE) { # \dontrun{
-  full_fit_global <- run_brms_analysis(
+  full_fit_fixed <- run_brms_analysis(
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
     response_type = "survival",
@@ -176,25 +192,27 @@ if (require("brms") && require("survival")) {
     unshrunk_prior = "normal(0, 2)",
     shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
     shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-    chains = 1, iter = 50, warmup = 10, refresh = 0 # For quick example
+    backend = "cmdstanr",
+    chains = 2, iter = 1000, warmup = 500, refresh = 0
   )
 
-  print(full_fit_global)
+  print(full_fit_fixed)
 
-  # 3. Alternative: OVAT random effects (pipe-pipe syntax)
+  # 3. Alternative: One-way model with random effects (pipe-pipe syntax)
   # Random effects automatically get normal(0, 1) priors on SD scale
-  full_fit_ovat <- run_brms_analysis(
+  full_fit_oneway <- run_brms_analysis(
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
     response_type = "survival",
     unshrunk_terms_formula = ~ age,
-    shrunk_prognostic_formula = ~ (1 || region),
-    shrunk_predictive_formula = ~ (trt || subgroup),
+    shrunk_prognostic_formula = ~ (0 + 1 || region),
+    shrunk_predictive_formula = ~ (0 + trt || subgroup),
     stratification_formula = ~ region,
-    chains = 1, iter = 50, warmup = 10, refresh = 0
+    backend = "cmdstanr",
+    chains = 2, iter = 1000, warmup = 500, refresh = 0
   )
 
-  print(full_fit_ovat)
+  print(full_fit_oneway)
   } # }
 }
 ```

@@ -46,8 +46,8 @@ intervals displayed as text.
 **Multiple Model Comparison**: When `x` is a named list of
 `subgroup_summary` objects, creates a comparative plot where different
 models are distinguished by colors and shapes. This is useful for
-comparing OVAT vs global models, different prior specifications, or
-sensitivity analyses.
+comparing one-way models vs global models, different prior
+specifications, or sensitivity analyses.
 
 ## Examples
 

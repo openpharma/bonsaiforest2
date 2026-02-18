@@ -27,7 +27,7 @@ summary1 <- summary_subgroup_effects(brms_fit = model1)
 summary2 <- summary_subgroup_effects(brms_fit = model2)
 
 combined <- combine_summaries(list(
-  "OVAT" = summary1,
+  "One-way model" = summary1,
   "Global" = summary2
 ))
 plot(combined)

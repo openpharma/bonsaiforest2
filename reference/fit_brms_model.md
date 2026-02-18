@@ -36,8 +36,7 @@ fit_brms_model(
 
   A character string, `brmsprior` object, or `NULL`. Prior specification
   for the model intercept in the `unshrunktermeffect` component. Not
-  used for survival models (Cox models have no intercept). Example:
-  `"normal(0, 10)"`.
+  used for survival models (Cox models have no intercept).
 
 - unshrunk_prior:
 
@@ -107,7 +106,7 @@ or parameter-specific priors.
 **Default Priors by Response Type and Model Structure:**
 
 If you don't specify priors, the function uses sensible defaults that
-adapt to the model structure and response type:
+adapt to the model structure:
 
 **For all response types (continuous, binary, count, survival):**
 
@@ -158,16 +157,26 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2. Prepare the formula and data using colon syntax
+  # 2. Prepare the formula and data using colon syntax with recommended ~ 0 + for shrunk terms
   prepared_model <- prepare_formula_model(
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
-    shrunk_predictive_formula = ~ trt:subgroup,
+    shrunk_predictive_formula = ~ 0 + trt:subgroup,
     unshrunk_terms_formula = ~ age,
-    shrunk_prognostic_formula = ~ region,
+    shrunk_prognostic_formula = ~ 0 + subgroup,
     response_type = "survival",
     stratification_formula = ~ region
   )
+
+  # 2b. Alternatively, using one-way model (random effects) with pipe-pipe notation
+  # prepared_model <- prepare_formula_model(
+  #   data = sim_data,
+  #   response_formula = Surv(time, status) ~ trt,
+  #   unshrunk_terms_formula = ~ age,
+  #   shrunk_predictive_formula = ~ (0 + trt || subgroup),
+  #   response_type = "survival",
+  #   stratification_formula = ~ region
+  # )
 
   # 3. Fit the model
   if (FALSE) { # \dontrun{
@@ -176,7 +185,8 @@ if (require("brms") && require("survival")) {
     unshrunk_prior = "normal(0, 2)",
     shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
     shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-    chains = 1, iter = 50, warmup = 10, refresh = 0 # For a quick example
+    backend = "cmdstanr",
+    chains = 2, iter = 1000, warmup = 500, refresh = 0
   )
 
   print(fit)
@@ -200,7 +210,4 @@ if (require("brms") && require("survival")) {
 #>     kidney
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 #> Applying stratification: estimating separate baseline hazards by 'region'.
-#> Note: Marginality principle not followed - interaction term 'subgroup' is used without its main effect. Consider adding 'subgroup' to prognostic terms for proper model hierarchy.
-#> Warning: Formula 'shprogeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
-#> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
 ```

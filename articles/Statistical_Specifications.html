@@ -546,26 +546,21 @@
 <h3 id="sec-intercept">
 <span class="header-section-number">3.6</span> The Logic of the Intercept<a class="anchor" aria-label="anchor" href="#sec-intercept"></a>
 </h3>
-<p>While the intercept (<span class="math inline">\(\beta_0\)</span>) is not subject to shrinkage (it is a fixed effect within the <code>unshrunktermeffect</code> component), specifying its prior requires care to ensure the model remains weakly informative without introducing bias or numerical instability.</p>
-<p><strong>Default Specification:</strong> The package automatically scales the intercept prior based on the reference scale parameter (<code>sigma_ref</code>) provided by the user:</p>
-<ol style="list-style-type: decimal">
-<li><p><strong>For Continuous Endpoints:</strong> The prior is centered at the observed outcome mean with scale proportional to <code>sigma_ref</code>: <span class="math display">\[
-\beta_0 \sim \mathcal{N}(\bar{y}, (5 \times \sigma_{ref})^2)
-\]</span> where <span class="math inline">\(\bar{y}\)</span> is the sample mean of the outcome variable and <code>sigma_ref</code> is the protocol standard deviation from the trial design. Centering at the outcome mean improves computational efficiency while the scale of <span class="math inline">\(5 \times \sigma_{ref}\)</span> provides sufficient flexibility relative to the trial’s expected variability.</p></li>
-<li><p><strong>For Binary and Count Endpoints:</strong> The prior is centered at 0 and scaled by <code>sigma_ref</code> (typically set to 1): <span class="math display">\[
-\beta_0 \sim \mathcal{N}(0, (5 \times \sigma_{ref})^2)
-\]</span> For binary and count endpoints, <code>sigma_ref</code> is typically set to 1, yielding <code>normal(0, 5)</code>. A standard deviation of 5 on the log-odds or log-rate scale covers a wide range of plausible effect sizes (e.g., ratios from approximately 0.08 to 12) while still penalizing extreme, unrealistic values. This choice is aligned with the methodology in Wolbers et al. (2025).</p></li>
-</ol>
-<p><strong>Linking to Trial Design:</strong></p>
+<p>While the intercept (<span class="math inline">\(\beta_0\)</span>) is not subject to shrinkage (it is a fixed effect within the <code>unshrunktermeffect</code> component), it is important to understand how it is specified in the package.</p>
+<p><strong>Default Specification:</strong> The package uses <code>NULL</code> (brms default) for the intercept prior, allowing <code>brms</code> to automatically calibrate a weakly informative prior.</p>
+<p><strong>User Customization:</strong> Users can specify custom intercept priors via the <code>intercept_prior</code> parameter in <code><a href="../reference/fit_brms_model.html">fit_brms_model()</a></code> or <code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code>. For example:</p>
 <ul>
-<li><p><strong>For continuous outcomes:</strong> Set <code>sigma_ref</code> to the population standard deviation assumed during the trial design and sample size calculation phase. This ensures the prior is automatically calibrated to the expected magnitude of effects in the specific trial.</p></li>
-<li><p><strong>For binary, count, and survival outcomes:</strong> Use <code>sigma_ref = 1</code> (the typical default), as these outcomes are modeled on transformed scales (logit, log, or log-hazard) where the original outcome standard deviation is not directly meaningful.</p></li>
+<li>
+<strong>For continuous outcomes:</strong> <code>"normal(0, 10)"</code> provides a weakly informative prior centered at 0.</li>
+<li>
+<strong>For binary and count outcomes:</strong> <code>"normal(0, 5)"</code> provides a prior on the log-odds or log-rate scale covering plausible effect sizes (e.g., ratios from approximately 0.08 to 12).</li>
 </ul>
 <p><strong>Special Case: Time-to-Event Endpoints.</strong> For Cox proportional hazards models, the intercept is <strong>not identifiable</strong> and is <strong>omitted</strong> from the linear predictor.</p>
 <ul>
 <li><p><strong>Mechanism:</strong> The intercept is effectively absorbed into the non-parametric baseline hazard function, <span class="math inline">\(h_0(t)\)</span>.</p></li>
-<li><p><strong>Implementation:</strong> The <code>brms</code> backend handles this automatically by estimating the baseline hazard (via <code>bhaz()</code>) rather than a fixed intercept parameter. Therefore, no prior specification for <span class="math inline">\(\beta_0\)</span> is required for survival models.</p></li>
+<li><p><strong>Implementation:</strong> The <code>brms</code> backend handles this automatically by estimating the baseline hazard (via <code>bhaz()</code>) rather than a fixed intercept parameter. Therefore, no intercept prior is applied for survival models.</p></li>
 </ul>
+<p><strong>Additional Note:</strong> The intercept prior is automatically omitted if the user specifies a formula without an intercept (using <code>~ 0 + ...</code> syntax).</p>
 </div>
 <div class="section level3" number="3.7">
 <h3 id="sec-endpoint">
@@ -630,51 +625,39 @@
 <h4 id="default-priors">
 <span class="header-section-number">3.8.1</span> Default Priors<a class="anchor" aria-label="anchor" href="#default-priors"></a>
 </h4>
-<p>The package requires the user to specify <code>sigma_ref</code>, a reference scale parameter used to calibrate all default priors. The interpretation of <code>sigma_ref</code> depends on the endpoint type:</p>
+<p>When no user-specified priors are provided, the package applies the following automatic defaults:</p>
+<p><strong>For all response types (continuous, binary, count, survival):</strong></p>
 <ul>
 <li>
-<strong>For continuous outcomes:</strong> <code>sigma_ref</code> represents the protocol standard deviation of the trial (typically obtained from the sample size calculation).</li>
+<strong>Intercept:</strong> <code>NULL</code> — Uses <code>brms</code> default prior (weakly informative)</li>
 <li>
-<strong>For binary, count, and survival outcomes:</strong> <code>sigma_ref</code> is typically set to 1, as these outcomes are modeled on transformed scales (logit, log, or log-hazard) where standard deviations are not directly meaningful.</li>
+<strong>Unshrunk terms:</strong> <code>NULL</code> — Uses <code>brms</code> default priors (weakly informative)</li>
+<li>
+<strong>Shrunk prognostic:</strong> <code>horseshoe(1)</code> — Strong regularization for main effects</li>
+<li>
+<strong>Shrunk predictive:</strong> <code>horseshoe(1)</code> — Strong regularization for treatment interactions</li>
 </ul>
-<p>All default priors are automatically scaled relative to <code>sigma_ref</code> to ensure they are appropriately calibrated:</p>
-<p><strong>For continuous outcomes:</strong></p>
+<p><strong>Special cases:</strong></p>
 <ul>
 <li>
-<strong>Intercept:</strong> <code>normal(outcome_mean, 5 * sigma_ref)</code> — centered at the observed outcome mean</li>
+<strong>Random effects (one-way model, pipe-pipe <code>||</code> syntax):</strong> SD parameters automatically receive <code>normal(0, 1)</code> priors on the standard deviation scale, regardless of the <code>shrunk_predictive_prior</code> setting.</li>
 <li>
-<strong>Unshrunk terms:</strong> <code>normal(0, 5 * sigma_ref)</code>
-</li>
+<strong>Survival models:</strong> No intercept prior is applied, as Cox proportional hazards models do not have a global intercept; it is absorbed into the non-parametric baseline hazard.</li>
 <li>
-<strong>Shrunk prognostic:</strong> <code>horseshoe(1)</code>
-</li>
-<li>
-<strong>Shrunk predictive:</strong> <code>horseshoe(1)</code>
-</li>
+<strong>Formulas without intercepts:</strong> If the user specifies a formula using <code>~ 0 + ...</code> syntax (no intercept), the intercept prior is omitted.</li>
 </ul>
-<p><strong>For binary, count, and survival outcomes:</strong></p>
-<ul>
-<li>
-<strong>Intercept:</strong> <code>normal(0, 5 * sigma_ref)</code> (typically <code>normal(0, 5)</code> when <code>sigma_ref = 1</code>)</li>
-<li>
-<strong>Unshrunk terms:</strong> <code>normal(0, 5 * sigma_ref)</code> (typically <code>normal(0, 5)</code> when <code>sigma_ref = 1</code>)</li>
-<li>
-<strong>Shrunk prognostic:</strong> <code>horseshoe(1)</code>
-</li>
-<li>
-<strong>Shrunk predictive:</strong> <code>horseshoe(1)</code>
-</li>
-</ul>
-<p><strong>Note:</strong> The intercept prior is <em>not</em> applied for <code>response_type = "survival"</code>, as Cox models do not have a global intercept. Additionally, the intercept prior is omitted if the user specifies a formula without an intercept (using <code>~ 0 + ...</code> syntax).</p>
+<p><strong>User customization:</strong> Users can override any default prior by specifying custom priors as character strings (e.g., <code>"normal(0, 2.5)"</code>) or as <code>brmsprior</code> objects via the parameters <code>intercept_prior</code>, <code>unshrunk_prior</code>, <code>shrunk_prognostic_prior</code>, and <code>shrunk_predictive_prior</code> in <code><a href="../reference/fit_brms_model.html">fit_brms_model()</a></code> or <code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code>.</p>
 </div>
 <div class="section level4" number="3.8.2">
 <h4 id="weakly-informative-priors-unshrunk-terms">
 <span class="header-section-number">3.8.2</span> Weakly Informative Priors (Unshrunk Terms)<a class="anchor" aria-label="anchor" href="#weakly-informative-priors-unshrunk-terms"></a>
 </h4>
-<p>For all unshrunk coefficients (both prognostic and predictive terms in the <code>unshrunktermeffect</code> component, as well as extra covariates <span class="math inline">\(\boldsymbol{\beta_{3}}\)</span>), we use weakly informative priors to aid computational stability without strongly influencing the posterior.</p>
+<p>For all unshrunk coefficients (both prognostic and predictive terms in the <code>unshrunktermeffect</code> component, as well as extra covariates <span class="math inline">\(\boldsymbol{\beta_{3}}\)</span>), the package uses <code>brms</code> default weakly informative priors to aid computational stability without strongly influencing the posterior.</p>
 <ul>
 <li>
-<strong>Default:</strong> <code>normal(0, 5 * sigma_ref)</code>. This prior is automatically scaled to the trial’s expected effect size, making it weakly regularizing on the linear predictor scale. Users can override this by specifying custom priors using the <code>sigma_ref</code> placeholder (e.g., <code>"normal(0, 2.5 * sigma_ref)"</code>), which will be automatically substituted with the numeric value during model fitting.</li>
+<strong>Default:</strong> <code>NULL</code> (uses <code>brms</code> defaults, typically <code>normal(0, ...)</code>). These priors are weakly regularizing on the linear predictor scale.</li>
+<li>
+<strong>User customization:</strong> Users can override this by specifying custom priors (e.g., <code>"normal(0, 2.5)"</code>) via the <code>unshrunk_prior</code> parameter in <code><a href="../reference/fit_brms_model.html">fit_brms_model()</a></code> or <code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code>.</li>
 </ul>
 </div>
 <div class="section level4" number="3.8.3">

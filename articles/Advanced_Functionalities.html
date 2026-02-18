@@ -71,64 +71,69 @@
 <span class="header-section-number">1</span> Handling Exposure in Count Outcomes with Offsets<a class="anchor" aria-label="anchor" href="#handling-exposure-in-count-outcomes-with-offsets"></a>
 </h2>
 <p>For count data (like disease exacerbations or event rates), the observed count often depends on the <strong>exposure time</strong> or <strong>follow-up time</strong>. Using an <strong>offset</strong> variable is the standard statistical method to properly account for this time variation by modeling the event <strong>rate</strong> (count per unit time) instead of the raw count.</p>
-<p>In <code>bonsaiforest2</code>, you can include the offset directly in the <code>response_formula</code> using the standard <code>brms</code> syntax: <code>outcome + offset(log_time) ~ trt</code>.</p>
+<p>In <code>bonsaiforest2</code>, you can include the offset directly in the <code>response_formula</code> using the standard <code>brms</code> syntax: <code>y + offset(log_exposure_time) ~ trt</code>.</p>
 <div class="section level3" number="1.1">
 <h3 id="example-1-count-outcome-with-offset-disease-exacerbations">
 <span class="header-section-number">1.1</span> Example 1: Count Outcome with Offset (Disease Exacerbations)<a class="anchor" aria-label="anchor" href="#example-1-count-outcome-with-offset-disease-exacerbations"></a>
 </h3>
 <p>This scenario models exacerbation counts using a Negative Binomial distribution and explicitly accounts for the patient’s exposure time.</p>
-<p><em>Scenario</em>: Modeling exacerbation counts. Adjust for <code>baseline_severity</code> (unshrunk) and many exploratory <code>biomarkers</code> (shrunk). No interaction terms (overall treatment effect only).</p>
+<p><em>Scenario</em>: Modeling count outcomes with exposure-time adjustment. Adjust for <code>baseline</code> (unshrunk prognostic effect) and multiple exploratory <code>biomarkers</code> (shrunk prognostic effects). Overall treatment effect on the rate scale.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Data Simulation </span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">789</span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
-<span><span class="va">n_patients</span> <span class="op">&lt;-</span> <span class="fl">150</span></span>
-<span><span class="va">biomarker_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span> <span class="op">*</span> <span class="fl">10</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">10</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">biomarker_data</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"biomarker_"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">10</span><span class="op">)</span></span>
-<span><span class="va">count_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  exacerbation_count <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/NegBinomial.html" class="external-link">rnbinom</a></span><span class="op">(</span><span class="va">n_patients</span>, size <span class="op">=</span> <span class="fl">1.5</span>, mu <span class="op">=</span> <span class="fl">3</span><span class="op">)</span>,</span>
-<span>  medication <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
-<span>  baseline_severity <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, <span class="fl">10</span>, <span class="fl">2</span><span class="op">)</span>,</span>
-<span>  log_exposure_time <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n_patients</span>, <span class="fl">0.5</span>, <span class="fl">1.5</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">count_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">count_data</span>, <span class="va">biomarker_data</span><span class="op">)</span></span>
-<span><span class="va">count_data</span><span class="op">$</span><span class="va">medication</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">count_data</span><span class="op">$</span><span class="va">medication</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">789</span><span class="op">)</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
 <span></span>
-<span><span class="co"># Create formula string for all biomarkers (Prognostic effects only here)</span></span>
-<span><span class="va">shrunk_prog_str</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="st">"~"</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">biomarker_data</span><span class="op">)</span>, collapse <span class="op">=</span> <span class="st">" + "</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<span><span class="co"># Create biomarker data with simple naming</span></span>
+<span><span class="va">biomarker_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/as.data.frame.html" class="external-link">as.data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/matrix.html" class="external-link">matrix</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span> <span class="op">*</span> <span class="fl">8</span><span class="op">)</span>, ncol <span class="op">=</span> <span class="fl">8</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">biomarker_data</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"B"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">8</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Generate count data with treatment effect heterogeneity</span></span>
+<span><span class="va">count_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/NegBinomial.html" class="external-link">rnbinom</a></span><span class="op">(</span><span class="va">n</span>, size <span class="op">=</span> <span class="fl">1.5</span>, mu <span class="op">=</span> <span class="fl">3</span><span class="op">)</span>,</span>
+<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, length.out <span class="op">=</span> <span class="va">n</span><span class="op">)</span>,</span>
+<span>  baseline <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">10</span>, <span class="fl">2</span><span class="op">)</span>,</span>
+<span>  log_exposure_time <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0.5</span>, <span class="fl">1.5</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Add biomarkers and account for heterogeneous treatment effects</span></span>
+<span><span class="va">count_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">cbind</a></span><span class="op">(</span><span class="va">count_data</span>, <span class="va">biomarker_data</span><span class="op">)</span></span>
+<span><span class="va">count_data</span><span class="op">$</span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/NegBinomial.html" class="external-link">rnbinom</a></span><span class="op">(</span><span class="va">n</span>, size <span class="op">=</span> <span class="fl">1.5</span>, mu <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="fl">0.5</span> <span class="op">+</span> <span class="fl">0.1</span> <span class="op">*</span> <span class="va">count_data</span><span class="op">$</span><span class="va">baseline</span> <span class="op">+</span> </span>
+<span>                        <span class="va">count_data</span><span class="op">$</span><span class="va">trt</span> <span class="op">*</span> <span class="op">(</span><span class="fl">0.3</span> <span class="op">+</span> <span class="fl">0.2</span> <span class="op">*</span> <span class="op">(</span><span class="va">count_data</span><span class="op">$</span><span class="va">B1</span> <span class="op">&gt;</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Create formula string for all biomarkers</span></span>
+<span><span class="va">shrunk_prog_str</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="st">"~ 0 +"</span>, <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">biomarker_data</span><span class="op">)</span>, collapse <span class="op">=</span> <span class="st">" + "</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Model Fitting with Offset</span></span>
 <span><span class="va">count_model_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">count_data</span>,</span>
 <span>  <span class="co"># Include offset(log_exposure_time) directly in the response formula</span></span>
-<span>  response_formula <span class="op">=</span> <span class="va">exacerbation_count</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="va">log_exposure_time</span><span class="op">)</span> <span class="op">~</span> <span class="va">medication</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="va">log_exposure_time</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"count"</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="va">baseline_severity</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
 <span>  shrunk_prognostic_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/formula.html" class="external-link">as.formula</a></span><span class="op">(</span><span class="va">shrunk_prog_str</span><span class="op">)</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
+<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Step 1: Preparing formula and data...</span></span>
-<span><span class="co">#&gt; Warning: Formula 'shprogeffect' contains an intercept. For proper</span></span>
-<span><span class="co">#&gt; regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~</span></span>
-<span><span class="co">#&gt; -1 + ...' to your input formula.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
-<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - intercept: brms default</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: brms default</span></span>
-<span><span class="co">#&gt;   - shrunk prognostic: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.7 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 2.8 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.1 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Both chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 2.9 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 3.2 seconds.</span></span>
+<span><span class="co">#&gt; Warning: 3 of 1000 (0.0%) transitions ended with a divergence.</span></span>
+<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span><span class="co">#&gt; Loading required namespace: rstan</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Analysis complete.</span></span></code></pre></div>
@@ -175,14 +180,15 @@
 <tr class="odd">
 <td align="left"><strong>Shrunk Prognostic</strong></td>
 <td align="left"><code>shrunk_prognostic_prior</code></td>
-<td align="left"><code>horseshoe(1)</code></td>
-<td align="left">Strong shrinkage for fixed effects; <code>normal(0, 1)</code> for random effects</td>
+<td align="left"><code>horseshoe(scale_global = 1)</code></td>
+<td align="left">Strong shrinkage for fixed effects (colon syntax); For random effects (pipe-pipe syntax), automatically uses <code>normal(0, 1)</code> on SD scale</td>
 </tr>
 <tr class="even">
 <td align="left"><strong>Shrunk Predictive</strong></td>
 <td align="left"><code>shrunk_predictive_prior</code></td>
-<td align="left"><code>horseshoe(1)</code></td>
-<td align="left">Strong shrinkage for fixed effects; <code>normal(0, 1)</code> for random effects</td>
+<td align="left"><code>horseshoe(scale_global = 1)</code></td>
+<td align="left">Strong shrinkage for fixed effects (colon syntax); For random effects (pipe-pipe syntax), can be specified via <code>set_prior("normal(0, 1)", class = "sd")</code>
+</td>
 </tr>
 </tbody>
 </table>
@@ -201,84 +207,81 @@
 <code class="sourceCode R"><span><span class="co"># Load library</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># 1. Create Sample Data</span></span>
+<span><span class="co"># 1. Create Sample Data with treatment heterogeneity</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
-<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">100</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
+<span></span>
 <span><span class="va">sim_data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  time <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/Round.html" class="external-link">round</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">1</span>, <span class="fl">100</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  status <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
-<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, length.out <span class="op">=</span> <span class="va">n</span><span class="op">)</span>,</span>
 <span>  age <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">50</span>, <span class="fl">10</span><span class="op">)</span>,</span>
-<span>  region <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span>,</span>
-<span>  subgroup <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"S1"</span>, <span class="st">"S2"</span>, <span class="st">"S3"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span>  X1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  X2 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Ensure variables are factors where appropriate</span></span>
+<span><span class="co"># Ensure variables are factors</span></span>
 <span><span class="va">sim_data</span><span class="op">$</span><span class="va">trt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">trt</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">sim_data</span><span class="op">$</span><span class="va">region</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">region</span><span class="op">)</span></span>
-<span><span class="va">sim_data</span><span class="op">$</span><span class="va">subgroup</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">subgroup</span><span class="op">)</span></span>
+<span><span class="va">sim_data</span><span class="op">$</span><span class="va">X1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">X1</span><span class="op">)</span></span>
+<span><span class="va">sim_data</span><span class="op">$</span><span class="va">X2</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">as.factor</a></span><span class="op">(</span><span class="va">sim_data</span><span class="op">$</span><span class="va">X2</span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># 2. Prepare the model formula</span></span>
 <span><span class="va">prepared_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prepare_formula_model.html">prepare_formula_model</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">sim_data</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">time</span>, <span class="va">status</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">region</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X1</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"survival"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span></span>
-<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'region' is used without its main effect. Consider adding 'region' to prognostic terms for proper model hierarchy.</span></span></code></pre></div>
+<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'X1' is used without its main effect. Consider adding 'X1' to prognostic terms for proper model hierarchy.</span></span></code></pre></div>
 </div>
 <div class="section level4" number="2.2.2">
-<h4 id="example-2-using-default-priors-recommended">
-<span class="header-section-number">2.2.2</span> Example 2: Using Default Priors (Recommended)<a class="anchor" aria-label="anchor" href="#example-2-using-default-priors-recommended"></a>
+<h4 id="example-2-using-default-priors">
+<span class="header-section-number">2.2.2</span> Example 2: Using Default Priors<a class="anchor" aria-label="anchor" href="#example-2-using-default-priors"></a>
 </h4>
 <p>The simplest approach: use the package defaults that adapt to your outcome type (horseshoe(1) for shrunk effects, brms defaults for others).</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_ex3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_brms_model.html">fit_brms_model</a></span><span class="op">(</span></span>
 <span>  prepared_model <span class="op">=</span> <span class="va">prepared_model</span>,</span>
-<span>  <span class="co"># All priors use defaults - horseshoe(1) for shrunk effects, brms defaults for others</span></span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
+<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: brms default</span></span>
-<span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.1 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 97 of 100 (97.0%) transitions hit the maximum treedepth limit of 10.</span></span>
-<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 2.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.3 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Both chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 2.3 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 2.4 seconds.</span></span>
 <span></span>
 <span><span class="co"># View the priors that were automatically set</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"\n=== Priors Used ===\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex3</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;         prior class        coef group resp dpar              nlpar lb ub tag</span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b                                   shpredeffect          </span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b trt:regionA                       shpredeffect          </span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b trt:regionB                       shpredeffect          </span></span>
-<span><span class="co">#&gt;        (flat)     b                             unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;        (flat)     b         age                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;        (flat)     b         trt                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  dirichlet(1) sbhaz                                                         </span></span>
-<span><span class="co">#&gt;        source</span></span>
-<span><span class="co">#&gt;          user</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;       default</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;       default</span></span></code></pre></div>
+<span><span class="co">#&gt;                        prior class    coef group resp dpar              nlpar</span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b                               shpredeffect</span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b trt:X1A                       shpredeffect</span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b trt:X1B                       shpredeffect</span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b                         unshrunktermeffect</span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b     age                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b     trt                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 dirichlet(1) sbhaz                                           </span></span>
+<span><span class="co">#&gt;  lb ub tag       source</span></span>
+<span><span class="co">#&gt;                    user</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;                    user</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;                 default</span></span></code></pre></div>
 </div>
 <div class="section level4" number="2.2.3">
 <h4 id="example-3-using-the-r2d2-shrinkage-prior">
@@ -290,39 +293,37 @@
 <span></span>
 <span><span class="va">fit_ex4</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_brms_model.html">fit_brms_model</a></span><span class="op">(</span></span>
 <span>  prepared_model <span class="op">=</span> <span class="va">prepared_model</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"R2D2(mean_R2 = 0.5, prec_R2 = 1)"</span>,</span>
-<span>  <span class="co"># Can also customize other priors</span></span>
 <span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
 <span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"R2D2(mean_R2 = 0.5, prec_R2 = 1)"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.0 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 89 of 100 (89.0%) transitions hit the maximum treedepth limit of 10.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 1.7 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.1 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Both chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 1.9 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 2.2 seconds.</span></span>
+<span><span class="co">#&gt; Warning: 19 of 1000 (2.0%) transitions ended with a divergence.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"\n=== Priors Used ===\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex4</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                             prior class        coef group resp dpar</span></span>
-<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b                            </span></span>
-<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:regionA                </span></span>
-<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:regionB                </span></span>
-<span><span class="co">#&gt;                    normal(0, 2.5)     b                            </span></span>
-<span><span class="co">#&gt;                    normal(0, 2.5)     b         age                </span></span>
-<span><span class="co">#&gt;                    normal(0, 2.5)     b         trt                </span></span>
-<span><span class="co">#&gt;                      dirichlet(1) sbhaz                            </span></span>
+<span><span class="co">#&gt;                             prior class    coef group resp dpar</span></span>
+<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b                        </span></span>
+<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:X1A                </span></span>
+<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:X1B                </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b                        </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b     age                </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b     trt                </span></span>
+<span><span class="co">#&gt;                      dirichlet(1) sbhaz                        </span></span>
 <span><span class="co">#&gt;               nlpar lb ub tag       source</span></span>
 <span><span class="co">#&gt;        shpredeffect                   user</span></span>
 <span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
@@ -355,26 +356,24 @@
 <span><span class="co"># 3. Pass both to fit_brms_model</span></span>
 <span><span class="va">fit_ex5</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_brms_model.html">fit_brms_model</a></span><span class="op">(</span></span>
 <span>  prepared_model <span class="op">=</span> <span class="va">prepared_model</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="va">prior_full_hierarchical</span>,</span>
-<span>  stanvars <span class="op">=</span> <span class="va">stanvars_full_hierarchical</span>,</span>
-<span>  <span class="co"># Other priors can be customized</span></span>
 <span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
 <span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="va">prior_full_hierarchical</span>,</span>
+<span>  stanvars <span class="op">=</span> <span class="va">stanvars_full_hierarchical</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 1.3 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.9 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 3.1 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Both chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 3.0 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 3.2 seconds.</span></span>
+<span><span class="co">#&gt; Warning: 59 of 1000 (6.0%) transitions ended with a divergence.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span></span>
 <span><span class="co"># View the used priors</span></span>
@@ -382,22 +381,22 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex5</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                        prior class        coef group resp dpar</span></span>
-<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b                            </span></span>
-<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b trt:regionA                </span></span>
-<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b trt:regionB                </span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b                            </span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b         age                </span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b         trt                </span></span>
-<span><span class="co">#&gt;                 dirichlet(1) sbhaz                            </span></span>
-<span><span class="co">#&gt;               nlpar lb ub tag       source</span></span>
-<span><span class="co">#&gt;        shpredeffect                   user</span></span>
-<span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect                   user</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;                                    default</span></span>
+<span><span class="co">#&gt;                        prior class    coef group resp dpar              nlpar</span></span>
+<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b                               shpredeffect</span></span>
+<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b trt:X1A                       shpredeffect</span></span>
+<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b trt:X1B                       shpredeffect</span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b                         unshrunktermeffect</span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b     age                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b     trt                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 dirichlet(1) sbhaz                                           </span></span>
+<span><span class="co">#&gt;  lb ub tag       source</span></span>
+<span><span class="co">#&gt;                    user</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;                    user</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;                 default</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex5</span><span class="op">[[</span><span class="st">"stanvars"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [[1]]</span></span>
 <span><span class="co">#&gt; [[1]]$name</span></span>
@@ -454,94 +453,91 @@
 <span><span class="va">prepared_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prepare_formula_model.html">prepare_formula_model</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">sim_data</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">time</span>, <span class="va">status</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">region</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span> <span class="op">+</span> <span class="va">trt</span><span class="op">*</span><span class="va">subgroup</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X1</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span> <span class="op">+</span> <span class="va">trt</span><span class="op">*</span><span class="va">X2</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"survival"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span></span>
-<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'region' is used without its main effect. Consider adding 'region' to prognostic terms for proper model hierarchy.</span></span>
+<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'X1' is used without its main effect. Consider adding 'X1' to prognostic terms for proper model hierarchy.</span></span>
 <span></span>
 <span><span class="co"># 2. Inspect the Results</span></span>
 <span><span class="co"># A. The generated brms formula object</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">prepared_model</span><span class="op">$</span><span class="va">formula</span><span class="op">)</span></span>
-<span><span class="co">#&gt; time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE) ~ unshrunktermeffect + shpredeffect </span></span>
-<span><span class="co">#&gt; unshrunktermeffect ~ 0 + age + trt * subgroup + trt</span></span>
-<span><span class="co">#&gt; shpredeffect ~ 0 + trt:region</span></span>
+<span><span class="co">#&gt; time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(27, 51, 73), intercept = FALSE) ~ unshrunktermeffect + shpredeffect </span></span>
+<span><span class="co">#&gt; unshrunktermeffect ~ 0 + age + trt * X2 + trt</span></span>
+<span><span class="co">#&gt; shpredeffect ~ 0 + trt:X1</span></span>
 <span></span>
 <span><span class="co"># B. The processed terms</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">prepared_model</span><span class="op">$</span><span class="va">stan_variable_names</span><span class="op">$</span><span class="va">X_unshrunktermeffect</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [1] "age"            "trt"            "subgroupS1"     "subgroupS2"    </span></span>
-<span><span class="co">#&gt; [5] "subgroupS3"     "trt:subgroupS2" "trt:subgroupS3"</span></span>
+<span><span class="co">#&gt; [1] "age"     "trt"     "X2A"     "X2B"     "X2C"     "trt:X2B" "trt:X2C"</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"=== Prior Strategy ===\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; === Prior Strategy ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"General unshrunk prior: normal(0, 5)\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; General unshrunk prior: normal(0, 5)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Specific for trt:subgroup: normal(0, 1)\n\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Specific for trt:subgroup: normal(0, 1)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Specific for trt:X2 interactions: normal(0, 1)\n\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Specific for trt:X2 interactions: normal(0, 1)</span></span>
 <span></span>
 <span><span class="co"># Create combined prior object</span></span>
 <span><span class="co"># IMPORTANT: Use EXACT coefficient names from the prepared data</span></span>
+<span><span class="co"># These names appear after contrast encoding in prepare_formula_model</span></span>
 <span><span class="va">unshrunk_priors_combined</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 5)"</span>, class <span class="op">=</span> <span class="st">"b"</span><span class="op">)</span>,  <span class="co"># General</span></span>
-<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"b"</span>, coef <span class="op">=</span> <span class="st">"trt:subgroupS2"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"b"</span>, coef <span class="op">=</span> <span class="st">"trt:subgroupS3"</span><span class="op">)</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"b"</span>, coef <span class="op">=</span> <span class="st">"trt:X2B"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"b"</span>, coef <span class="op">=</span> <span class="st">"trt:X2C"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Fit the model</span></span>
 <span><span class="va">fit_specific</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_brms_model.html">fit_brms_model</a></span><span class="op">(</span></span>
 <span>  prepared_model <span class="op">=</span> <span class="va">prepared_model</span>,</span>
+<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
 <span>  unshrunk_prior <span class="op">=</span> <span class="va">unshrunk_priors_combined</span>,  <span class="co"># Pass the combined object</span></span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.5 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 89 of 100 (89.0%) transitions hit the maximum treedepth limit of 10.</span></span>
-<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 1.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 2.7 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Both chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 2.1 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 2.8 seconds.</span></span>
 <span></span>
 <span><span class="co"># View the used priors</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"\n=== Priors Used ===\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_specific</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;         prior class           coef group resp dpar              nlpar lb ub tag</span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b                                      shpredeffect          </span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b    trt:regionA                       shpredeffect          </span></span>
-<span><span class="co">#&gt;  horseshoe(1)     b    trt:regionB                       shpredeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b                                unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b            age                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b     subgroupS1                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b     subgroupS2                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b     subgroupS3                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 5)     b            trt                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 1)     b trt:subgroupS2                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  normal(0, 1)     b trt:subgroupS3                 unshrunktermeffect          </span></span>
-<span><span class="co">#&gt;  dirichlet(1) sbhaz                                                            </span></span>
-<span><span class="co">#&gt;        source</span></span>
-<span><span class="co">#&gt;          user</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;          user</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;  (vectorized)</span></span>
-<span><span class="co">#&gt;          user</span></span>
-<span><span class="co">#&gt;          user</span></span>
-<span><span class="co">#&gt;       default</span></span></code></pre></div>
+<span><span class="co">#&gt;                        prior class    coef group resp dpar              nlpar</span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b                               shpredeffect</span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b trt:X1A                       shpredeffect</span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b trt:X1B                       shpredeffect</span></span>
+<span><span class="co">#&gt;                 normal(0, 5)     b                         unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 normal(0, 5)     b     age                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 normal(0, 5)     b     trt                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 normal(0, 1)     b trt:X2B                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 normal(0, 1)     b trt:X2C                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 normal(0, 5)     b     X2A                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 normal(0, 5)     b     X2B                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 normal(0, 5)     b     X2C                 unshrunktermeffect</span></span>
+<span><span class="co">#&gt;                 dirichlet(1) sbhaz                                           </span></span>
+<span><span class="co">#&gt;  lb ub tag       source</span></span>
+<span><span class="co">#&gt;                    user</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;                    user</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;                    user</span></span>
+<span><span class="co">#&gt;                    user</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;            (vectorized)</span></span>
+<span><span class="co">#&gt;                 default</span></span></code></pre></div>
 </div>
 <div class="section level4" number="2.2.6">
 <h4 id="example-6-hierarchical-priors-with-shared-variance-stanvars">
@@ -553,131 +549,53 @@
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"\n=== Hierarchical Prior Structure ===\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Hierarchical Prior Structure ===</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Instead of independent priors, we'll use a shared variance:\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Instead of independent priors, we'll use a shared variance:</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"  tau ~ half-normal(0, 1)  [shared variance parameter]\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   tau ~ half-normal(0, 1)  [shared variance parameter]</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"  beta_Low ~ N(0, tau)\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   beta_Low ~ N(0, tau)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"  beta_Medium ~ N(0, tau)\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   beta_Medium ~ N(0, tau)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"This creates exchangeability and adaptive shrinkage.\n\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; This creates exchangeability and adaptive shrinkage.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Instead of independent priors per coefficient, we pool information through a shared scale:\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Instead of independent priors per coefficient, we pool information through a shared scale:</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"  tau ~ half-normal(0, 1)  [shared scale parameter]\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   tau ~ half-normal(0, 1)  [shared scale parameter]</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"  beta_i ~ N(0, tau) for each coefficient i\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   beta_i ~ N(0, tau) for each coefficient i</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"This creates exchangeability: coefficients are ~similar but with adaptive variation.\n\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; This creates exchangeability: coefficients are ~similar but with adaptive variation.</span></span>
 <span></span>
 <span><span class="co"># Step 1: Declare tau as a parameter to be estimated</span></span>
 <span><span class="va">tau_parameter</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">stanvar</a></span><span class="op">(</span></span>
-<span>  scode <span class="op">=</span> <span class="st">"  real&lt;lower=0&gt; biomarker_tau;  // Shared variance\n"</span>,</span>
+<span>  scode <span class="op">=</span> <span class="st">"  real&lt;lower=0&gt; biomarker_tau;  // Shared scale parameter\n"</span>,</span>
 <span>  block <span class="op">=</span> <span class="st">"parameters"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Step 2: Add prior for tau</span></span>
+<span><span class="co"># Step 2: Add prior for tau (using normal truncated to positive values with constraint)</span></span>
 <span><span class="va">tau_prior</span> <span class="op">&lt;-</span> <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/stanvar.html" class="external-link">stanvar</a></span><span class="op">(</span></span>
-<span>  scode <span class="op">=</span> <span class="st">"  biomarker_tau ~ normal(0, 1);  // Hyperprior\n"</span>,</span>
+<span>  scode <span class="op">=</span> <span class="st">"  biomarker_tau ~ normal(0, 1);  // Hyperprior on the scale\n"</span>,</span>
 <span>  block <span class="op">=</span> <span class="st">"model"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># Combine stanvars</span></span>
 <span><span class="va">hierarchical_stanvars</span> <span class="op">&lt;-</span> <span class="va">tau_parameter</span> <span class="op">+</span> <span class="va">tau_prior</span></span>
 <span></span>
-<span><span class="co"># Step 3: Create priors referencing general prior structures</span></span>
+<span><span class="co"># Step 3: Create priors referencing the shared variance parameter</span></span>
 <span><span class="co"># Note: We identified these coefficient names using prepare_formula_model above</span></span>
 <span><span class="va">unshrunk_priors_hier</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span></span>
 <span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 5)"</span>, class <span class="op">=</span> <span class="st">"b"</span><span class="op">)</span>,  <span class="co"># General</span></span>
-<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, biomarker_tau)"</span>, class <span class="op">=</span> <span class="st">"b"</span>, coef <span class="op">=</span> <span class="st">"trt:subgroupS2"</span><span class="op">)</span>,</span>
-<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, biomarker_tau)"</span>, class <span class="op">=</span> <span class="st">"b"</span>, coef <span class="op">=</span> <span class="st">"trt:subgroupS3"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Step 4: Fit the hierarchical model</span></span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, biomarker_tau)"</span>, class <span class="op">=</span> <span class="st">"b"</span>, coef <span class="op">=</span> <span class="st">"trt:X2B"</span><span class="op">)</span>,</span>
+<span>  <span class="fu">brms</span><span class="fu">::</span><span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, biomarker_tau)"</span>, class <span class="op">=</span> <span class="st">"b"</span>, coef <span class="op">=</span> <span class="st">"trt:X2C"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Step 4: Fit the hierarchical model</span></span>
 <span><span class="va">fit_hier</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_brms_model.html">fit_brms_model</a></span><span class="op">(</span></span>
 <span>  prepared_model <span class="op">=</span> <span class="va">prepared_model</span>,</span>
+<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
 <span>  unshrunk_prior <span class="op">=</span> <span class="va">unshrunk_priors_hier</span>,</span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
 <span>  stanvars <span class="op">=</span> <span class="va">hierarchical_stanvars</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">400</span>, warmup <span class="op">=</span> <span class="fl">200</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
-<span><span class="co">#&gt; Fitting brms model...</span></span>
-<span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 1.3 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 1 of 200 (0.0%) transitions ended with a divergence.</span></span>
-<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span></span>
 <span><span class="co"># View the used priors</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"\n=== Priors Used ===\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_hier</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                     prior class           coef group resp dpar</span></span>
-<span><span class="co">#&gt;              horseshoe(1)     b                               </span></span>
-<span><span class="co">#&gt;              horseshoe(1)     b    trt:regionA                </span></span>
-<span><span class="co">#&gt;              horseshoe(1)     b    trt:regionB                </span></span>
-<span><span class="co">#&gt;              normal(0, 5)     b                               </span></span>
-<span><span class="co">#&gt;              normal(0, 5)     b            age                </span></span>
-<span><span class="co">#&gt;              normal(0, 5)     b     subgroupS1                </span></span>
-<span><span class="co">#&gt;              normal(0, 5)     b     subgroupS2                </span></span>
-<span><span class="co">#&gt;              normal(0, 5)     b     subgroupS3                </span></span>
-<span><span class="co">#&gt;              normal(0, 5)     b            trt                </span></span>
-<span><span class="co">#&gt;  normal(0, biomarker_tau)     b trt:subgroupS2                </span></span>
-<span><span class="co">#&gt;  normal(0, biomarker_tau)     b trt:subgroupS3                </span></span>
-<span><span class="co">#&gt;              dirichlet(1) sbhaz                               </span></span>
-<span><span class="co">#&gt;               nlpar lb ub tag       source</span></span>
-<span><span class="co">#&gt;        shpredeffect                   user</span></span>
-<span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect                   user</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect                   user</span></span>
-<span><span class="co">#&gt;  unshrunktermeffect                   user</span></span>
-<span><span class="co">#&gt;                                    default</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_hier</span><span class="op">[[</span><span class="st">"stanvars"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt; [[1]]</span></span>
-<span><span class="co">#&gt; [[1]]$name</span></span>
-<span><span class="co">#&gt; [1] ""</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[1]]$sdata</span></span>
-<span><span class="co">#&gt; NULL</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[1]]$scode</span></span>
-<span><span class="co">#&gt; [1] "  real&lt;lower=0&gt; biomarker_tau;  // Shared variance\n"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[1]]$block</span></span>
-<span><span class="co">#&gt; [1] "parameters"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[1]]$position</span></span>
-<span><span class="co">#&gt; [1] "start"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[1]]$pll_args</span></span>
-<span><span class="co">#&gt; character(0)</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[2]]</span></span>
-<span><span class="co">#&gt; [[2]]$name</span></span>
-<span><span class="co">#&gt; [1] ""</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[2]]$sdata</span></span>
-<span><span class="co">#&gt; NULL</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[2]]$scode</span></span>
-<span><span class="co">#&gt; [1] "  biomarker_tau ~ normal(0, 1);  // Hyperprior\n"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[2]]$block</span></span>
-<span><span class="co">#&gt; [1] "model"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[2]]$position</span></span>
-<span><span class="co">#&gt; [1] "start"</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; [[2]]$pll_args</span></span>
-<span><span class="co">#&gt; character(0)</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; attr(,"class")</span></span>
-<span><span class="co">#&gt; [1] "stanvars"</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_hier</span><span class="op">[[</span><span class="st">"stanvars"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
 </div>
@@ -690,77 +608,73 @@
 <h3 id="example-7-custom-contrast-encoding-for-shrunk-terms">
 <span class="header-section-number">3.1</span> Example 7: Custom Contrast Encoding for Shrunk Terms<a class="anchor" aria-label="anchor" href="#example-7-custom-contrast-encoding-for-shrunk-terms"></a>
 </h3>
-<p>By default, <code>bonsaiforest2</code> uses one-hot encoding (all factor levels) for shrunk interaction terms, and dummy encoding (drop one level) for unshrunk terms. However, you can manually set custom contrasts in your data, and the library will respect your choice.</p>
-<p><em>Scenario</em>: You want to use treatment contrasts (k-1 dummy variables with a reference level) or custom contrasts (e.g., Helmert, sum coding) instead of one-hot encoding for your shrunk predictive effects.</p>
+<p>By default, <code>bonsaiforest2</code> uses one-hot encoding (all factor levels, no reference category) for shrunk interaction terms specified with <code>~ 0 + ...</code> syntax, enabling full hierarchical shrinkage of all levels. For unshrunk terms, treatment contrasts (k-1 dummy variables with a reference level) are used by default. However, you can manually set custom contrasts in your data using <code><a href="https://rdrr.io/r/stats/contrasts.html" class="external-link">contrasts()</a></code>, and the library will preserve your choice throughout the analysis.</p>
+<p><em>Scenario</em>: You want to use custom contrast coding for subgroup variables, such as Helmert contrasts or sum contrasts, instead of the default treatment contrasts. This is useful for specific hypothesis structures or when comparing non-orthogonal effects.</p>
 <p><em>Key Technique</em>: Set contrasts using <code><a href="https://rdrr.io/r/stats/contrasts.html" class="external-link">contrasts()</a></code> before calling <code><a href="../reference/prepare_formula_model.html">prepare_formula_model()</a></code>. The library will preserve your choice.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Create sample data with multiple subgroups</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">456</span><span class="op">)</span></span>
-<span><span class="va">n_patients</span> <span class="op">&lt;-</span> <span class="fl">180</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">250</span></span>
 <span><span class="va">sample_data_contrast</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n_patients</span>,</span>
-<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  outcome <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, <span class="fl">50</span>, <span class="fl">10</span><span class="op">)</span>,</span>
-<span>  age <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, <span class="fl">65</span>, <span class="fl">10</span><span class="op">)</span>,</span>
-<span>  biomarker <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low"</span>, <span class="st">"Medium"</span>, <span class="st">"High"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n</span>,</span>
+<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, length.out <span class="op">=</span> <span class="va">n</span><span class="op">)</span>,</span>
+<span>  y <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">50</span>, <span class="fl">10</span><span class="op">)</span>,</span>
+<span>  baseline <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">65</span>, <span class="fl">10</span><span class="op">)</span>,</span>
+<span>  X1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># Set Helmert contrasts for the biomarker variable</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/stats/contrasts.html" class="external-link">contrasts</a></span><span class="op">(</span><span class="va">sample_data_contrast</span><span class="op">$</span><span class="va">biomarker</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/contrast.html" class="external-link">contr.helmert</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Contrast matrix for biomarker:\\n"</span><span class="op">)</span></span>
-<span><span class="co">#&gt; Contrast matrix for biomarker:\n</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/contrasts.html" class="external-link">contrasts</a></span><span class="op">(</span><span class="va">sample_data_contrast</span><span class="op">$</span><span class="va">biomarker</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;        [,1] [,2]</span></span>
-<span><span class="co">#&gt; High     -1   -1</span></span>
-<span><span class="co">#&gt; Low       1   -1</span></span>
-<span><span class="co">#&gt; Medium    0    2</span></span>
+<span><span class="co"># Set Helmert contrasts for the X1 variable</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/contrasts.html" class="external-link">contrasts</a></span><span class="op">(</span><span class="va">sample_data_contrast</span><span class="op">$</span><span class="va">X1</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/contrast.html" class="external-link">contr.helmert</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"Contrast matrix for X1:\n"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Contrast matrix for X1:</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/contrasts.html" class="external-link">contrasts</a></span><span class="op">(</span><span class="va">sample_data_contrast</span><span class="op">$</span><span class="va">X1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   [,1] [,2]</span></span>
+<span><span class="co">#&gt; A   -1   -1</span></span>
+<span><span class="co">#&gt; B    1   -1</span></span>
+<span><span class="co">#&gt; C    0    2</span></span>
 <span></span>
 <span><span class="co"># Prepare model </span></span>
 <span><span class="va">prepared_custom_contrast</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prepare_formula_model.html">prepare_formula_model</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">sample_data_contrast</span>,</span>
-<span>  response_formula <span class="op">=</span> <span class="va">outcome</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">biomarker</span>, </span>
+<span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X1</span>, </span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'biomarker' is used without its main effect. Consider adding 'biomarker' to prognostic terms for proper model hierarchy.</span></span>
+<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'X1' is used without its main effect. Consider adding 'X1' to prognostic terms for proper model hierarchy.</span></span>
 <span></span>
 <span><span class="co"># Observe costum contrast in the data</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">prepared_custom_contrast</span><span class="op">$</span><span class="va">data</span><span class="op">)</span></span>
-<span><span class="co">#&gt; 'data.frame':    180 obs. of  5 variables:</span></span>
-<span><span class="co">#&gt;  $ id       : int  1 2 3 4 5 6 7 8 9 10 ...</span></span>
-<span><span class="co">#&gt;  $ trt      : num  0 0 0 1 0 1 0 0 1 0 ...</span></span>
-<span><span class="co">#&gt;  $ outcome  : num  45.3 43.3 63.6 64.1 42.7 ...</span></span>
-<span><span class="co">#&gt;  $ age      : num  41.2 66.5 46 81.5 70 ...</span></span>
-<span><span class="co">#&gt;  $ biomarker: Factor w/ 3 levels "High","Low","Medium": 1 1 3 1 1 1 1 2 1 3 ...</span></span>
+<span><span class="co">#&gt; 'data.frame':    250 obs. of  5 variables:</span></span>
+<span><span class="co">#&gt;  $ id      : int  1 2 3 4 5 6 7 8 9 10 ...</span></span>
+<span><span class="co">#&gt;  $ trt     : int  0 1 0 1 0 1 0 1 0 1 ...</span></span>
+<span><span class="co">#&gt;  $ y       : num  36.6 56.2 58 36.1 42.9 ...</span></span>
+<span><span class="co">#&gt;  $ baseline: num  62.5 65.7 67.5 52.7 64.4 ...</span></span>
+<span><span class="co">#&gt;  $ X1      : Factor w/ 3 levels "A","B","C": 2 3 2 3 1 2 3 3 2 3 ...</span></span>
 <span><span class="co">#&gt;   ..- attr(*, "contrasts")= num [1:3, 1:2] -1 1 0 -1 -1 2</span></span>
 <span><span class="co">#&gt;   .. ..- attr(*, "dimnames")=List of 2</span></span>
-<span><span class="co">#&gt;   .. .. ..$ : chr [1:3] "High" "Low" "Medium"</span></span>
+<span><span class="co">#&gt;   .. .. ..$ : chr [1:3] "A" "B" "C"</span></span>
 <span><span class="co">#&gt;   .. .. ..$ : NULL</span></span>
 <span></span>
 <span><span class="co"># Fit the model</span></span>
 <span><span class="va">fit_custom_contrast</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_brms_model.html">fit_brms_model</a></span><span class="op">(</span></span>
 <span>  prepared_model <span class="op">=</span> <span class="va">prepared_custom_contrast</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
+<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - intercept: brms default</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: brms default</span></span>
-<span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
 <span><span class="co">#&gt; Chain 1 finished in 1.2 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 6 of 100 (6.0%) transitions hit the maximum treedepth limit of 10.</span></span>
-<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 1.3 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Both chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 1.3 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 1.4 seconds.</span></span>
 <span></span>
 <span><span class="va">estimate_custom_contrast</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span><span class="va">fit_custom_contrast</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Using trt_var from model attributes: trt</span></span>
@@ -769,46 +683,46 @@
 <span><span class="co">#&gt; Using data from model attributes</span></span>
 <span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
 <span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model...</span></span>
-<span><span class="co">#&gt; Model data has 180 rows and 5 columns</span></span>
-<span><span class="co">#&gt; Column names: id, trt, outcome, age, biomarker</span></span>
+<span><span class="co">#&gt; Model data has 250 rows and 5 columns</span></span>
+<span><span class="co">#&gt; Column names: id, trt, y, baseline, X1</span></span>
 <span><span class="co">#&gt; Treatment variable: 'trt'</span></span>
 <span><span class="co">#&gt; All coefficient names:</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_Intercept</span></span>
-<span><span class="co">#&gt; unshrunktermeffect_age</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_baseline</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_trt</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerHigh</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerLow</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerMedium</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1A</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1B</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1C</span></span>
 <span><span class="co">#&gt; Looking for treatment interactions with pattern: 'trt:'</span></span>
 <span><span class="co">#&gt; Found 3 treatment interaction coefficients</span></span>
 <span><span class="co">#&gt; Treatment interaction coefficients found:</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerHigh</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerLow</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerMedium</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerHigh'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerLow'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerMedium'</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1A</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1B</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1C</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1A'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1B'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1C'</span></span>
 <span><span class="co">#&gt; Checking for random effects parameters...</span></span>
 <span><span class="co">#&gt; Retrieved 14 total parameters from model</span></span>
 <span><span class="co">#&gt; Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'</span></span>
 <span><span class="co">#&gt; Found 0 matching random effect parameters</span></span>
 <span><span class="co">#&gt; No random effect parameters matching the pattern were found</span></span>
-<span><span class="co">#&gt; ...detected subgroup variable(s): biomarker</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): X1</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.</span></span>
 <span><span class="co">#&gt; ... (predicting expected outcomes)...</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
-<span><span class="co">#&gt; ... processing biomarker</span></span>
+<span><span class="co">#&gt; ... processing X1</span></span>
 <span><span class="co">#&gt; Done.</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">estimate_custom_contrast</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $estimates</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 4</span></span></span>
-<span><span class="co">#&gt;   Subgroup          Median CI_Lower CI_Upper</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>              <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> biomarker: High    -<span style="color: #BB0000;">1.69</span>    -<span style="color: #BB0000;">4.67</span>    1.86 </span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> biomarker: Low     -<span style="color: #BB0000;">3.55</span>    -<span style="color: #BB0000;">6.92</span>   -<span style="color: #BB0000;">0.793</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> biomarker: Medium  -<span style="color: #BB0000;">2.41</span>    -<span style="color: #BB0000;">5.64</span>    1.04 </span></span>
+<span><span class="co">#&gt;   Subgroup Median CI_Lower CI_Upper</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> X1: A      2.15   -<span style="color: #BB0000;">0.778</span>     4.74</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> X1: B      2.35   -<span style="color: #BB0000;">0.697</span>     5.41</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> X1: C      1.95   -<span style="color: #BB0000;">0.948</span>     4.67</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>
@@ -828,25 +742,45 @@
 </h3>
 <p>After fitting a model, you can use <code>brms::predict()</code> to generate predictions for new patients.</p>
 <p><em>Scenario</em>: We’ve fitted a treatment effect model and want to predict outcomes for new patients with different characteristics.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Use the fitted model from Example 7</span></span>
 <span><span class="co"># Generate new data for prediction</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">789</span><span class="op">)</span></span>
 <span><span class="va">new_patients</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">20</span>,</span>
-<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">10</span><span class="op">)</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  age <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">20</span>, <span class="fl">65</span>, <span class="fl">10</span><span class="op">)</span>,</span>
-<span>  biomarker <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low"</span>, <span class="st">"Medium"</span>, <span class="st">"High"</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="fl">20</span><span class="op">)</span><span class="op">)</span></span>
+<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, length.out <span class="op">=</span> <span class="fl">20</span><span class="op">)</span>,</span>
+<span>  baseline <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fl">20</span>, <span class="fl">65</span>, <span class="fl">10</span><span class="op">)</span>,</span>
+<span>  X1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, length.out <span class="op">=</span> <span class="fl">20</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># IMPORTANT: Set the same contrasts as in Example 7</span></span>
 <span><span class="co"># The prediction data must use the same encoding as the training data</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/stats/contrasts.html" class="external-link">contrasts</a></span><span class="op">(</span><span class="va">new_patients</span><span class="op">$</span><span class="va">biomarker</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/contrast.html" class="external-link">contr.helmert</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/contrasts.html" class="external-link">contrasts</a></span><span class="op">(</span><span class="va">new_patients</span><span class="op">$</span><span class="va">X1</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/contrast.html" class="external-link">contr.helmert</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span>
 <span></span>
+<span><span class="co"># Prepare new data</span></span>
+<span><span class="va">prepared_custom_contrast</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/prepare_formula_model.html">prepare_formula_model</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">new_patients</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X1</span>, </span>
+<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'X1' is used without its main effect. Consider adding 'X1' to prognostic terms for proper model hierarchy.</span></span>
+<span><span class="co">#&gt; Warning: Could not extract Stan variable names. Error: The following variables can neither be found in 'data' nor in 'data2':</span></span>
+<span><span class="co">#&gt; 'y'</span></span>
 <span></span>
 <span><span class="co"># Generate predictions using brms::predict</span></span>
 <span><span class="co"># This returns posterior predictive samples</span></span>
-<span><span class="va">predictions</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit_custom_contrast</span>, newdata <span class="op">=</span> <span class="va">new_patients</span>, summary <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">predictions</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit_custom_contrast</span>, newdata <span class="op">=</span> <span class="va">prepared_custom_contrast</span><span class="op">$</span><span class="va">data</span>, summary <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">predictions</span><span class="op">)</span></span>
+<span><span class="co">#&gt;      Estimate Est.Error     Q2.5    Q97.5</span></span>
+<span><span class="co">#&gt; [1,] 50.21508  10.44761 30.06733 70.44563</span></span>
+<span><span class="co">#&gt; [2,] 42.31451  10.07955 22.91911 62.45141</span></span>
+<span><span class="co">#&gt; [3,] 48.14653  10.12869 28.95442 68.88111</span></span>
+<span><span class="co">#&gt; [4,] 51.22246  10.65935 31.23163 71.00125</span></span>
+<span><span class="co">#&gt; [5,] 47.47709  10.35556 26.90996 67.09338</span></span>
+<span><span class="co">#&gt; [6,] 48.67175  10.19170 28.09372 68.26898</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2" number="4">
@@ -859,61 +793,59 @@
 <h3 id="example-9-stratified-continuous-model">
 <span class="header-section-number">4.1</span> Example 9: Stratified Continuous Model<a class="anchor" aria-label="anchor" href="#example-9-stratified-continuous-model"></a>
 </h3>
-<p><em>Scenario</em>: We model SBP change where the observation <strong>variance</strong> <span class="math inline">\(\sigma^2\)</span> differs by <span class="math inline">\(\text{clinic\_site}\)</span>. This is modeled by stratifying the <span class="math inline">\(\sigma\)</span> parameter in the Normal distribution by the site variable.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
-<span><span class="va">n_patients</span> <span class="op">&lt;-</span> <span class="fl">180</span></span>
-<span><span class="va">sigma_by_site</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>SiteA <span class="op">=</span> <span class="fl">6</span>, SiteB <span class="op">=</span> <span class="fl">12</span>, SiteC <span class="op">=</span> <span class="fl">18</span><span class="op">)</span></span>
-<span><span class="va">sample_data_strat_cont</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>    id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n_patients</span>,</span>
-<span>    clinic_site <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"SiteA"</span>, <span class="st">"SiteB"</span>, <span class="st">"SiteC"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">trt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span>, prob <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.5</span>, <span class="fl">0.5</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">baseline_sbp</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, mean <span class="op">=</span> <span class="fl">145</span>, sd <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span>
-<span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">age_group</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Under60"</span>, <span class="st">"Over60"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">noise</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, mean <span class="op">=</span> <span class="fl">0</span>, sd <span class="op">=</span> <span class="va">sigma_by_site</span><span class="op">[</span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">clinic_site</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">sbp_change</span> <span class="op">&lt;-</span> <span class="op">-</span><span class="fl">5</span> <span class="op">-</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">trt</span><span class="op">)</span><span class="op">-</span><span class="fl">1</span><span class="op">)</span> <span class="op">*</span> <span class="fl">8</span> <span class="op">-</span></span>
-<span>                                     <span class="fl">0.2</span> <span class="op">*</span> <span class="op">(</span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">baseline_sbp</span> <span class="op">-</span> <span class="fl">145</span><span class="op">)</span> <span class="op">+</span></span>
-<span>                                     <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">trt</span><span class="op">)</span><span class="op">-</span><span class="fl">1</span><span class="op">)</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">age_group</span> <span class="op">==</span> <span class="st">"Over60"</span>, <span class="op">-</span><span class="fl">5</span>, <span class="fl">0</span><span class="op">)</span> <span class="op">+</span></span>
-<span>                                     <span class="va">noise</span></span></code></pre></div>
+<p><em>Scenario</em>: We model outcomes where the observation error <strong>standard deviation</strong> <span class="math inline">\(\sigma\)</span> differs by site. Stratification uses <code>brms</code> distributional formulas to estimate separate residual variance parameters for each site, allowing for heterogeneity in measurement noise or outcome variability across sites.</p>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">42</span><span class="op">)</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">250</span></span>
+<span><span class="va">sigma_by_site</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>A <span class="op">=</span> <span class="fl">6</span>, B <span class="op">=</span> <span class="fl">12</span>, C <span class="op">=</span> <span class="fl">18</span><span class="op">)</span></span>
+<span><span class="va">sample_data_strat_cont</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>    id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n</span>,</span>
+<span>    site <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">trt</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, length.out <span class="op">=</span> <span class="va">n</span><span class="op">)</span></span>
+<span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">baseline</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, mean <span class="op">=</span> <span class="fl">100</span>, sd <span class="op">=</span> <span class="fl">8</span><span class="op">)</span></span>
+<span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">X1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Generate outcome with treatment heterogeneity and site-specific noise</span></span>
+<span><span class="va">noise</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, mean <span class="op">=</span> <span class="fl">0</span>, sd <span class="op">=</span> <span class="va">sigma_by_site</span><span class="op">[</span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">site</span><span class="op">]</span><span class="op">)</span></span>
+<span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fl">50</span> <span class="op">+</span> </span>
+<span>                            <span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">trt</span> <span class="op">*</span> <span class="op">(</span><span class="op">-</span><span class="fl">8</span> <span class="op">+</span> <span class="fl">2</span> <span class="op">*</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">X1</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>                            <span class="fl">0.2</span> <span class="op">*</span> <span class="op">(</span><span class="va">sample_data_strat_cont</span><span class="op">$</span><span class="va">baseline</span> <span class="op">-</span> <span class="fl">100</span><span class="op">)</span> <span class="op">+</span></span>
+<span>                            <span class="va">noise</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Model Fitting with Stratified Model</span></span>
 <span></span>
 <span><span class="va">fit_continuous_stratified</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">sample_data_strat_cont</span>,</span>
-<span>  response_formula <span class="op">=</span> <span class="va">sbp_change</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline_sbp</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">age_group</span>,</span>
-<span>  stratification_formula <span class="op">=</span> <span class="op">~</span> <span class="va">clinic_site</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X1</span>,</span>
+<span>  stratification_formula <span class="op">=</span> <span class="op">~</span> <span class="va">site</span>,</span>
+<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
+<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Step 1: Preparing formula and data...</span></span>
-<span><span class="co">#&gt; Applying stratification: estimating sigma by 'clinic_site'.</span></span>
-<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'age_group' is used without its main effect. Consider adding 'age_group' to prognostic terms for proper model hierarchy.</span></span>
+<span><span class="co">#&gt; Applying stratification: estimating sigma by 'site'.</span></span>
+<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'X1' is used without its main effect. Consider adding 'X1' to prognostic terms for proper model hierarchy.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
-<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - intercept: brms default</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: brms default</span></span>
-<span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.8 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 68 of 100 (68.0%) transitions hit the maximum treedepth limit of 10.</span></span>
-<span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 2.6 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.0 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Both chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 2.8 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 3.1 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Analysis complete.</span></span></code></pre></div>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">strat_continuous_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span></span>
 <span>  brms_fit <span class="op">=</span> <span class="va">fit_continuous_stratified</span></span>
 <span>  <span class="co"># All parameters automatically extracted!</span></span>
@@ -924,112 +856,116 @@
 <span><span class="co">#&gt; Using data from model attributes</span></span>
 <span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
 <span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model...</span></span>
-<span><span class="co">#&gt; Model data has 180 rows and 6 columns</span></span>
-<span><span class="co">#&gt; Column names: id, clinic_site, trt, baseline_sbp, age_group, sbp_change</span></span>
+<span><span class="co">#&gt; Model data has 250 rows and 6 columns</span></span>
+<span><span class="co">#&gt; Column names: id, site, trt, baseline, X1, y</span></span>
 <span><span class="co">#&gt; Treatment variable: 'trt'</span></span>
 <span><span class="co">#&gt; All coefficient names:</span></span>
 <span><span class="co">#&gt; sigma_Intercept</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_Intercept</span></span>
-<span><span class="co">#&gt; unshrunktermeffect_baseline_sbp</span></span>
+<span><span class="co">#&gt; unshrunktermeffect_baseline</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_trt</span></span>
-<span><span class="co">#&gt; sigma_clinic_siteSiteB</span></span>
-<span><span class="co">#&gt; sigma_clinic_siteSiteC</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:age_groupOver60</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:age_groupUnder60</span></span>
+<span><span class="co">#&gt; sigma_siteB</span></span>
+<span><span class="co">#&gt; sigma_siteC</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1A</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1B</span></span>
 <span><span class="co">#&gt; Looking for treatment interactions with pattern: 'trt:'</span></span>
 <span><span class="co">#&gt; Found 2 treatment interaction coefficients</span></span>
 <span><span class="co">#&gt; Treatment interaction coefficients found:</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:age_groupOver60</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:age_groupUnder60</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_groupOver60'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_groupUnder60'</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1A</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1B</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1A'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1B'</span></span>
 <span><span class="co">#&gt; Checking for random effects parameters...</span></span>
 <span><span class="co">#&gt; Retrieved 15 total parameters from model</span></span>
 <span><span class="co">#&gt; Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'</span></span>
 <span><span class="co">#&gt; Found 0 matching random effect parameters</span></span>
 <span><span class="co">#&gt; No random effect parameters matching the pattern were found</span></span>
-<span><span class="co">#&gt; ...detected subgroup variable(s): age_group</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): X1</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.</span></span>
 <span><span class="co">#&gt; ... (predicting expected outcomes)...</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
-<span><span class="co">#&gt; ... processing age_group</span></span>
+<span><span class="co">#&gt; ... processing X1</span></span>
 <span><span class="co">#&gt; Done.</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">strat_continuous_summary</span><span class="op">$</span><span class="va">estimates</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 4</span></span></span>
-<span><span class="co">#&gt;   Subgroup           Median CI_Lower CI_Upper</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>               <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> age_group: Over60  -<span style="color: #BB0000;">11.1</span>     -<span style="color: #BB0000;">14.6</span>    -<span style="color: #BB0000;">8.13</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> age_group: Under60  -<span style="color: #BB0000;">8.90</span>    -<span style="color: #BB0000;">11.8</span>    -<span style="color: #BB0000;">5.73</span></span></span>
+<span><span class="co">#&gt;   Subgroup Median CI_Lower CI_Upper</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> X1: A     -<span style="color: #BB0000;">6.30</span>    -<span style="color: #BB0000;">8.75</span>    -<span style="color: #BB0000;">3.83</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> X1: B     -<span style="color: #BB0000;">4.87</span>    -<span style="color: #BB0000;">7.13</span>    -<span style="color: #BB0000;">2.54</span></span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">strat_continuous_summary</span>, title <span class="op">=</span> <span class="st">"Stratified Continuous: Subgroup Effects"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
 <span><span class="co">#&gt; Done.</span></span></code></pre></div>
-<p><img src="Advanced_Functionalities_files/figure-html/unnamed-chunk-14-1.png"><!-- --></p>
+<p><img src="Advanced_Functionalities_files/figure-html/unnamed-chunk-15-1.png"><!-- --></p>
 </div>
 <div class="section level3" number="4.2">
 <h3 id="example-10-stratified-survival-model">
 <span class="header-section-number">4.2</span> Example 10: Stratified Survival Model<a class="anchor" aria-label="anchor" href="#example-10-stratified-survival-model"></a>
 </h3>
-<p><em>Scenario</em>: We model a time-to-event outcome where the <strong>baseline hazard</strong> <span class="math inline">\(h_0(t)\)</span> differs by <span class="math inline">\(\text{country}\)</span>. This is particularly important for multi-regional trials where regional differences in standard of care affect baseline risk.</p>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<p><em>Scenario</em>: We model a time-to-event outcome with stratified baseline hazard by country using a piecewise exponential model. Stratification via <code>stratification_formula = ~ country</code> allows the baseline hazard to differ by country, accommodating regional differences in baseline risk or standard of care.</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
-<span><span class="va">n_patients</span> <span class="op">&lt;-</span> <span class="fl">200</span></span>
-<span><span class="va">lambda_by_country</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>US <span class="op">=</span> <span class="fl">0.01</span>, EU <span class="op">=</span> <span class="fl">0.03</span><span class="op">)</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">250</span></span>
+<span><span class="va">lambda_by_country</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>A <span class="op">=</span> <span class="fl">0.01</span>, B <span class="op">=</span> <span class="fl">0.03</span><span class="op">)</span></span>
 <span><span class="va">surv_data_strat</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>    id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n_patients</span>,</span>
-<span>    country <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"US"</span>, <span class="st">"EU"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>    trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>    age <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n_patients</span>, <span class="fl">65</span>, <span class="fl">10</span><span class="op">)</span>,</span>
-<span>    biomarker <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Low"</span>, <span class="st">"High"</span><span class="op">)</span>, <span class="va">n_patients</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span>    id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n</span>,</span>
+<span>    country <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, length.out <span class="op">=</span> <span class="va">n</span><span class="op">)</span>,</span>
+<span>    age <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">65</span>, <span class="fl">10</span><span class="op">)</span>,</span>
+<span>    X1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">)</span></span>
-<span><span class="va">lp</span> <span class="op">&lt;-</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">trt</span><span class="op">)</span><span class="op">-</span><span class="fl">1</span><span class="op">)</span> <span class="op">*</span> <span class="op">-</span><span class="fl">0.6</span> <span class="op">+</span> <span class="op">(</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">age</span> <span class="op">-</span> <span class="fl">65</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.03</span> <span class="op">+</span></span>
-<span>      <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">trt</span><span class="op">)</span><span class="op">-</span><span class="fl">1</span><span class="op">)</span> <span class="op">*</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/integer.html" class="external-link">as.integer</a></span><span class="op">(</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">biomarker</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span> <span class="op">*</span> <span class="op">-</span><span class="fl">0.5</span></span>
-<span><span class="va">u</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n_patients</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Linear predictor with treatment heterogeneity</span></span>
+<span><span class="va">lp</span> <span class="op">&lt;-</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">trt</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span> <span class="op">*</span> <span class="op">-</span><span class="fl">0.6</span> <span class="op">+</span> </span>
+<span>      <span class="op">(</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">age</span> <span class="op">-</span> <span class="fl">65</span><span class="op">)</span> <span class="op">*</span> <span class="fl">0.03</span> <span class="op">+</span></span>
+<span>      <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">trt</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span> <span class="op">*</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">X1</span><span class="op">)</span> <span class="op">-</span> <span class="fl">1</span><span class="op">)</span> <span class="op">*</span> <span class="op">-</span><span class="fl">0.5</span></span>
+<span></span>
+<span><span class="co"># Generate event times</span></span>
+<span><span class="va">u</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Uniform.html" class="external-link">runif</a></span><span class="op">(</span><span class="va">n</span><span class="op">)</span></span>
 <span><span class="va">lambda_vec</span> <span class="op">&lt;-</span> <span class="va">lambda_by_country</span><span class="op">[</span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">country</span><span class="op">]</span></span>
 <span><span class="va">gamma</span> <span class="op">&lt;-</span> <span class="fl">1.5</span> <span class="co"># Weibull shape parameter</span></span>
 <span><span class="va">true_event_time</span> <span class="op">&lt;-</span> <span class="op">(</span><span class="op">-</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">u</span><span class="op">)</span> <span class="op">/</span> <span class="op">(</span><span class="va">lambda_vec</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="va">lp</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">^</span><span class="op">(</span><span class="fl">1</span><span class="op">/</span><span class="va">gamma</span><span class="op">)</span></span>
 <span><span class="va">censoring_time</span> <span class="op">&lt;-</span> <span class="fl">60</span> <span class="co"># Administrative censoring time</span></span>
 <span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">event_status</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">true_event_time</span> <span class="op">&lt;=</span> <span class="va">censoring_time</span>, <span class="fl">1</span>, <span class="fl">0</span><span class="op">)</span></span>
 <span><span class="va">surv_data_strat</span><span class="op">$</span><span class="va">event_time</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Extremes.html" class="external-link">pmin</a></span><span class="op">(</span><span class="va">true_event_time</span>, <span class="va">censoring_time</span><span class="op">)</span></span></code></pre></div>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Model Fitting with Stratified Baseline Hazard</span></span>
 <span><span class="va">fit_surv_stratified</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">surv_data_strat</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">event_time</span>, <span class="va">event_status</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"survival"</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">age</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">biomarker</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X1</span>,</span>
 <span>  stratification_formula <span class="op">=</span> <span class="op">~</span> <span class="va">country</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">1</span>, iter <span class="op">=</span> <span class="fl">200</span>, warmup <span class="op">=</span> <span class="fl">100</span>, cores <span class="op">=</span> <span class="fl">1</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
+<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
+<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Step 1: Preparing formula and data...</span></span>
 <span><span class="co">#&gt; Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span></span>
 <span><span class="co">#&gt; Applying stratification: estimating separate baseline hazards by 'country'.</span></span>
-<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'biomarker' is used without its main effect. Consider adding 'biomarker' to prognostic terms for proper model hierarchy.</span></span>
+<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'X1' is used without its main effect. Consider adding 'X1' to prognostic terms for proper model hierarchy.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Step 2: Fitting the brms model...</span></span>
-<span><span class="co">#&gt; Using default priors for unspecified effects:</span></span>
-<span><span class="co">#&gt;   - unshrunk terms: brms default</span></span>
-<span><span class="co">#&gt;   - shrunk predictive: horseshoe(1)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
-<span><span class="co">#&gt; Running MCMC with 1 chain...</span></span>
+<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 WARNING: There aren't enough warmup iterations to fit the </span></span>
-<span><span class="co">#&gt; Chain 1          three stages of adaptation as currently configured. </span></span>
-<span><span class="co">#&gt; Chain 1          Reducing each adaptation stage to 15%/75%/10% of </span></span>
-<span><span class="co">#&gt; Chain 1          the given number of warmup iterations: </span></span>
-<span><span class="co">#&gt; Chain 1            init_buffer = 15 </span></span>
-<span><span class="co">#&gt; Chain 1            adapt_window = 75 </span></span>
-<span><span class="co">#&gt; Chain 1            term_buffer = 10 </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 7.9 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 100 of 100 (100.0%) transitions hit the maximum treedepth limit of 10.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 5.8 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 6.6 seconds.</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Both chains finished successfully.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 6.2 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 6.6 seconds.</span></span>
+<span><span class="co">#&gt; Warning: 12 of 1000 (1.0%) transitions ended with a divergence.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Analysis complete.</span></span></code></pre></div>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">strat_surv_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span></span>
 <span>  brms_fit <span class="op">=</span> <span class="va">fit_surv_stratified</span></span>
 <span>  <span class="co"># All parameters automatically extracted!</span></span>
@@ -1040,42 +976,42 @@
 <span><span class="co">#&gt; Using data from model attributes</span></span>
 <span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
 <span><span class="co">#&gt; `subgroup_vars` set to 'auto'. Detecting from model...</span></span>
-<span><span class="co">#&gt; Model data has 200 rows and 7 columns</span></span>
-<span><span class="co">#&gt; Column names: id, country, trt, age, biomarker, event_status, event_time</span></span>
+<span><span class="co">#&gt; Model data has 250 rows and 7 columns</span></span>
+<span><span class="co">#&gt; Column names: id, country, trt, age, X1, event_status, event_time</span></span>
 <span><span class="co">#&gt; Treatment variable: 'trt'</span></span>
 <span><span class="co">#&gt; All coefficient names:</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_age</span></span>
 <span><span class="co">#&gt; unshrunktermeffect_trt</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerHigh</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerLow</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1A</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1B</span></span>
 <span><span class="co">#&gt; Looking for treatment interactions with pattern: 'trt:'</span></span>
 <span><span class="co">#&gt; Found 2 treatment interaction coefficients</span></span>
 <span><span class="co">#&gt; Treatment interaction coefficients found:</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerHigh</span></span>
-<span><span class="co">#&gt; shpredeffect_trt:biomarkerLow</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerHigh'</span></span>
-<span><span class="co">#&gt; Detected subgroup variable 'biomarker' from coefficient 'shpredeffect_trt:biomarkerLow'</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1A</span></span>
+<span><span class="co">#&gt; shpredeffect_trt:X1B</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1A'</span></span>
+<span><span class="co">#&gt; Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1B'</span></span>
 <span><span class="co">#&gt; Checking for random effects parameters...</span></span>
 <span><span class="co">#&gt; Retrieved 22 total parameters from model</span></span>
 <span><span class="co">#&gt; Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'</span></span>
 <span><span class="co">#&gt; Found 0 matching random effect parameters</span></span>
 <span><span class="co">#&gt; No random effect parameters matching the pattern were found</span></span>
-<span><span class="co">#&gt; ...detected subgroup variable(s): biomarker</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): X1</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.</span></span>
 <span><span class="co">#&gt; ... (reconstructing baseline hazard and getting linear predictors)...</span></span>
 <span><span class="co">#&gt; Warning: Dropping 'draws_df' class as required metadata was removed.</span></span>
 <span><span class="co">#&gt; Warning: Dropping 'draws_df' class as required metadata was removed.</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
-<span><span class="co">#&gt; ... processing biomarker</span></span>
+<span><span class="co">#&gt; ... processing X1</span></span>
 <span><span class="co">#&gt; Done.</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">strat_surv_summary</span><span class="op">$</span><span class="va">estimates</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 4</span></span></span>
-<span><span class="co">#&gt;   Subgroup        Median CI_Lower CI_Upper</span></span>
-<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>            <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> biomarker: High  0.620    0.469    0.792</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> biomarker: Low   0.372    0.268    0.487</span></span>
+<span><span class="co">#&gt;   Subgroup Median CI_Lower CI_Upper</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> X1: A     0.467    0.359    0.586</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> X1: B     0.498    0.383    0.642</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">strat_surv_summary</span>, title <span class="op">=</span> <span class="st">"Stratified Survival: Subgroup Effects (AHR)"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>

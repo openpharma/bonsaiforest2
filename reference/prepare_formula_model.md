@@ -46,16 +46,16 @@ prepare_formula_model(
   interactions without regularization. Supports three syntaxes that can
   be combined: colon notation (e.g., `~ age + sex + trt:biomarker`),
   star notation (e.g., `~ age + trt*biomarker`), or random effects
-  notation (e.g., `~ age + (trt || biomarker)`).
+  notation (e.g., `~ age + (0+trt || biomarker)`).
 
 - shrunk_prognostic_formula:
 
   A formula object or `NULL`. Formula specifying prognostic main effects
   to be regularized in the `shprogeffect` component. These are
-  covariates where shrinkage/regularization is desired. Should use
-  `~ 0 + ...` syntax to apply one-hot encoding for symmetric
-  regularization across all levels without privileging a reference
-  group.
+  covariates where shrinkage/regularization is desired. Recommended: use
+  `~ 0 + ...` or `~ -1 + ...` syntax to explicitly remove the intercept
+  and apply one-hot encoding for symmetric regularization across all
+  levels without privileging a reference group.
 
 - shrunk_predictive_formula:
 
@@ -64,8 +64,8 @@ prepare_formula_model(
   component. Supports three syntaxes that can be combined: colon
   notation (e.g., `~ 0 + trt:region`), star notation (e.g.,
   `~ 0 + trt*region`), or random effects notation (e.g.,
-  `~ (0 + trt || region)`). Should use `~ 0 + ...` syntax for one-hot
-  encoding.
+  `~ (0 + trt || region)`). Recommended: use `~ 0 + ...` or `~ -1 + ...`
+  syntax to explicitly remove the intercept and apply one-hot encoding.
 
 - response_type:
 
@@ -119,10 +119,10 @@ prepare_formula_model(
 
 ## Details
 
-This classification allows for applying differential shrinkage
-(regularization) to different parts of the model. The function also
-prepares the corresponding data using R's contrast coding system for
-proper factor handling and interactions.
+This classification allows for applying different priors
+(non-informative or shrinkage) to different parts of the model. The
+function also prepares the corresponding data using R's contrast coding
+system for proper factor handling and interactions.
 
 ## Key Features
 
@@ -135,10 +135,10 @@ proper factor handling and interactions.
 - **Automated Interaction Handling:** Predictive terms support three
   syntaxes that can be used together or separately: colon notation
   (e.g., `~ trt:subgroup`), star notation (e.g., `~ trt*subgroup`), or
-  random effects notation (e.g., `~ (trt || subgroup)`). You can mix
+  random effects notation (e.g., `~ (0 + trt || subgroup)`). You can mix
   these syntaxes in the same model (e.g.,
-  `~ trt:var1 + trt*var2 + (trt || var3)`). All variables involved in
-  interactions are converted to factors with appropriate contrasts
+  `~ trt:var1 + trt*var2 + (0 + trt || var3)`). All variables involved
+  in interactions are converted to factors with appropriate contrasts
   (reference coding for unshrunk, one-hot for shrunk), enabling proper
   model fitting and prediction on new data without manual dummy variable
   creation.
@@ -192,13 +192,17 @@ not the original data. The transformations are:
   type:
 
   - **Shrunk terms:** One-hot encoding (all factor levels represented).
-    For proper regularization, specify these using `~ 0 + var` to
-    explicitly remove the intercept and treat all subgroups
-    symmetrically without privileging a specific reference group
-    (ensures the exchangeability assumption).
+    This removes the reference group and treats all subgroups
+    symmetrically without privileging a specific reference level
+    (ensures the exchangeability assumption). Recommended: explicitly
+    remove the intercept using `~ 0 + var` or `~ -1 + var` syntax. If
+    not specified, the function will still apply one-hot encoding but
+    may include a redundant intercept that could complicate
+    interpretation.
 
-  - **Unshrunk terms:** Dummy encoding (reference level dropped). Use
-    standard formula syntax `~ var` with intercept.
+  - **Unshrunk terms:** Dummy encoding (reference level dropped).
+    Recommended: Use standard formula syntax `~ var` with intercept for
+    clarity and proper reference coding.
 
 - **Custom contrasts:** If you have pre-specified contrasts via
   `contrasts(data$var) <- <matrix>` before calling this function, they
@@ -239,12 +243,12 @@ if (require("brms") && require("survival")) {
   sim_data$region <- as.factor(sim_data$region)
   sim_data$subgroup <- as.factor(sim_data$subgroup)
 
-  # 2a. Example with colon interaction syntax
+  # 2a. Example with colon interaction syntax (recommended: use ~ 0 + for shrunk terms)
   prepared_model <- prepare_formula_model(
     data = sim_data,
     response_formula = Surv(time, status) ~ trt,
     unshrunk_terms_formula = ~ age + subgroup,
-    shrunk_predictive_formula = ~ trt:subgroup,
+    shrunk_predictive_formula = ~ 0 + trt:subgroup,
     response_type = "survival",
     stratification_formula = ~ region
   )
@@ -266,10 +270,9 @@ if (require("brms") && require("survival")) {
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 #> Applying stratification: estimating separate baseline hazards by 'region'.
 #> Note: Marginality principle not followed - interaction term 'subgroup_onehot' is used without its main effect. Consider adding 'subgroup_onehot' to prognostic terms for proper model hierarchy.
-#> Warning: Formula 'shpredeffect' contains an intercept. For proper regularization/interpretation, consider removing it by adding '~ 0 + ...' or '~ -1 + ...' to your input formula.
 #> time | cens(1 - status) + bhaz(Boundary.knots = c(0.02, 99.98), knots = c(24, 46, 69), intercept = FALSE, gr = region) ~ unshrunktermeffect + shpredeffect 
 #> unshrunktermeffect ~ 0 + age + subgroup + trt
-#> shpredeffect ~ trt:subgroup_onehot
+#> shpredeffect ~ 0 + trt:subgroup_onehot
 #>   time status trt      age region subgroup subgroup_onehot
 #> 1   29      0   1 57.87739      B       S2              S2
 #> 2   79      1   1 57.69042      B       S1              S1

@@ -12,18 +12,20 @@ typically called in sequence:
 3.  [`plot()`](https://rdrr.io/r/graphics/plot.default.html) - Creates a
     forest plot from the summary object.
 
-The package enables the implementation of both **global shrinkage
-models** ([Wolbers et al. 2025](#ref-wolbers2025using)), that estimate
-all prognostic and predictive effects in a single model, and **one-way
-shrinkage models** ([Wang et al. 2024](#ref-wang2024bayesian)), that
-estimate the predictive effects using a different model for each
-subgrouping variable.
+The package enables the implementation of both **global models**
+([Wolbers et al. 2025](#ref-wolbers2025using)), that estimate all
+prognostic and predictive effects in a single unified model using colon
+notation (e.g., `~ 0 + trt:subgroup`), and **one-way models** ([Wang et
+al. 2024](#ref-wang2024bayesian)), that estimate treatment slopes
+varying by subgroup using random effects notation (e.g.,
+`~ (0 + trt || subgroup)`).
 
 This vignette demonstrates how to use the package to fit and compare
 these different modeling formulas. You’ll learn how to:
 
-- Fit one-way shrinkage models (one model per subgroup variable)
-- Fit a global shrinkage model (all subgroup variables in one model)
+- Fit one-way models (random effects with treatment slopes varying by
+  subgroup)
+- Fit global models (all subgroup variables in one unified model)
 - Generate summaries of subgroup treatment effects
 - Visualize and compare results from different model specifications
 
@@ -34,21 +36,20 @@ a working Stan installation (e.g., via
 
 ## 2 The Data
 
-We will use a simulated example dataset representing a clinical trial
-for blood pressure. The relevant endpoint is the change in Systolic
-Blood Pressure (SBP) from baseline (`sbp_change`).
+We will use a simulated example dataset with a continuous response
+variable. The relevant outcome is `y`.
 
 We consider a model where we want to find the treatment effect (`trt`)
-on `sbp_change`. The model will adjust for `baseline_sbp` as a
-**prognostic** variable (predictor of the outcome) and explore
-**multiple subgroup variables** as **predictive** variables (potential
-treatment effect modifiers):
+on `y`. The model will adjust for `baseline` as a **prognostic**
+variable (predictor of the outcome) and explore **multiple subgroup
+variables** as **predictive** variables (potential treatment effect
+modifiers):
 
-- `region`: Geographic region (USA, EU, APAC)
-- `comorbidity`: Presence of comorbidities (Yes, No)
-- `age_group`: Age category (\< 50, 50-65, \> 65)
-- `sex`: Biological sex (M, F)
-- `diabetes`: Diabetes status (Yes, No)
+- `X1`: Subgroup 1 (categories: A, B, C)
+- `X2`: Subgroup 2 (categories: A, B)
+- `X3`: Subgroup 3 (categories: A, B, C)
+- `X4`: Subgroup 4 (categories: A, B)
+- `X5`: Subgroup 5 (categories: A, B)
 
 First, let’s load the libraries and create the data.
 
@@ -59,74 +60,84 @@ library(brms)
 ```
 
 ``` r
-# Create the example data with multiple subgroup variables
+# Create the example data with multiple subgroup variables and treatment effects
 set.seed(123)
-n_patients <- 300
+n <- 500
 
-continuous_data <- data.frame(
-  id = 1:n_patients,
-  sbp_change = rnorm(n_patients, mean = -5, sd = 10),
-  trt = sample(0:1, n_patients, replace = TRUE),
-  baseline_sbp = rnorm(n_patients, mean = 140, sd = 15),
-  region = factor(sample(c("USA", "EU", "APAC"), n_patients, replace = TRUE)),
-  comorbidity = factor(sample(c("Yes", "No"), n_patients, replace = TRUE, prob = c(0.4, 0.6))),
-  age_group = factor(sample(c("<50", "50-65", ">65"), n_patients, replace = TRUE, prob = c(0.3, 0.4, 0.3))),
-  sex = factor(sample(c("M", "F"), n_patients, replace = TRUE)),
-  diabetes = factor(sample(c("Yes", "No"), n_patients, replace = TRUE, prob = c(0.3, 0.7)))
+data <- data.frame(
+  id = 1:n,
+  trt = rep(0:1, length.out = n),  # Numeric treatment 0/1
+  baseline = rnorm(n, mean = 100, sd = 15),
+  X1 = factor(sample(c("A", "B", "C"), n, replace = TRUE)),
+  X2 = factor(sample(c("A", "B"), n, replace = TRUE)),
+  X3 = factor(sample(c("A", "B", "C"), n, replace = TRUE)),
+  X4 = factor(sample(c("A", "B"), n, replace = TRUE)),
+  X5 = factor(sample(c("A", "B"), n, replace = TRUE))
 )
 
-continuous_data$trt <- factor(continuous_data$trt, levels = c(0, 1))
+# Generate outcome with baseline effect and heterogeneous treatment effects
+data$y <- 50 + 
+  0.2 * data$baseline + 
+  data$trt * (-5 +                                    # Base treatment effect
+    2 * (as.numeric(data$X1 == "A") - 0.33) +        # Heterogeneity by X1
+    1.5 * (as.numeric(data$X3 == "B") - 0.33)        # Heterogeneity by X3
+  ) + 
+  rnorm(n, 0, 10)
 
-print(head(continuous_data))
-#>   id sbp_change trt baseline_sbp region comorbidity age_group sex diabetes
-#> 1  1 -10.604756   1     161.4560   APAC          No     50-65   M      Yes
-#> 2  2  -7.301775   1     155.6994     EU          No       <50   F       No
-#> 3  3  10.587083   1     146.5293     EU          No       <50   F       No
-#> 4  4  -4.294916   0     150.7277     EU          No       <50   F       No
-#> 5  5  -3.707123   0     153.7576   APAC         Yes     50-65   M       No
-#> 6  6  12.150650   0     100.0862     EU          No     50-65   F      Yes
+print(head(data))
+#>   id trt  baseline X1 X2 X3 X4 X5        y
+#> 1  1   0  91.59287  A  B  C  B  A 63.61448
+#> 2  2   1  96.54734  B  B  C  B  B 70.01582
+#> 3  3   0 123.38062  C  A  B  A  B 51.31665
+#> 4  4   1 101.05763  B  B  C  A  B 75.00897
+#> 5  5   0 101.93932  C  A  C  B  A 54.71636
+#> 6  6   1 125.72597  A  B  C  B  B 71.20951
 ```
 
-## 3 One-way Shrinkage Models
+## 3 One-way Models
 
 This section demonstrates how to fit separate models, each examining one
-subgroup variable at a time. In one-way shrinkage models, we specify
-shrunk predictive effects using random effects notation (e.g.,
-`~ (1 + trt || subgroup)`), which allows treatment effects to vary by
-subgroup with automatic hierarchical regularization.
+subgroup variable at a time. In one-way models, we specify treatment
+effects as random slopes using pipe-pipe notation (e.g.,
+`~ (0 + trt || subgroup)`), which allows treatment effects to vary by
+subgroup with automatic hierarchical regularization via random effects.
 
-### 3.1 One-way Model: Region Only
+### 3.1 One-way Model: X1 Only
 
 ``` r
-# Fit model with only region as subgroup variable using one-way shrinkage approach
-# Random effects notation (||) estimates varying treatment effects by region
-oneway_region <- run_brms_analysis(
-  data = continuous_data,
+# Fit model with only X1 as subgroup variable using one-way approach
+# Random effects notation (0 + trt || X1) estimates varying treatment slopes by X1
+oneway_X1 <- run_brms_analysis(
+  data = data,
   response_type = "continuous",
-  response_formula = sbp_change ~ trt,
-  unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ (1 + trt || region),
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = ~ (0 + trt || X1),
+  intercept_prior = "normal(0, 10)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 50.7 seconds.
-#> Chain 1 finished in 53.2 seconds.
+#> Chain 1 finished in 3.1 seconds.
+#> Chain 2 finished in 3.4 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 52.0 seconds.
-#> Total execution time: 53.4 seconds.
+#> Mean chain execution time: 3.3 seconds.
+#> Total execution time: 3.5 seconds.
 
-summary_oneway_region <- summary_subgroup_effects(brms_fit = oneway_region)
-print(summary_oneway_region)
+summary_oneway_X1 <- summary_subgroup_effects(brms_fit = oneway_X1)
+print(summary_oneway_X1)
 #> $estimates
 #> # A tibble: 3 × 4
-#>   Subgroup     Median CI_Lower CI_Upper
-#>   <chr>         <dbl>    <dbl>    <dbl>
-#> 1 region: APAC  1.30    -0.892     4.21
-#> 2 region: EU    1.36    -0.888     4.27
-#> 3 region: USA   0.944   -1.89      3.70
+#>   Subgroup Median CI_Lower CI_Upper
+#>   <chr>     <dbl>    <dbl>    <dbl>
+#> 1 X1: A     -3.39    -5.31    -1.20
+#> 2 X1: B     -3.80    -5.79    -1.72
+#> 3 X1: C     -4.91    -7.29    -2.84
 #> 
 #> $response_type
 #> [1] "continuous"
@@ -141,100 +152,116 @@ print(summary_oneway_region)
 #> [1] "subgroup_summary"
 ```
 
-### 3.2 One-way Model: Comorbidity Only
+### 3.2 One-way Model: X2 Only
 
 ``` r
-oneway_comorbidity <- run_brms_analysis(
-  data = continuous_data,
+oneway_X2 <- run_brms_analysis(
+  data = data,
   response_type = "continuous",
-  response_formula = sbp_change ~ trt,
-  unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ (1 + trt || comorbidity),
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = ~ (0 + trt || X2),
+  intercept_prior = "normal(0, 10)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 52.9 seconds.
-#> Chain 2 finished in 53.3 seconds.
+#> Chain 2 finished in 3.0 seconds.
+#> Chain 1 finished in 3.2 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 53.1 seconds.
-#> Total execution time: 53.4 seconds.
+#> Mean chain execution time: 3.1 seconds.
+#> Total execution time: 3.2 seconds.
 
-summary_oneway_comorbidity <- summary_subgroup_effects(brms_fit = oneway_comorbidity)
+summary_oneway_X2 <- summary_subgroup_effects(brms_fit = oneway_X2)
 ```
 
-### 3.3 One-way Model: Age Group Only
+### 3.3 One-way Model: X3 Only
 
 ``` r
-oneway_age <- run_brms_analysis(
-  data = continuous_data,
+oneway_X3 <- run_brms_analysis(
+  data = data,
   response_type = "continuous",
-  response_formula = sbp_change ~ trt,
-  unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ (1 + trt || age_group),
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = ~ (0 + trt || X3),
+  intercept_prior = "normal(0, 10)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 53.5 seconds.
-#> Chain 2 finished in 53.7 seconds.
+#> Chain 2 finished in 3.2 seconds.
+#> Chain 1 finished in 3.5 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 53.6 seconds.
-#> Total execution time: 53.8 seconds.
+#> Mean chain execution time: 3.4 seconds.
+#> Total execution time: 3.6 seconds.
 
-summary_oneway_age <- summary_subgroup_effects(brms_fit = oneway_age)
+summary_oneway_X3 <- summary_subgroup_effects(brms_fit = oneway_X3)
 ```
 
-### 3.4 One-way Model: Sex Only
+### 3.4 One-way Model: X4 Only
 
 ``` r
-oneway_sex <- run_brms_analysis(
-  data = continuous_data,
+oneway_X4 <- run_brms_analysis(
+  data = data,
   response_type = "continuous",
-  response_formula = sbp_change ~ trt,
-  unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ (1 + trt || sex),
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = ~ (0 + trt || X4),
+  intercept_prior = "normal(0, 10)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 51.9 seconds.
-#> Chain 1 finished in 52.7 seconds.
+#> Chain 1 finished in 3.3 seconds.
+#> Chain 2 finished in 3.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 52.3 seconds.
-#> Total execution time: 52.7 seconds.
+#> Mean chain execution time: 3.5 seconds.
+#> Total execution time: 3.7 seconds.
 
-summary_oneway_sex <- summary_subgroup_effects(brms_fit = oneway_sex)
+summary_oneway_X4 <- summary_subgroup_effects(brms_fit = oneway_X4)
 ```
 
-### 3.5 One-way Model: Diabetes Only
+### 3.5 One-way Model: X5 Only
 
 ``` r
-oneway_diabetes <- run_brms_analysis(
-  data = continuous_data,
+oneway_X5 <- run_brms_analysis(
+  data = data,
   response_type = "continuous",
-  response_formula = sbp_change ~ trt,
-  unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_predictive_formula = ~ (1 + trt || diabetes),
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = ~ (0 + trt || X5),
+  intercept_prior = "normal(0, 10)",
+  unshrunk_prior = "normal(0, 2.5)",
+  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 50.9 seconds.
-#> Chain 1 finished in 52.4 seconds.
+#> Chain 2 finished in 3.5 seconds.
+#> Chain 1 finished in 3.7 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 51.6 seconds.
-#> Total execution time: 52.5 seconds.
+#> Mean chain execution time: 3.6 seconds.
+#> Total execution time: 3.8 seconds.
 
-summary_oneway_diabetes <- summary_subgroup_effects(brms_fit = oneway_diabetes)
+summary_oneway_X5 <- summary_subgroup_effects(brms_fit = oneway_X5)
 ```
 
 ### 3.6 One-way Models: Visualizing All Models
@@ -243,16 +270,16 @@ You can combine and visualize results from multiple models using
 [`combine_summaries()`](https://openpharma.github.io/bonsaiforest2/reference/combine_summaries.md):
 
 ``` r
-# Combine all one-way shrinkage models
+# Combine all one-way models
 combined_oneway <- combine_summaries(list(
-  "Region" = summary_oneway_region,
-  "Comorbidity" = summary_oneway_comorbidity,
-  "Age Group" = summary_oneway_age,
-  "Sex" = summary_oneway_sex,
-  "Diabetes" = summary_oneway_diabetes
+  "X1" = summary_oneway_X1,
+  "X2" = summary_oneway_X2,
+  "X3" = summary_oneway_X3,
+  "X4" = summary_oneway_X4,
+  "X5" = summary_oneway_X5
 ))
 
-plot(combined_oneway, title = "One-way Shrinkage Models: All Subgroup Variables")
+plot(combined_oneway, title = "One-way Models: All Subgroup Variables")
 #> Preparing data for plotting...
 #> Generating plot...
 #> Done.
@@ -260,28 +287,30 @@ plot(combined_oneway, title = "One-way Shrinkage Models: All Subgroup Variables"
 
 ![](Quickstart_files/figure-html/compare-all-oneway-1.png)
 
-## 4 Global Shrinkage Model
+## 4 Global Model
 
 This section demonstrates how to fit a single model that includes all
-subgroup variables simultaneously using the global shrinkage approach.
-All treatment-by-subgroup interactions are estimated in one unified
-model with strong regularization (Horseshoe prior) applied to the
-interaction terms.
+subgroup variables simultaneously using the global approach. All
+treatment-by-subgroup interactions are estimated in one unified model
+with colon notation (e.g., `~ 0 + trt:subgroup`) and strong
+regularization (Horseshoe prior) applied to the interaction terms.
 
-### 4.1 Global Shrinkage Model: All Subgroups
+### 4.1 Global Model: All Subgroups
 
 ``` r
-# Fit a single model with ALL subgroup variables simultaneously
-# - Unshrunk terms: baseline_sbp with weak priors (will be reference-coded)
-# - Shrunk prognostic effects: subgroup main effects with strong regularization (one-hot coded)
-# - Shrunk predictive effects: treatment interactions with strong regularization (one-hot coded)
+# Fit a single unified model with ALL subgroup variables simultaneously using global approach
+# - Unshrunk terms: baseline with reference coding
+# - Shrunk prognostic effects: subgroup main effects with strong regularization using one-hot encoding
+# - Shrunk predictive effects: treatment interactions with strong regularization using one-hot encoding
 global_shrinkage_model <- run_brms_analysis(
-  data = continuous_data,
+  data = data,
   response_type = "continuous",
-  response_formula = sbp_change ~ trt,
-  unshrunk_terms_formula = ~ baseline_sbp,
-  shrunk_prognostic_formula = ~ 0 + region + comorbidity + age_group + sex + diabetes,
-  shrunk_predictive_formula = ~ 0 + trt:region + trt:comorbidity + trt:age_group + trt:sex + trt:diabetes,
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ baseline,
+  shrunk_prognostic_formula = ~ 0 + X1 + X2 + X3 + X4 + X5,
+  shrunk_predictive_formula = ~ 0 + trt:X1 + trt:X2 + trt:X3 + trt:X4 + trt:X5,
+  intercept_prior = "normal(0, 10)",
+  unshrunk_prior = "normal(0, 2.5)",
   shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
@@ -289,15 +318,15 @@ global_shrinkage_model <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 5.8 seconds.
-#> Chain 2 finished in 6.3 seconds.
+#> Chain 2 finished in 8.5 seconds.
+#> Chain 1 finished in 9.0 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 6.1 seconds.
-#> Total execution time: 6.5 seconds.
+#> Mean chain execution time: 8.8 seconds.
+#> Total execution time: 9.1 seconds.
 ```
 
-### 4.2 Global Shrinkage Model: Summary of Subgroup Effects
+### 4.2 Global Model: Summary of Subgroup Effects
 
 Use
 [`summary_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/summary_subgroup_effects.md)
@@ -312,99 +341,99 @@ global_summary <- summary_subgroup_effects(brms_fit = global_shrinkage_model)
 #> Using data from model attributes
 #> Step 1: Identifying subgroups and creating counterfactuals...
 #> `subgroup_vars` set to 'auto'. Detecting from model...
-#> Model data has 300 rows and 9 columns
-#> Column names: id, sbp_change, trt, baseline_sbp, region, comorbidity, age_group, sex, diabetes
+#> Model data has 500 rows and 9 columns
+#> Column names: id, trt, baseline, X1, X2, X3, X4, X5, y
 #> Treatment variable: 'trt'
 #> All coefficient names:
 #> unshrunktermeffect_Intercept
-#> unshrunktermeffect_baseline_sbp
+#> unshrunktermeffect_baseline
 #> unshrunktermeffect_trt
-#> shprogeffect_regionAPAC
-#> shprogeffect_regionEU
-#> shprogeffect_regionUSA
-#> shprogeffect_comorbidityNo
-#> shprogeffect_comorbidityYes
-#> shprogeffect_age_group<50
-#> shprogeffect_age_group>65
-#> shprogeffect_age_group50M65
-#> shprogeffect_sexF
-#> shprogeffect_sexM
-#> shprogeffect_diabetesNo
-#> shprogeffect_diabetesYes
-#> shpredeffect_trt:regionAPAC
-#> shpredeffect_trt:regionEU
-#> shpredeffect_trt:regionUSA
-#> shpredeffect_trt:comorbidityNo
-#> shpredeffect_trt:comorbidityYes
-#> shpredeffect_trt:age_group<50
-#> shpredeffect_trt:age_group>65
-#> shpredeffect_trt:age_group50M65
-#> shpredeffect_trt:sexF
-#> shpredeffect_trt:sexM
-#> shpredeffect_trt:diabetesNo
-#> shpredeffect_trt:diabetesYes
+#> shprogeffect_X1A
+#> shprogeffect_X1B
+#> shprogeffect_X1C
+#> shprogeffect_X2A
+#> shprogeffect_X2B
+#> shprogeffect_X3A
+#> shprogeffect_X3B
+#> shprogeffect_X3C
+#> shprogeffect_X4A
+#> shprogeffect_X4B
+#> shprogeffect_X5A
+#> shprogeffect_X5B
+#> shpredeffect_trt:X1A
+#> shpredeffect_trt:X1B
+#> shpredeffect_trt:X1C
+#> shpredeffect_trt:X2A
+#> shpredeffect_trt:X2B
+#> shpredeffect_trt:X3A
+#> shpredeffect_trt:X3B
+#> shpredeffect_trt:X3C
+#> shpredeffect_trt:X4A
+#> shpredeffect_trt:X4B
+#> shpredeffect_trt:X5A
+#> shpredeffect_trt:X5B
 #> Looking for treatment interactions with pattern: 'trt:'
 #> Found 12 treatment interaction coefficients
 #> Treatment interaction coefficients found:
-#> shpredeffect_trt:regionAPAC
-#> shpredeffect_trt:regionEU
-#> shpredeffect_trt:regionUSA
-#> shpredeffect_trt:comorbidityNo
-#> shpredeffect_trt:comorbidityYes
-#> shpredeffect_trt:age_group<50
-#> shpredeffect_trt:age_group>65
-#> shpredeffect_trt:age_group50M65
-#> shpredeffect_trt:sexF
-#> shpredeffect_trt:sexM
-#> shpredeffect_trt:diabetesNo
-#> shpredeffect_trt:diabetesYes
-#> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionAPAC'
-#> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionEU'
-#> Detected subgroup variable 'region' from coefficient 'shpredeffect_trt:regionUSA'
-#> Detected subgroup variable 'comorbidity' from coefficient 'shpredeffect_trt:comorbidityNo'
-#> Detected subgroup variable 'comorbidity' from coefficient 'shpredeffect_trt:comorbidityYes'
-#> Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group<50'
-#> Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group>65'
-#> Detected subgroup variable 'age_group' from coefficient 'shpredeffect_trt:age_group50M65'
-#> Detected subgroup variable 'sex' from coefficient 'shpredeffect_trt:sexF'
-#> Detected subgroup variable 'sex' from coefficient 'shpredeffect_trt:sexM'
-#> Detected subgroup variable 'diabetes' from coefficient 'shpredeffect_trt:diabetesNo'
-#> Detected subgroup variable 'diabetes' from coefficient 'shpredeffect_trt:diabetesYes'
+#> shpredeffect_trt:X1A
+#> shpredeffect_trt:X1B
+#> shpredeffect_trt:X1C
+#> shpredeffect_trt:X2A
+#> shpredeffect_trt:X2B
+#> shpredeffect_trt:X3A
+#> shpredeffect_trt:X3B
+#> shpredeffect_trt:X3C
+#> shpredeffect_trt:X4A
+#> shpredeffect_trt:X4B
+#> shpredeffect_trt:X5A
+#> shpredeffect_trt:X5B
+#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1A'
+#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1B'
+#> Detected subgroup variable 'X1' from coefficient 'shpredeffect_trt:X1C'
+#> Detected subgroup variable 'X2' from coefficient 'shpredeffect_trt:X2A'
+#> Detected subgroup variable 'X2' from coefficient 'shpredeffect_trt:X2B'
+#> Detected subgroup variable 'X3' from coefficient 'shpredeffect_trt:X3A'
+#> Detected subgroup variable 'X3' from coefficient 'shpredeffect_trt:X3B'
+#> Detected subgroup variable 'X3' from coefficient 'shpredeffect_trt:X3C'
+#> Detected subgroup variable 'X4' from coefficient 'shpredeffect_trt:X4A'
+#> Detected subgroup variable 'X4' from coefficient 'shpredeffect_trt:X4B'
+#> Detected subgroup variable 'X5' from coefficient 'shpredeffect_trt:X5A'
+#> Detected subgroup variable 'X5' from coefficient 'shpredeffect_trt:X5B'
 #> Checking for random effects parameters...
 #> Retrieved 58 total parameters from model
 #> Using regex pattern: '^r_(.+)__[^\[]+\[[^,]+,trt\]'
 #> Found 0 matching random effect parameters
 #> No random effect parameters matching the pattern were found
-#> ...detected subgroup variable(s): region, comorbidity, age_group, sex, diabetes
+#> ...detected subgroup variable(s): X1, X2, X3, X4, X5
 #> Step 2: Generating posterior predictions...
 #> ... detected Fixed Effects (Colon model). Predicting with re_formula = NA.
 #> ... (predicting expected outcomes)...
 #> Step 3: Calculating marginal effects...
-#> ... processing region
-#> ... processing comorbidity
-#> ... processing age_group
-#> ... processing sex
-#> ... processing diabetes
+#> ... processing X1
+#> ... processing X2
+#> ... processing X3
+#> ... processing X4
+#> ... processing X5
 #> Done.
 
 # Print the summary of subgroup-specific treatment effects
 print(global_summary)
 #> $estimates
 #> # A tibble: 12 × 4
-#>    Subgroup         Median CI_Lower CI_Upper
-#>    <chr>             <dbl>    <dbl>    <dbl>
-#>  1 region: APAC      1.32    -1.47      4.20
-#>  2 region: EU        0.934   -1.63      3.76
-#>  3 region: USA       0.503   -2.32      3.03
-#>  4 comorbidity: No   0.624   -1.80      3.00
-#>  5 comorbidity: Yes  1.38    -1.34      4.18
-#>  6 age_group: <50    1.46    -1.40      4.53
-#>  7 age_group: >65    0.893   -2.04      3.61
-#>  8 age_group: 50-65  0.616   -1.90      3.27
-#>  9 sex: F            0.394   -2.19      2.85
-#> 10 sex: M            1.38    -1.04      4.02
-#> 11 diabetes: No      0.428   -2.02      2.83
-#> 12 diabetes: Yes     1.81    -0.921     4.89
+#>    Subgroup Median CI_Lower CI_Upper
+#>    <chr>     <dbl>    <dbl>    <dbl>
+#>  1 X1: A     -3.66    -5.75    -1.47
+#>  2 X1: B     -3.84    -5.86    -1.77
+#>  3 X1: C     -4.96    -7.50    -2.90
+#>  4 X2: A     -4.21    -6.22    -2.32
+#>  5 X2: B     -4.09    -6.12    -2.20
+#>  6 X3: A     -4.71    -7.22    -2.52
+#>  7 X3: B     -3.91    -6.01    -1.67
+#>  8 X3: C     -3.92    -5.94    -1.83
+#>  9 X4: A     -4.19    -6.09    -2.31
+#> 10 X4: B     -4.10    -6.16    -2.26
+#> 11 X5: A     -4.18    -6.20    -2.35
+#> 12 X5: B     -4.14    -6.04    -2.26
 #> 
 #> $response_type
 #> [1] "continuous"
@@ -419,13 +448,13 @@ print(global_summary)
 #> [1] "subgroup_summary"
 ```
 
-### 4.3 Global Shrinkage Model: Visualization
+### 4.3 Global Model: Visualization
 
 Use the [`plot()`](https://rdrr.io/r/graphics/plot.default.html)
 function to create a forest plot from the summary object:
 
 ``` r
-plot(global_summary, title = "Global Shrinkage Model: All Subgroup Variables")
+plot(global_summary, title = "Global Model: All Subgroup Variables")
 #> Preparing data for plotting...
 #> Generating plot...
 #> Done.
@@ -439,17 +468,17 @@ The [`plot()`](https://rdrr.io/r/graphics/plot.default.html) function
 supports comparing multiple models side-by-side. Pass a named list of
 `subgroup_summary` objects to create a comparative forest plot.
 
-### 5.1 Example: Comparing One-way vs Global Shrinkage Models
+### 5.1 Example: Comparing One-way vs Global Models
 
 ``` r
 # Combine summaries for comparison
 combined <- combine_summaries(list(
-  "One-way Shrinkage" = combined_oneway,
-  "Global Shrinkage" = global_summary
+  "One-way" = combined_oneway,
+  "Global" = global_summary
 ))
 
 # Plot the comparison
-plot(combined, title = "Comparing One-way vs Global Shrinkage Models")
+plot(combined, title = "Comparing One-way vs Global Models")
 #> Preparing data for plotting...
 #> Generating plot...
 #> Done.
