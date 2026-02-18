@@ -1362,7 +1362,11 @@ prepare_formula_model <- function(data,
   needed_terms_filtered <- setdiff(needed_terms, star_interaction_vars)
 
   for (needed in needed_terms_filtered) {
-    if (!needed %in% prognostic_terms) {
+    # Strip _onehot suffix to handle duplicate columns created for shrunk effects
+    # Example: x_1_onehot should be checked against x_1 in prognostic_terms
+    base_needed <- sub("_onehot$", "", needed)
+    
+    if (!base_needed %in% prognostic_terms && !needed %in% prognostic_terms) {
       message("Note: Marginality principle not followed - interaction term '", needed,
               "' is used without its main effect. ",
               "Consider adding '", needed, "' to prognostic terms for proper model hierarchy.")

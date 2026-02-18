@@ -45,7 +45,6 @@ summary_subgroup_effects <- function(brms_fit,
     if (is.null(trt_var)) {
       stop("trt_var must be specified or stored in the model attributes (via fit_brms_model()).")
     }
-    message("Using trt_var from model attributes: ", trt_var)
   }
   checkmate::assert_string(trt_var, min.chars = 1)
   checkmate::assert_subset(trt_var, names(brms_fit$data))
@@ -56,7 +55,6 @@ summary_subgroup_effects <- function(brms_fit,
     if (is.null(response_type)) {
       stop("response_type must be specified or stored in the model attributes (via fit_brms_model()).")
     }
-    message("Using response_type from model attributes: ", response_type)
   }
   response_type <- checkmate::assert_choice(response_type,
                                             choices = c("binary", "count", "continuous", "survival")
