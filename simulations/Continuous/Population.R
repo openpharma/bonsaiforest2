@@ -1,108 +1,129 @@
-# -----------------------------------------------------------------
-# RUN NAIVE POPULATION ANALYSIS FOR A SINGLE ENDPOINT
-#
-# This script:
-# 1. Sources all functions from `functions.R` (including `naivepop`).
-# 2. Runs the naive population (overall) analysis for the one
-#    endpoint defined in the `ENDPOINT_ID` variable.
-# 3. Saves the results to the `Results/` folder using the
-#    standardized (log-scale) format.
-# -----------------------------------------------------------------
+# =========================================================================
+# === NAIVE POPULATION ANALYSIS FOR CONTINUOUS OUTCOMES
+# ===
+# === This script:
+# === 1. Runs the naive population (overall) analysis for continuous outcomes
+# === 2. Processes all scenarios
+# === 3. Saves results to the Results/ folder
+# =========================================================================
 
 # --- 0. CONFIGURATION ---
-# SET THIS VARIABLE to the endpoint you want to analyze
-# Options: "tte", "binary", "count", "continuous"
 ENDPOINT_ID <- "continuous"
-
-# Set the main results directory
 RESULTS_DIR <- "Results"
 
-# Set seed for reproducibility
 RNGkind('Mersenne-Twister')
 set.seed(0)
-# ------------------------
-
 
 # --- 1. LOAD LIBRARIES AND FUNCTIONS ---
 message("--- Loading Libraries and Functions ---")
 library(checkmate)
 library(dplyr)
+library(tidyr)
+library(purrr)
 library(broom)
-library(MASS) # For glm.nb
-library(parallel) # For compute_results
-library(survival) # For Surv
-
-# Source all helper functions (from the same directory)
-# Make sure this file contains the `naivepop` function you provided
-source('functions.R')
-
-# Check if required functions are loaded
-if (!exists("naivepop") || !exists("fun_analysis") || !exists("compute_results")) {
-  stop("Error: `naivepop`, `fun_analysis`, or `compute_results` not found.
-       Please ensure they are in `functions.R`.")
-}
-
+library(parallel)
 
 # --- 2. DEFINE ENDPOINT PARAMETERS ---
 message(paste("--- Configuring for Endpoint:", ENDPOINT_ID, "---"))
 
-# This switch sets all the dynamic parameters for this endpoint
-endpoint_params <- switch(ENDPOINT_ID,
-                          "tte" = list(
-                            folder = "TTE",
-                            resp = "tt_pfs", status = "ev_pfs", resptype = "survival"
-                          ),
-                          "binary" = list(
-                            folder = "Binary", # <-- Corrected capitalization
-                            resp = "y", status = NULL, resptype = "binary"
-                          ),
-                          "count" = list(
-                            folder = "Count",
-                            resp = "y", status = NULL, resptype = "count"
-                          ),
-                          "continuous" = list(
-                            folder = "Continuous", # <-- Corrected capitalization
-                            resp = "y", status = NULL, resptype = "continuous"
-                          ),
-                          stop("Invalid ENDPOINT_ID. Must be one of: 'tte', 'binary', 'count', 'continuous'")
-)
-
-# --- 3. DEFINE THE CORRECTED ANALYSIS METHOD ---
-
-# --- 4. LOAD SCENARIO DATA ---
-scenarios_to_run <- as.character(1:6)
-scenarios_list <- list()
-
-message(paste("Loading 6 scenarios from folder:", endpoint_params$folder))
-
-for (scen in scenarios_to_run) {
-  scen_file <- file.path(endpoint_params$folder, "Scenarios", paste0("scenario", scen, ".rds"))
-
-  if (!file.exists(scen_file)) {
-    stop(paste("File not found:", scen_file, "- Did you run the simulation generation script?"))
-  }
-
-  message(paste("   Loading:", scen_file))
-  scenarios_list[[scen]] <- readRDS(scen_file)
+# Determine the script's directory to make paths work from anywhere
+script_dir <- dirname(normalizePath(sys.frame(1)$ofile))
+if (is.na(script_dir) || script_dir == ".") {
+  script_dir <- getwd()
 }
 
-
-# --- 5. RUN ANALYSIS ---
-message("--- Starting Naive Population Analysis ---")
-
-# 1. Create the analysis function using the constructor
-population_analysis <- fun_analysis(population_method_endpoint)
-
-# 2. Define the cache file (the final results file)
-#    This will be e.g. "Results/binary_population.rds"
-cache_file <- file.path(endpoint_params$folder,RESULTS_DIR, paste0(ENDPOINT_ID, "_population.rds"))
-
-# 3. Run the computation
-population_results <- compute_results(
-  scenarios = scenarios_list,
-  analyze = population_analysis,
-  cache = cache_file
+endpoint_params <- list(
+  folder = script_dir,
+  resp = "Y",
+  resptype = "continuous"
 )
 
-message("--- Analysis Complete ---")
-message(paste("Results saved to:", cache_file))
+# --- 3. SET UP RESULTS DIRECTORY ---
+results_dir_path <- file.path(endpoint_params$folder, RESULTS_DIR)
+dir.create(results_dir_path, recursive = TRUE, showWarnings = FALSE)
+
+base_file_name <- paste(ENDPOINT_ID, "naivepop", sep = "_")
+results_file <- file.path(results_dir_path, paste0(base_file_name, ".rds"))
+log_file <- file.path(results_dir_path, paste0(base_file_name, ".log"))
+
+if (file.exists(log_file)) file.remove(log_file)
+
+cat(sprintf("Results will be saved to: %s\n", results_file))
+
+# --- 4. LOAD SCENARIO DATA ---
+message("Loading all scenario datasets...")
+scenarios_dir <- file.path(endpoint_params$folder, "Scenarios")
+
+all_scenarios <- list()
+for (scen_no in 1:12) {
+  scenario_file <- file.path(scenarios_dir, sprintf("scenario%d.rds", scen_no))
+  if (file.exists(scenario_file)) {
+    all_scenarios[[scen_no]] <- readRDS(scenario_file)
+  } else {
+    warning(sprintf("Scenario %d not found\n", scen_no))
+  }
+}
+
+cat(sprintf("Loaded %d scenarios\n", length(all_scenarios)))
+
+# --- 5. DEFINE NAIVE POPULATION ANALYSIS FUNCTION ---
+
+run_naive_population_analysis <- function(scenario_data, scenario_no) {
+  
+  cat(sprintf("Processing scenario %d: %s simulations\n", 
+              scenario_no, n_distinct(scenario_data$sim_id)))
+  
+  results <- scenario_data %>%
+    group_by(sim_id) %>%
+    nest() %>%
+    mutate(
+      fit = map(data, ~lm(Y ~ trt, data = .x)),
+      tidy_result = map(fit, ~broom::tidy(.x) %>% 
+                        filter(term == "trt") %>%
+                        select(term, estimate, std.error, statistic, p.value)),
+      glance_result = map(fit, broom::glance)
+    ) %>%
+    unnest(c(tidy_result, glance_result), keep_empty = TRUE) %>%
+    select(sim_id, estimate, std.error, statistic, p.value, r.squared, adj.r.squared) %>%
+    rename(
+      trt_effect = estimate,
+      trt_se = std.error,
+      trt_t_stat = statistic,
+      trt_p_value = p.value
+    ) %>%
+    mutate(
+      scenario_no = scenario_no,
+      scenario = unique(scenario_data$scenario)
+    ) %>%
+    select(scenario_no, scenario, sim_id, everything())
+  
+  return(results)
+}
+
+# --- 6. RUN ANALYSIS FOR ALL SCENARIOS ---
+
+all_results <- list()
+
+for (scen_no in seq_along(all_scenarios)) {
+  
+  cat(sprintf("\n--- Scenario %d ---\n", scen_no))
+  
+  start_t <- Sys.time()
+  result <- run_naive_population_analysis(all_scenarios[[scen_no]], scen_no)
+  end_t <- Sys.time()
+  
+  elapsed <- difftime(end_t, start_t, units = "secs")
+  cat(sprintf("✓ Completed in %0.1f seconds\n", elapsed))
+  
+  all_results[[scen_no]] <- result
+}
+
+# --- 7. COMBINE AND SAVE ---
+
+combined_results <- bind_rows(all_results)
+
+saveRDS(combined_results, file = results_file)
+cat(sprintf("\n✓ All results saved to %s\n", results_file))
+cat(sprintf("Processed %d scenarios with %d total simulations\n", 
+            n_distinct(combined_results$scenario_no),
+            nrow(combined_results)))

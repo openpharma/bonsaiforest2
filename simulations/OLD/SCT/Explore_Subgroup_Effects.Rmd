@@ -1,0 +1,625 @@
+---
+title: "SCT Simulation - Subgroup Effects Exploration"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+# Explore Subgroup Effects Across All Scenarios
+
+This document generates one dataset for each scenario and explores how treatment effects vary across subgroups.
+
+## Setup
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(MASS)
+library(knitr)
+library(gridExtra)
+
+# Load SCT simulation functions
+source('functions.R')
+
+# Set seed for reproducibility
+set.seed(42)
+```
+
+## Generate Data for All Scenarios
+
+```{r generate_data}
+# Generate one dataset per scenario
+scenarios <- as.character(1:6)
+datasets <- list()
+
+for (scen in scenarios) {
+  message(paste("Generating Scenario", scen))
+  datasets[[scen]] <- simul_sct_data(scenario = scen, n_datasets = 1)[[1]]
+}
+
+# Get model parameters
+params <- .get_model_parameters_sct()
+cat("\nModel Parameters:\n")
+cat(paste("  N:", params$N, "\n"))
+cat(paste("  SD:", params$sd, "\n"))
+cat(paste("  Base effect:", params$base_effect, "\n"))
+cat(paste("  Intercept:", params$intercept, "\n"))
+```
+
+## Covariate Distributions
+
+Check that covariate distributions match specifications across scenarios (should be similar).
+
+```{r covariate_distributions}
+cat("\n=== COVARIATE DISTRIBUTIONS (Scenario 1 as example) ===\n\n")
+
+dat <- datasets[["1"]]
+
+cat("x_1 (4 levels, target 25% each):\n")
+print(prop.table(table(dat$x_1)))
+
+cat("\nx_2 (3 levels, target 50%, 25%, 25%):\n")
+print(prop.table(table(dat$x_2)))
+
+cat("\nx_3 (2 levels, target 33%, 66%):\n")
+print(prop.table(table(dat$x_3)))
+
+cat("\nx_4 (3 levels, target 20%, 40%, 40%):\n")
+print(prop.table(table(dat$x_4)))
+
+cat("\nTreatment arm (target 2:1 ratio):\n")
+print(table(dat$arm))
+```
+
+## Helper Function: Calculate Subgroup Effects
+
+```{r helper_functions}
+#' Calculate observed treatment effects for all subgroups
+#' @param data Dataset with y, arm, and subgroup variables
+#' @return Data frame with subgroup, control_mean, treatment_mean, effect, se
+calculate_subgroup_effects <- function(data) {
+  
+  subgroup_vars <- c("x_1", "x_2", "x_3", "x_4")
+  results_list <- list()
+  
+  for (var in subgroup_vars) {
+    levels_var <- levels(data[[var]])
+    
+    for (lvl in levels_var) {
+      # Subset to this subgroup
+      subset_data <- data[data[[var]] == lvl, ]
+      
+      if (nrow(subset_data) < 5) next  # Skip if too few observations
+      
+      # Calculate means by arm
+      control_mean <- mean(subset_data$y[subset_data$arm == "0"], na.rm = TRUE)
+      treatment_mean <- mean(subset_data$y[subset_data$arm == "1"], na.rm = TRUE)
+      effect <- treatment_mean - control_mean
+      
+      # Simple linear model for SE
+      fit <- lm(y ~ arm, data = subset_data)
+      se <- summary(fit)$coefficients["arm1", "Std. Error"]
+      
+      results_list[[length(results_list) + 1]] <- data.frame(
+        variable = var,
+        subgroup = paste0(var, ".", lvl),
+        level = lvl,
+        n_control = sum(subset_data$arm == "0"),
+        n_treatment = sum(subset_data$arm == "1"),
+        control_mean = control_mean,
+        treatment_mean = treatment_mean,
+        effect = effect,
+        se = se,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  
+  bind_rows(results_list)
+}
+
+#' Calculate overall treatment effect
+calculate_overall_effect <- function(data) {
+  fit <- lm(y ~ arm, data = data)
+  coef_summary <- summary(fit)$coefficients
+  data.frame(
+    effect = coef_summary["arm1", "Estimate"],
+    se = coef_summary["arm1", "Std. Error"]
+  )
+}
+```
+
+## Scenario-by-Scenario Analysis
+
+```{r scenario_analysis, fig.width=12, fig.height=8}
+for (scen in scenarios) {
+  cat("\n\n")
+  cat(paste(rep("=", 80), collapse = ""))
+  cat(paste("\n### SCENARIO", scen, "###\n"))
+  cat(paste(rep("=", 80), collapse = ""))
+  cat("\n\n")
+  
+  # Get data and coefficients
+  dat <- datasets[[scen]]
+  coefs <- .get_scenario_coefs_sct(scen, params)
+  
+  # Overall effect
+  overall <- calculate_overall_effect(dat)
+  cat(sprintf("Overall Treatment Effect: %.2f (SE: %.2f)\n\n", 
+              overall$effect, overall$se))
+  
+  # Subgroup effects
+  subgroup_effects <- calculate_subgroup_effects(dat)
+  
+  # Print table
+  cat("Subgroup Treatment Effects:\n")
+  print(kable(subgroup_effects %>% 
+                select(subgroup, n_control, n_treatment, 
+                       control_mean, treatment_mean, effect, se) %>%
+                mutate(across(where(is.numeric), ~round(., 2))),
+              format = "simple"))
+  
+  # Create visualization
+  p <- ggplot(subgroup_effects, aes(x = level, y = effect, 
+                                     color = variable, group = variable)) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+    geom_hline(yintercept = overall$effect, linetype = "solid", 
+               color = "black", alpha = 0.3, size = 1) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = effect - 1.96*se, ymax = effect + 1.96*se),
+                  width = 0.2) +
+    facet_wrap(~variable, scales = "free_x", ncol = 4) +
+    labs(
+      title = paste("Scenario", scen, "- Treatment Effects by Subgroup"),
+      subtitle = sprintf("Overall effect: %.2f (black line)", overall$effect),
+      x = "Subgroup Level",
+      y = "Treatment Effect (Mean Difference)",
+      color = "Variable"
+    ) +
+    theme_minimal() +
+    theme(
+      legend.position = "none",
+      plot.title = element_text(face = "bold", size = 14),
+      strip.text = element_text(face = "bold", size = 11)
+    )
+  
+  print(p)
+  
+  cat("\n")
+}
+```
+
+## Outcome Distributions by Scenario
+
+```{r outcome_distributions, fig.width=12, fig.height=10}
+# Combine all datasets with scenario labels
+all_data <- bind_rows(lapply(scenarios, function(s) {
+  datasets[[s]] %>% mutate(scenario = s)
+}))
+
+# Plot outcome distributions
+ggplot(all_data, aes(x = y, fill = arm)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(~scenario, scales = "free_y", ncol = 2) +
+  labs(
+    title = "Outcome Distribution by Scenario and Treatment Arm",
+    x = "MFM32 Change from Baseline (y)",
+    y = "Density",
+    fill = "Treatment Arm"
+  ) +
+  scale_fill_manual(values = c("0" = "steelblue", "1" = "coral"),
+                    labels = c("0" = "Control", "1" = "Treatment")) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    strip.text = element_text(face = "bold", size = 11),
+    legend.position = "bottom"
+  )
+```
+
+## Load Truth Data
+
+Load the truth values (computed from large-scale simulation) for comparison.
+
+```{r load_truth}
+# Load truth data
+truth_file <- file.path("Scenarios", "truth.RData")
+
+if (file.exists(truth_file)) {
+  load(truth_file)
+  cat("✓ Loaded truth data from:", truth_file, "\n\n")
+  
+  cat("Truth structure:\n")
+  cat("  - truth_overall:", nrow(simul_truth$truth_overall), "rows\n")
+  cat("  - truth_subgroup:", nrow(simul_truth$truth_subgroup), "rows\n\n")
+} else {
+  stop("Truth file not found. Please run Truth.Rmd first to generate truth.RData")
+}
+
+# Extract truth values
+truth_overall <- simul_truth$truth_overall
+truth_subgroup <- simul_truth$truth_subgroup
+
+# Prepare truth data for comparison
+truth_effects <- truth_subgroup %>%
+  filter(!grepl("x_1_2\\.", subgroup)) %>%  # Exclude interaction subgroups for now
+  select(scenario, subgroup, truth_effect = value)
+```
+
+## Forest Plots: Truth vs Population vs Subgroup Estimators
+
+Create forest plots for each scenario showing:
+- **Truth**: True subgroup-specific effects (from large-scale simulation)
+- **Population estimator**: Overall treatment effect from full dataset (same for all subgroups)
+- **Subgroup estimator**: Subgroup-specific treatment effect estimates
+
+```{r forest_plots, fig.width=12, fig.height=10}
+# Prepare data for forest plots
+for (scen in scenarios) {
+  cat(paste("\n### Scenario", scen, "\n\n"))
+  
+  # Get truth values
+  truth_overall_scen <- truth_overall %>%
+    filter(scenario == scen) %>%
+    pull(value)
+  
+  truth_subgroup_scen <- truth_effects %>%
+    filter(scenario == scen)
+  
+  # Get observed overall effect (population estimator - same for all subgroups)
+  overall_scen <- calculate_overall_effect(datasets[[scen]])
+  population_estimate <- overall_scen$effect
+  population_se <- overall_scen$se
+  
+  # Get observed subgroup effects (subgroup-specific estimators)
+  subgroup_scen <- calculate_subgroup_effects(datasets[[scen]]) %>%
+    select(subgroup, variable, level, subgroup_effect = effect, subgroup_se = se)
+  
+  # Merge truth and observed
+  forest_data <- truth_subgroup_scen %>%
+    left_join(subgroup_scen, by = "subgroup") %>%
+    mutate(
+      # Population estimator (same for all subgroups)
+      population_effect = population_estimate,
+      population_se = population_se,
+      population_ci_lower = population_estimate - 1.96 * population_se,
+      population_ci_upper = population_estimate + 1.96 * population_se,
+      
+      # Subgroup estimator
+      subgroup_ci_lower = subgroup_effect - 1.96 * subgroup_se,
+      subgroup_ci_upper = subgroup_effect + 1.96 * subgroup_se
+    )
+  
+  # Order subgroups for better visualization
+  forest_data <- forest_data %>%
+    arrange(variable, level) %>%
+    mutate(
+      subgroup_order = factor(subgroup, levels = rev(unique(subgroup)))
+    )
+  
+  # Create forest plot
+  p <- ggplot(forest_data, aes(y = subgroup_order)) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray40", linewidth = 0.5) +
+    
+    # Truth values as red X marks
+    geom_point(aes(x = truth_effect), 
+               shape = 4, size = 4, stroke = 2, color = "red", alpha = 0.8) +
+    
+    # Population estimator (same for all subgroups) - green diamonds with CI
+    geom_errorbarh(aes(xmin = population_ci_lower, xmax = population_ci_upper),
+                   height = 0.2, color = "darkgreen", alpha = 0.4, linewidth = 0.6,
+                   position = position_nudge(y = 0.15)) +
+    geom_point(aes(x = population_effect), 
+               shape = 18, size = 3.5, color = "darkgreen", alpha = 0.7,
+               position = position_nudge(y = 0.15)) +
+    
+    # Subgroup estimator (specific to each subgroup) - blue circles with CI
+    geom_errorbarh(aes(xmin = subgroup_ci_lower, xmax = subgroup_ci_upper),
+                   height = 0.2, color = "steelblue", alpha = 0.5, linewidth = 0.6,
+                   position = position_nudge(y = -0.15)) +
+    geom_point(aes(x = subgroup_effect), 
+               shape = 16, size = 3, color = "steelblue", alpha = 0.8,
+               position = position_nudge(y = -0.15)) +
+    
+    labs(
+      title = paste("Scenario", scen, "- Forest Plot: Truth vs Estimators"),
+      subtitle = sprintf("Truth (✕) | Population estimator (◆, green) = %.2f | Subgroup estimators (•, blue) with 95%% CI", 
+                         population_estimate),
+      x = "Treatment Effect (Mean Difference)",
+      y = NULL
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold", size = 14),
+      plot.subtitle = element_text(size = 10),
+      axis.text.y = element_text(size = 10, hjust = 1),
+      axis.title.x = element_text(face = "bold", size = 11),
+      panel.grid.major.y = element_line(color = "gray90"),
+      panel.grid.minor.x = element_blank(),
+      plot.margin = margin(10, 20, 10, 10)
+    )
+  
+  print(p)
+  cat("\n\n")
+  
+  # Print numerical summary table
+  summary_table <- forest_data %>%
+    select(subgroup, variable, level, truth_effect, 
+           population_effect, population_se,
+           subgroup_effect, subgroup_se) %>%
+    mutate(
+      pop_diff = population_effect - truth_effect,
+      pop_z = pop_diff / population_se,
+      subgroup_diff = subgroup_effect - truth_effect,
+      subgroup_z = subgroup_diff / subgroup_se,
+      pop_within_2se = abs(pop_z) <= 2,
+      subgroup_within_2se = abs(subgroup_z) <= 2
+    )
+  
+  cat("Numerical Summary:\n")
+  cat("  Truth | Population Est (error) | Subgroup Est (error)\n\n")
+  print(kable(summary_table %>%
+                select(subgroup, truth_effect, 
+                       population_effect, pop_diff, pop_within_2se,
+                       subgroup_effect, subgroup_diff, subgroup_within_2se) %>%
+                mutate(across(where(is.numeric), ~round(., 3))),
+              format = "simple",
+              col.names = c("Subgroup", "Truth", "Pop Est", "Pop Err", "Pop OK", 
+                           "Subg Est", "Subg Err", "Subg OK")))
+  
+  cat("Numerical Summary:\n")
+  print(kable(summary_table %>%
+                mutate(across(where(is.numeric), ~round(., 3))),
+              format = "simple"))
+  cat("\n")
+  cat(paste(rep("-", 80), collapse = ""))
+  cat("\n\n")
+}
+```
+
+## Compare Observed vs Truth
+
+```{r compare_effects, fig.width=10, fig.height=12}
+# Get observed effects
+observed_effects_list <- list()
+for (scen in scenarios) {
+  obs <- calculate_subgroup_effects(datasets[[scen]])
+  obs$scenario <- scen
+  observed_effects_list[[scen]] <- obs
+}
+observed_effects <- bind_rows(observed_effects_list)
+
+# Merge truth and observed effects
+comparison <- truth_effects %>%
+  left_join(observed_effects %>% 
+              select(scenario, subgroup, observed_effect = effect, se),
+            by = c("scenario", "subgroup")) %>%
+  mutate(
+    difference = observed_effect - truth_effect,
+    z_score = difference / se,
+    within_2se = abs(z_score) <= 2
+  )
+
+# Add overall effects
+overall_comparison <- truth_overall %>%
+  select(scenario, truth_overall = value) %>%
+  left_join(
+    bind_rows(lapply(scenarios, function(s) {
+      ov <- calculate_overall_effect(datasets[[s]])
+      data.frame(scenario = s, observed_overall = ov$effect, overall_se = ov$se)
+    })),
+    by = "scenario"
+  ) %>%
+  mutate(
+    overall_diff = observed_overall - truth_overall,
+    overall_z = overall_diff / overall_se,
+    overall_within_2se = abs(overall_z) <= 2
+  )
+
+# Print overall comparison
+cat("\n=== OVERALL TREATMENT EFFECTS: TRUTH VS OBSERVED ===\n\n")
+print(kable(overall_comparison %>%
+              mutate(across(where(is.numeric), ~round(., 3))),
+            format = "simple"))
+
+# Plot comparison for subgroups
+ggplot(comparison, aes(x = truth_effect, y = observed_effect)) +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red", size = 1) +
+  geom_point(aes(color = scenario), size = 3, alpha = 0.7) +
+  geom_errorbar(aes(ymin = observed_effect - 1.96*se, 
+                    ymax = observed_effect + 1.96*se,
+                    color = scenario),
+                alpha = 0.3, width = 0) +
+  facet_wrap(~scenario, scales = "free", ncol = 2) +
+  labs(
+    title = "Truth vs Observed Subgroup Treatment Effects",
+    subtitle = "Truth from N=180k simulation vs First dataset (N=180)",
+    x = "Truth Effect (from large-scale simulation)",
+    y = "Observed Effect (from first dataset)",
+    color = "Scenario"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    strip.text = element_text(face = "bold", size = 11))
+# Subgroup summary
+subgroup_summary <- comparison %>%
+  group_by(scenario) %>%
+  summarise(
+    n_subgroups = n(),
+    mean_truth = mean(truth_effect, na.rm = TRUE),
+    mean_observed = mean(observed_effect, na.rm = TRUE),
+    mean_bias = mean(difference, na.rm = TRUE),
+    rmse = sqrt(mean(difference^2, na.rm = TRUE)),
+    max_abs_error = max(abs(difference), na.rm = TRUE),
+    pct_within_2se = 100 * mean(within_2se, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+cat("Subgroup-level comparison:\n")
+print(kable(subgroup_summary %>%
+              mutate(across(where(is.numeric), ~round(., 3))),
+            format = "simple"))
+```
+
+
+```{r scenario6_interactions, fig.width=12, fig.height=6}
+# Check if truth contains interaction subgroups
+truth_interactions <- truth_subgroup %>%
+  filter(scenario == "6", grepl("x_1_2\\.", subgroup))
+
+if (nrow(truth_interactions) > 0) {
+  cat("\n=== SCENARIO 6: x_1 × x_2 INTERACTION SUBGROUPS ===\n\n")
+  
+  # Calculate observed effects for interaction subgroups
+  dat6 <- datasets[["6"]]
+  dat6$x_1_2 <- factor(paste0(dat6$x_1, dat6$x_2))
+  
+  interaction_effects <- data.frame()
+  for (lvl in levels(dat6$x_1_2)) {
+    subset_data <- dat6[dat6$x_1_2 == lvl, ]
+    
+    if (nrow(subset_data) >= 5 && length(unique(subset_data$arm)) == 2) {
+      fit <- lm(y ~ arm, data = subset_data)
+      coef_summary <- summary(fit)$coefficients
+      
+      interaction_effects <- rbind(interaction_effects, data.frame(
+        subgroup = paste0("x_1_2.", lvl),
+        n_control = sum(subset_data$arm == "0"),
+        n_treatment = sum(subset_data$arm == "1"),
+        observed_effect = coef_summary["arm1", "Estimate"],
+        se = coef_summary["arm1", "Std. Error"],
+        stringsAsFactors = FALSE
+      ))
+    }
+  }
+  
+  # Merge with truth
+  interaction_comparison <- truth_interactions %>%
+    select(subgroup, truth_effect = value) %>%
+    left_join(interaction_effects, by = "subgroup") %>%
+    mutate(
+      difference = observed_effect - truth_effect,
+      z_score = difference / se
+    )
+  
+  print(kable(interaction_comparison %>%
+                mutate(across(where(is.numeric), ~round(., 3))),
+              format = "simple"))
+  
+  # Visualize
+  ggplot(interaction_comparison, aes(x = subgroup, y = observed_effect)) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "gray50") +
+    geom_point(aes(y = truth_effect), shape = 4, size = 4, stroke = 2, color = "red") +
+    geom_point(size = 3, color = "steelblue") +
+    geom_errorbar(aes(ymin = observed_effect - 1.96*se, 
+                      ymax = observed_effect + 1.96*se),
+                  width = 0.2, color = "steelblue") +
+    labs(
+      title = "Scenario 6: x_1 × x_2 Interaction Subgroups",
+      subtitle = "Truth (red X) vs Observed (blue •) with 95% CI",
+      x = "Interaction Subgroup (x_1 level + x_2 level)",
+      y = "Treatment Effect"
+    ) +
+    theme_minimal() +
+    theme(
+      plot.title = element_text(face = "bold"),
+      axis.text.x = element_text(angle = 45, hjust = 1)
+    )
+} else {
+  cat("\nNo interaction subgroups found in truth data.\n")
+}
+```
+
+---
+
+**Interpretation Guide:**
+
+- **Truth values**: Computed from N=180,000 simulation (10 reps averaged)
+- **Observed values**: From first dataset with N=180
+- **Expected behavior**: ~95% of estimates should fall within 2 SE of truth
+- **Key patterns**:
+  - **Scenario 1 (Homogeneous)**: All subgroups ~1.55
+  - **Scenario 2 (x_1 Heterogeneity)**: Gradient a→d (+2.4 to -2.0)
+  - **Scenario 3 (Null/Crossover)**: x_2 levels cross zero
+  - **Scenarios 4 & 5 (Random)**: Variable effects (no base effect)
+  - **Scenario 6 (Interaction)**: Complex x_1×x_2 pattern
+
+With N=180, substantial sampling variability is expected, especially for small subgroups.
+cat("Largest deviations from truth (|Z| > 2):\n")
+large_deviations <- comparison %>%
+  filter(abs(z_score) > 2) %>%
+  arrange(desc(abs(z_score))) %>%
+  select(scenario, subgroup, truth_effect, observed_effect, difference, z_score)
+
+if (nrow(large_deviations) > 0) {
+  print(kable(large_deviations %>%
+                mutate(across(where(is.numeric), ~round(., 3))),
+              format = "simple"))
+} else {
+  cat("  (None found - all estimates within 2 SE)\n")
+}
+    y = "Subgroup",
+    color = "Scenario"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    strip.text = element_text(face = "bold", size = 11),
+    legend.position = "bottom",
+    axis.text.y = element_text(size = 8)
+  )
+
+# Print numerical comparison table
+cat("\n=== TRUTH VS OBSERVED EFFECTS (SUBGROUPS) ===\n\n")
+for (scen in scenarios) {
+  cat(paste("\nScenario", scen, ":\n"))
+  
+  comp_scen <- comparison %>%
+    filter(scenario == scen) %>%
+    select(subgroup, truth_effect, observed_effect, se, difference, z_score, within_2se)
+  
+  print(kable(comp_scen %>%
+                mutate(across(where(is.numeric), ~round(., 3))),
+              format = "simple"))
+  
+  # Summary for this scenario
+  n_within <- sum(comp_scen$within_2se, na.rm = TRUE)
+  n_total <- nrow(comp_scen)
+  cat(sprintf("\n  → %d/%d (%.1f%%) estimates within 2 SE of truth\n\n", 
+              n_within, n_total, 100*n_within/n_total))
+}
+```
+
+## Summary Statistics
+
+```{r summary_stats}
+cat("\n=== SUMMARY ACROSS ALL SCENARIOS ===\n\n")
+
+summary_table <- comparison %>%
+  group_by(scenario) %>%
+  summarise(
+    n_subgroups = n(),
+    mean_expected = mean(expected_effect, na.rm = TRUE),
+    mean_observed = mean(observed_effect, na.rm = TRUE),
+    rmse = sqrt(mean((observed_effect - expected_effect)^2, na.rm = TRUE)),
+    max_abs_error = max(abs(observed_effect - expected_effect), na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(kable(summary_table %>%
+              mutate(across(where(is.numeric), ~round(., 3))),
+            format = "simple"))
+
+cat("\nNote: Large deviations are expected with N=180. Truth computations use N=180,000.\n")
+```
+
+---
+
+**Interpretation Guide:**
+
+- **Scenario 1 (Homogeneous)**: All subgroups should show similar effects (~1.55)
+- **Scenario 2 (x_1 Heterogeneity)**: Strong gradient across x_1 levels (a=+2.4, b=+1.4, c=-0.6, d=-2.0)
+- **Scenario 3 (Null/Crossover)**: Overall ~0, but x_2.a positive, x_2.c negative
+- **Scenarios 4 & 5 (Random)**: Random variation with no base effect (pure interaction-driven heterogeneity)
+- **Scenario 6 (Interaction)**: x_1 and x_2 main effects plus specific x_1×x_2 interaction
+
+With N=180, expect substantial sampling variability. Observed effects will deviate from expected, especially for small subgroups.

@@ -1,0 +1,158 @@
+---
+title: "SUNFISH Scenarios Generation"
+output: html_document
+---
+
+# SUNFISH Trial Scenario Generation
+
+This script generates simulated datasets for the SUNFISH Part 2 trial replication.
+
+## Study Overview
+
+**SUNFISH Part 2** was a randomized (2:1), double-blind, placebo-controlled trial:
+- **N = 180** (120 Risdiplam : 60 Placebo)
+- **Primary Endpoint**: Change from baseline in MFM32 total score at Month 12
+- **Treatment Effect**: 1.55 points (Risdiplam 1.36 vs Placebo -0.19)
+- **Standard Deviation**: 6.0 points
+- **Key Finding**: Younger patients showed more pronounced improvements
+
+**Covariates** (from Table 1 and Supplementary Appendix Figure S3):
+- **x_1**: Age Group (2-5y [31%], 6-11y [32%], 12-17y [25%], 18-25y [12%])
+- **x_2**: SMA Type (Type2 [71%], Type3 [29%])
+- **x_3**: SMN2 Copy Number (2_copies [3%], 3_copies [87%], 4_copies [10%])
+- **x_4**: Disease Severity based on Baseline MFM32 quartiles (Severe ≤Q1, Moderate, Mild >Q3)
+- **baseline_mfm**: Baseline MFM32 score (continuous, Mean=46.11, SD=11.46)
+
+**Covariate Correlations** (from SAP simulation documentation):
+- Base correlation across all biological factors: ρ = 0.2
+- Age × SMN2 Copy Number: ρ = 0.3 (Type 2 SMA tends to have fewer SMN2 copies)
+- SMN2 Copy Number × Baseline MFM32: ρ = 0.35 (more copies → better motor function)
+- Age × Baseline MFM32: ρ = -0.15 (older patients → more progression)
+
+## Scenarios
+
+We simulate **6 scenarios** adapted from the original bonsaiforest2 framework to match the SUNFISH trial context:
+
+### 1. **Scenario 1 (Homogeneous)**: Primary efficacy analysis result
+   - Consistent 1.55 point improvement across all subgroups
+   - Represents the overall treatment effect reported in the trial
+
+### 2. **Scenario 2 (Heterogeneous - Region-Driven)**: Dramatic regional heterogeneity from Forest Plot
+   - **Europe (reference)**: +2.40 points (strong benefit)
+   - **North America**: +2.44 points (similar to Europe)
+   - **Japan**: -3.58 points (HARM - qualitative interaction)
+   - **China**: -1.85 points (HARM - qualitative interaction)
+   - **Rest of World**: +3.30 points (strong benefit)
+   - Demonstrates **sign reversal**: treatment beneficial in Western regions, harmful in Asian regions
+   - Most extreme form of treatment heterogeneity (qualitative interaction)
+
+### 3. **Scenario 3 (Null/Crossover)**: Overall null with Type-based crossover
+   - Overall mean treatment effect = 0
+   - SMA Type 2 patients: +2.0 point improvement
+   - SMA Type 3 patients: -2.0 point decline
+   - Tests ability to detect crossover interactions
+
+### 4. **Scenario 4 (Mild Random Heterogeneity)**: Small random noise
+   - Base effect 1.55 points (overall population)
+   - Random noise (SD=0.5) added to all subgroup interactions
+   - Tests robustness to mild, unpredictable heterogeneity
+
+### 5. **Scenario 5 (Large Random Heterogeneity)**: Large random noise
+   - Base effect 1.55 points (overall population)
+   - Large random noise (SD=2.0) added to all subgroup interactions
+   - Tests robustness to strong, unpredictable heterogeneity
+
+### 6. **Scenario 6 (Interaction)**: Age × SMA Type interaction
+   - Base effect 2.5 points (young Type 2 patients)
+   - Age reduces effect (-0.5 to -2.0 per age group)
+   - Type 3 reduces effect (-0.8)
+   - **Specific interaction**: Being both old (18-25y) AND Type 3 has additional penalty (-1.5)
+   - Tests ability to detect complex 2-way interactions
+
+## Library and Functions Loading
+
+```{r setup}
+# Ensure all required libraries are loaded
+library(checkmate)
+library(MASS) # Used by simul_covariates_sunfish
+
+# --- LOAD SUNFISH FUNCTIONS ---
+source('functions.R')
+
+# --- REPRODUCIBILITY ---
+RNGkind('Mersenne-Twister')
+set.seed(0)
+```
+
+## Parameters Definition
+
+```{r parameters}
+# --- SIMULATION PARAMETERS ---
+scenarios <- as.character(1:6)  # All 6 scenarios
+n_datasets <- 1000              # Number of replicate datasets per scenario
+```
+
+## Data Generation Loop
+
+```{r generate_data}
+for (scen in scenarios) {
+  
+  # --- 1. Log Start ---
+  message("------------------------------------------------------")
+  message(paste("🚀 Starting: SUNFISH - Scenario", scen))
+  
+  # --- 2. Generate Data ---
+  message("   ...generating data...")
+  dataset_list <- simul_sunfish_data(
+    scenario = scen,
+    n_datasets = n_datasets
+  )
+  
+  # --- 3. Define Save Path and Save ---
+  save_path <- file.path("Scenarios", paste0("SUNFISH_Scenario_", scen, ".rds"))
+  message(paste("   ...saving to", save_path))
+  saveRDS(dataset_list, file = save_path)
+  
+  # --- 4. Log Completion ---
+  message(paste("✅ Completed: SUNFISH - Scenario", scen))
+  message(paste("   Saved", n_datasets, "datasets to", save_path))
+  message("------------------------------------------------------")
+  message("")
+}
+```
+
+## Verification
+
+```{r verify, eval=FALSE}
+# Optional: Load and verify one dataset from each scenario
+for (scen in scenarios) {
+  message(paste("\n--- Verifying Scenario", scen, "---"))
+  
+  datasets <- readRDS(file.path("Scenarios", paste0("SUNFISH_Scenario_", scen, ".rds")))
+  
+  # Check first dataset
+  dat <- datasets[[1]]
+  
+  message(paste("Sample size:", nrow(dat)))
+  message(paste("Treatment allocation:"))
+  print(table(dat$arm))
+  message(paste("Age group distribution:"))
+  print(table(dat$x_1))
+  message(paste("SMA Type distribution:"))
+  print(table(dat$x_2))
+  message(paste("SMN2 Copy Number distribution:"))
+  print(table(dat$x_3))
+  message(paste("Disease Severity distribution:"))
+  print(table(dat$x_4))
+  message(paste("Baseline MFM32 - Mean:", round(mean(dat$baseline_mfm), 2), 
+                "SD:", round(sd(dat$baseline_mfm), 2)))
+  message(paste("Outcome (change) - Mean:", round(mean(dat$y), 2), 
+                "SD:", round(sd(dat$y), 2)))
+}
+```
+
+## Session Info
+
+```{r session_info}
+sessionInfo()
+```

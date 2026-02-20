@@ -30,7 +30,7 @@ set.seed(0) # For reproducibility
 ## --- 2. PARAMETERS AND CONTAINERS ---
 ```{r}
 # Select endpoints to run
-all_endpoints <- c("binary")
+all_endpoints <- c("tte", "binary", "count", "continuous")
 all_scenarios <- as.character(1:6)
 
 # TTE Model formulas

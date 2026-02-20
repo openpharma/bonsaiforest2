@@ -1,0 +1,8 @@
+Platform: apollo
+Region: eu
+Description: This is a sample job file
+ComputeType: 96CPU-768GB
+ScriptCommand: Rscript R2D2_strong.R
+Image: 537212169289.dkr.ecr.eu-central-1.amazonaws.com/rstudio-standard:R4.4.3-15apr2025
+WorkingDirectory: /home/pedreram/bonsaiforest2/simulations/SCT
+Timeout: 40h

@@ -239,7 +239,7 @@ simul_study_data <- function(endpoint = c("tte", "binary", "count", "continuous"
 #' Applies endpoint-specific scaling factors and treatment effect signs.
 .get_scenario_coefs <- function(scenario, model_params) {
   RNGkind('Mersenne-Twister')
-  set.seed(0)
+  set.seed(5)
   # --- SCALING FACTOR ---
   # Extract from model_params (0.85 for TTE, 1.0 for others)
   sigma_scale <- model_params$sigma_scale
@@ -1247,11 +1247,11 @@ run_global_model_task <- function(sim_id,
 
     fit <- run_brms_analysis(
       data = df,
-      response_formula_str = endpoint_params$resp_formula,  # Dynamic
+      response_formula = endpoint_params$resp_formula,  # Dynamic
       response_type = endpoint_params$resptype,             # Dynamic
-      unshrunk_prognostic_formula_str = paste("~", prognostic_str),
-      shrunk_predictive_formula_str = paste("~", predictive_str),
-      predictive_effect_priors = list(shrunk = prior_spec$prior),
+      unshrunk_terms_formula  = paste("~", prognostic_str),
+      shrunk_predictive_formula  = paste("~ 0 +", predictive_str),
+      shrunk_predictive_prior =  prior_spec$prior,
       stanvars = prior_spec$stanvars,
       chains = 4, iter = 2000, warmup = 1000, cores = 1,
       backend = "cmdstanr",
@@ -1260,11 +1260,7 @@ run_global_model_task <- function(sim_id,
 
     # Summarize results
     output <- summary_subgroup_effects(
-      fit,
-      df,
-      "arm",
-      endpoint_params$resptype,
-      subgroup_vars = subgr_vars
+      fit
     )
 
     # Clean up cmdstan output directory to save disk space

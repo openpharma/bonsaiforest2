@@ -1,0 +1,513 @@
+---
+title: "Continuous Simulation Results Analysis"
+subtitle: "RMSE, Bias, and Covariate Balance Analysis"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+                      fig.width = 14, fig.height = 9)
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+```
+
+# Continuous Simulation Results Analysis
+
+This document analyzes Continuous outcome simulation results, calculating:
+- **RMSE** (Root Mean Squared Error)
+- **Bias** (Mean difference between estimate and truth)
+- **Coverage** (Proportion of 95% CIs containing the true value)
+
+All metrics are calculated on the original scale (treatment effect).
+
+---
+
+## Load Results
+
+```{r load_results}
+# Set paths
+base_path <- "/home/pedreram/bonsaiforest2/simulations/Continuous"
+results_path <- file.path(base_path, "Results")
+
+# Find all RDS files
+all_files <- list.files(results_path, pattern = "\\.rds$", full.names = TRUE)
+cat("Found", length(all_files), "result files:\n")
+cat(paste("-", basename(all_files), collapse = "\n"), "\n")
+```
+
+---
+
+## Load Truth Values
+
+```{r load_truth}
+# Load truth data
+truth_file <- file.path(base_path, "Scenarios", "truth.RData")
+load(truth_file)
+cat("Loaded truth values from:", truth_file, "\n")
+
+# Extract population-level truth (treatment effect)
+truth_population <- simulation_truth %>%
+  group_by(scenario_no, scenario) %>%
+  summarise(
+    truth_trt_effect = first(pop_trt_effect),
+    .groups = 'drop'
+  ) %>%
+  mutate(scenario_no = as.character(scenario_no))
+
+cat("\nTruth data loaded successfully.\n")
+cat("Scenarios:", unique(truth_population$scenario_no), "\n")
+```
+
+---
+
+## Process Results Files
+
+```{r process_results}
+# Function to load and standardize a single RDS file
+load_and_standardize <- function(file_path) {
+  
+  df <- readRDS(file_path)
+  estimator_name <- str_remove(basename(file_path), "^continuous_") %>%
+                    str_remove("\\.rds$")
+  
+  cat("Processing:", estimator_name, "\n")
+  
+  # Standardize column names for naive estimators
+  df_clean <- df %>%
+    mutate(
+      scenario_id = as.integer(scenario_no),
+      replication_id = as.integer(sim_id),
+      estimator = estimator_name,
+      estimate = trt_effect,
+      # Generate approximate CI (estimate ± 1.96*SE)
+      ci_lower = trt_effect - 1.96 * trt_se,
+      ci_upper = trt_effect + 1.96 * trt_se
+    ) %>%
+    dplyr::select(scenario_id, replication_id, estimator, estimate, 
+           ci_lower, ci_upper) %>%
+    mutate(scenario_no = as.character(scenario_id))
+  
+  return(df_clean)
+}
+
+# Load all files
+all_results <- map_dfr(all_files, load_and_standardize)
+
+cat("\nTotal rows loaded:", nrow(all_results), "\n")
+cat("Estimators found:", paste(unique(all_results$estimator), collapse = ", "), "\n")
+```
+
+---
+
+## Merge with Truth
+
+```{r merge_truth}
+# Merge with truth values
+results_with_truth <- all_results %>%
+  left_join(truth_population, by = "scenario_no")
+
+# Check for missing truth values
+missing_truth <- results_with_truth %>%
+  filter(is.na(truth_trt_effect)) %>%
+  distinct(scenario_no)
+
+if (nrow(missing_truth) > 0) {
+  cat("\nWarning: Missing truth values for:\n")
+  print(missing_truth)
+} else {
+  cat("\nAll estimates successfully matched with truth values.\n")
+}
+
+cat("Total estimates with truth:", sum(!is.na(results_with_truth$truth_trt_effect)), "\n")
+```
+
+---
+
+## Helper Functions
+
+```{r helper_functions}
+# Helper function to beautify estimator names
+beautify_estimator_name <- function(estimator_name) {
+  dplyr::case_when(
+    estimator_name == "naivepop" ~ "Population (Full Shrinkage)",
+    estimator_name == "subgroup" ~ "Subgroup (No Shrinkage)",
+    estimator_name == "Global_full_hierarchical_05" ~ "GM - HN(0.5)",
+    estimator_name == "Global_full_hierarchical" ~ "GM - HN(1)",
+    estimator_name == "Global_horseshoe_1" ~ "GM - Horseshoe(1)",
+    estimator_name == "OVAT_halfnormal_05" ~ "OVAT - HN(0.5)",
+    estimator_name == "OVAT_halfnormal" ~ "OVAT - HN(1)",
+    TRUE ~ estimator_name
+  )
+}
+
+# Helper function to format numbers
+display <- function(x, digits = 3) {
+  formatC(x, format = "f", digits = digits)
+}
+
+# Helper function to format percentages
+getPercentage <- function(x, digits = 0) {
+  val <- 100 * x
+  ifelse(is.na(val), "NA",
+    paste(formatC(val, digits = digits, format = "f"), "%", sep = "")
+  )
+}
+```
+
+---
+
+## Calculate Performance Metrics
+
+```{r calculate_metrics}
+# Calculate RMSE, Bias, and Coverage by estimator and scenario
+performance_by_scenario <- results_with_truth %>%
+  filter(!is.na(truth_trt_effect)) %>%
+  mutate(
+    # Calculate error and coverage indicator
+    error = estimate - truth_trt_effect,
+    ci_contains_truth = (truth_trt_effect >= ci_lower) & (truth_trt_effect <= ci_upper)
+  ) %>%
+  group_by(scenario_no, estimator, scenario) %>%
+  summarise(
+    n_estimates = n(),
+    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
+    Bias = mean(error, na.rm = TRUE),
+    Coverage = mean(ci_contains_truth, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(as.numeric(scenario_no), estimator)
+
+# Calculate overall metrics (across all scenarios)
+performance_overall <- results_with_truth %>%
+  filter(!is.na(truth_trt_effect)) %>%
+  mutate(
+    error = estimate - truth_trt_effect,
+    ci_contains_truth = (truth_trt_effect >= ci_lower) & (truth_trt_effect <= ci_upper)
+  ) %>%
+  group_by(estimator) %>%
+  summarise(
+    n_estimates = n(),
+    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
+    Bias = mean(error, na.rm = TRUE),
+    Coverage = mean(ci_contains_truth, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator)
+
+cat("Performance metrics calculated.\n")
+```
+
+---
+
+## Results: Overall Performance
+
+```{r table_overall}
+performance_overall %>%
+  mutate(
+    Estimator = beautify_estimator_name(estimator),
+    RMSE = round(RMSE, 4),
+    Bias = round(Bias, 4),
+    Coverage = paste0(round(Coverage * 100, 1), "%")
+  ) %>%
+  dplyr::select(Estimator, RMSE, Bias, Coverage) %>%
+  kable(caption = "Overall Performance Metrics (All Scenarios Combined)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE)
+```
+
+---
+
+## Results: Performance by Scenario
+
+```{r table_by_scenario}
+performance_by_scenario %>%
+  mutate(
+    Estimator = beautify_estimator_name(estimator),
+    RMSE = round(RMSE, 4),
+    Bias = round(Bias, 4),
+    Coverage = paste0(round(Coverage * 100, 1), "%")
+  ) %>%
+  dplyr::select(Scenario = scenario_no, Scenario_Name = scenario, 
+         Estimator, RMSE, Bias, Coverage) %>%
+  kable(caption = "Performance Metrics by Scenario") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE)
+```
+
+---
+
+## Visualization: RMSE by Scenario Group
+
+```{r plot_rmse_grouped, fig.height=10}
+# Create scenario grouping
+scenario_groups <- data.frame(
+  scenario_no = as.character(1:12),
+  group = rep(c("Group 1\n(Scenarios 1-3)", 
+                "Group 2\n(Scenarios 4-6)", 
+                "Group 3\n(Scenarios 7-9)",
+                "Group 4\n(Scenarios 10-12)"), each = 3)
+)
+
+# Create plot data with scenario groups and clean estimator names
+plot_data_rmse <- performance_by_scenario %>%
+  mutate(
+    scenario_no_numeric = as.numeric(scenario_no)
+  ) %>%
+  left_join(scenario_groups, by = "scenario_no") %>%
+  mutate(
+    estimator = beautify_estimator_name(estimator),
+    group = factor(group, levels = c("Group 1\n(Scenarios 1-3)", 
+                                     "Group 2\n(Scenarios 4-6)", 
+                                     "Group 3\n(Scenarios 7-9)",
+                                     "Group 4\n(Scenarios 10-12)"))
+  )
+
+# RMSE plot with grouping
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = RMSE, 
+                            color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  facet_wrap(~group, scales = "free_x", nrow = 2) +
+  labs(
+    title = "RMSE by Scenario Group and Estimator",
+    subtitle = "Root Mean Squared Error - Treatment Effect Scale",
+    x = "Scenario",
+    y = "RMSE",
+    color = "Estimator"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold", size = 11)
+  ) +
+  guides(color = guide_legend(ncol = 2))
+```
+
+---
+
+## Visualization: Overall RMSE Trend
+
+```{r plot_rmse_overall, fig.height=7}
+# Overall RMSE trend across all scenarios
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = RMSE, 
+                            color = estimator, group = estimator)) +
+  geom_line(size = 1.3) +
+  geom_point(size = 3.5) +
+  scale_x_continuous(breaks = 1:12) +
+  labs(
+    title = "RMSE Across All Scenarios",
+    subtitle = "Treatment Effect Scale",
+    x = "Scenario",
+    y = "RMSE",
+    color = "Estimator"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 2))
+```
+
+---
+
+## Visualization: Bias by Scenario
+
+```{r plot_bias, fig.height=7}
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = Bias, 
+                            color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black", alpha = 0.5) +
+  scale_x_continuous(breaks = 1:12) +
+  labs(
+    title = "Bias by Scenario and Estimator",
+    subtitle = "Mean error (estimate - truth) on treatment effect scale",
+    x = "Scenario",
+    y = "Bias",
+    color = "Estimator"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 2))
+```
+
+---
+
+## Visualization: Coverage by Scenario
+
+```{r plot_coverage, fig.height=7}
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = Coverage, 
+                            color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  geom_hline(yintercept = 0.95, linetype = "dashed", color = "red", alpha = 0.7) +
+  scale_x_continuous(breaks = 1:12) +
+  labs(
+    title = "Coverage by Scenario and Estimator",
+    subtitle = "Proportion of 95% CIs containing the true value (target = 0.95)",
+    x = "Scenario",
+    y = "Coverage Rate",
+    color = "Estimator"
+  ) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 2))
+```
+
+---
+
+## Heatmap: RMSE Comparison
+
+```{r heatmap_rmse, fig.height=8}
+# Create heatmap
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = estimator, fill = RMSE)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = round(RMSE, 3)), size = 3) +
+  scale_fill_gradient2(
+    low = "#2166ac", 
+    mid = "#f7f7f7", 
+    high = "#b2182b",
+    midpoint = median(plot_data_rmse$RMSE, na.rm = TRUE),
+    name = "RMSE"
+  ) +
+  scale_x_continuous(breaks = 1:12, labels = 1:12) +
+  labs(
+    title = "RMSE Heatmap: Estimator × Scenario",
+    subtitle = "Lower values (blue) indicate better performance",
+    x = "Scenario",
+    y = "Estimator"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    legend.position = "right"
+  )
+```
+
+---
+
+## Heatmap: Coverage Comparison
+
+```{r heatmap_coverage, fig.height=8}
+# Create coverage heatmap
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = estimator, fill = Coverage)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = paste0(round(Coverage * 100, 1), "%")), size = 3) +
+  scale_fill_gradient2(
+    low = "#b2182b", 
+    mid = "#f7f7f7", 
+    high = "#2166ac",
+    midpoint = 0.95,
+    limits = c(0.8, 1.0),
+    name = "Coverage"
+  ) +
+  scale_x_continuous(breaks = 1:12, labels = 1:12) +
+  labs(
+    title = "Coverage Heatmap: Estimator × Scenario",
+    subtitle = "Target coverage = 95% (blue indicates good coverage)",
+    x = "Scenario",
+    y = "Estimator"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    legend.position = "right"
+  )
+```
+
+---
+
+## Summary Statistics by Scenario Group
+
+```{r performance_by_group}
+# Add group assignments and calculate summary by group
+plot_data_rmse_summary <- plot_data_rmse %>%
+  group_by(group, estimator) %>%
+  summarise(
+    mean_RMSE = mean(RMSE, na.rm = TRUE),
+    sd_RMSE = sd(RMSE, na.rm = TRUE),
+    min_RMSE = min(RMSE, na.rm = TRUE),
+    max_RMSE = max(RMSE, na.rm = TRUE),
+    mean_Bias = mean(Bias, na.rm = TRUE),
+    mean_Coverage = mean(Coverage, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+plot_data_rmse_summary %>%
+  mutate(
+    `Mean RMSE` = display(mean_RMSE, 4),
+    `Range RMSE` = paste0(display(min_RMSE, 4), " - ", display(max_RMSE, 4)),
+    `Mean Bias` = display(mean_Bias, 4),
+    `Mean Coverage` = getPercentage(mean_Coverage, 1)
+  ) %>%
+  dplyr::select(Group = group, Estimator = estimator, 
+         `Mean RMSE`, `Range RMSE`, `Mean Bias`, `Mean Coverage`) %>%
+  kable(caption = "Performance Summary by Scenario Group") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+---
+
+## Notes on Scenarios
+
+```{r scenario_descriptions}
+# Define scenario descriptions for continuous outcomes
+scenario_info <- tibble(
+  Scenario = 1:12,
+  Description = c(
+    "1: Homogeneous effect (no treatment heterogeneity)",
+    "2: Mild heterogeneity by X11cat",
+    "3: Strong heterogeneity by X11cat",
+    "4: Homogeneous effect variant",
+    "5: Mild heterogeneity variant",
+    "6: Strong heterogeneity variant",
+    "7: Homogeneous with different effect size",
+    "8: Mild heterogeneity with different effect size",
+    "9: Strong heterogeneity with different effect size",
+    "10: Homogeneous with another variant",
+    "11: Mild heterogeneity with another variant",
+    "12: Strong heterogeneity with another variant"
+  )
+)
+
+scenario_info %>%
+  kable(caption = "Scenario Descriptions") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE)
+```
+
+---
+
+**Document generated**: `r Sys.time()`
