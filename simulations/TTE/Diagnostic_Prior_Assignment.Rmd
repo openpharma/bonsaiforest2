@@ -1,0 +1,708 @@
+---
+title: "Diagnostic: Verifying Prior Assignment with Different Phi Values"
+author: "TTE Analysis"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = FALSE, fig.width = 12, fig.height = 8)
+```
+
+## Overview
+
+This diagnostic script verifies whether different phi (φ) values for the Half-Normal prior
+are being correctly assigned and applied in the brms model. It runs the same dataset with
+three different phi values and compares:
+- Whether the priors are correctly defined in the Stan code
+- Whether the model estimates differ based on phi
+- The posterior distributions and uncertainty estimates
+
+---
+
+## 1. Load Libraries and Functions
+
+```{r libraries, message=FALSE, warning=FALSE}
+library(bonsaiforest2)
+library(brms)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(ggplot2)
+library(survival)
+library(RhpcBLASctl)
+
+# Set threads
+RhpcBLASctl::blas_set_num_threads(1)
+RhpcBLASctl::omp_set_num_threads(1)
+
+# Set seed for reproducibility
+set.seed(42)
+```
+
+---
+
+## 2. Load First Dataset
+
+```{r load_data}
+# Load first scenario (scenario 1) and take first dataset
+scenario_path <- "Scenarios/scenario1.rds"
+scenario_data <- readRDS(scenario_path)
+
+cat("Loaded scenario 1 with", length(scenario_data), "datasets\n")
+cat("Using first dataset...\n")
+
+# Take first dataset
+first_dataset <- scenario_data[[1]]
+
+# Quick data summary
+cat("\nData summary:\n")
+cat("Rows:", nrow(first_dataset), "\n")
+cat("Columns:", paste(names(first_dataset), collapse = ", "), "\n")
+cat("\nFirst few rows:\n")
+print(head(first_dataset))
+
+cat("\nCheck survival variable:\n")
+print(table(first_dataset$ev_pfs))
+```
+
+---
+
+## 3. Define Three Different Phi Values
+
+```{r define_phis}
+# Define three different phi values to test
+delta_plan <- abs(log(0.70))
+
+phi_values <- list(
+  "phi_small" = delta_plan * 0.5,      # 50% of delta_plan
+  "phi_medium" = delta_plan,            # delta_plan (standard)
+  "phi_large" = 1     
+)
+
+cat("Delta_plan value:", delta_plan, "\n\n")
+cat("Phi values to test:\n")
+for (name in names(phi_values)) {
+  cat(sprintf("  %s: %.4f\n", name, phi_values[[name]]))
+}
+```
+
+---
+
+## 4. Create Prior Specifications
+
+```{r create_priors}
+# Function to create prior specification with specific phi
+create_prior_spec <- function(phi_value, phi_name) {
+  
+  # Define stanvars with custom phi value
+  stanvars <- brms::stanvar(
+    scode = "real<lower=0> sigma_pred;\n",
+    block = "parameters"
+  ) +
+  brms::stanvar(
+    scode = paste0("  // Half-Normal prior on sigma_pred with phi = ", phi_value, "\n",
+                   "  target += normal_lpdf(sigma_pred | 0, ", phi_value, ") - ",
+                   "normal_lccdf(0 | 0, ", phi_value, "); \n"),
+    block = "model"
+  )
+  
+  # Define prior for the shrinkage
+  prior <- brms::set_prior("normal(0, sigma_pred)")
+  
+  return(list(prior = prior, stanvars = stanvars, phi_value = phi_value))
+}
+
+# Create all prior specifications
+prior_specs <- map2(phi_values, names(phi_values), create_prior_spec)
+
+cat("Created", length(prior_specs), "prior specifications\n")
+```
+
+---
+
+## 5. Prepare Model Formulas
+
+```{r prepare_formulas}
+# Define covariate set
+covariate_set <- c("x_1", "x_2", "x_3", "x_4", "x_5", "x_6", "x_7", "x_8", "x_9", "x_10")
+
+# Response formula for survival
+resp_formula <- "Surv(tt_pfs, ev_pfs) ~ arm"
+
+# Prognostic formula (unshrunk)
+prognostic_str <- paste(covariate_set, collapse = " + ")
+prognostic_formula <- paste("~", prognostic_str)
+
+# Predictive formula (shrunk)
+predictive_str <- paste(paste0("arm:", covariate_set), collapse = " + ")
+predictive_formula <- paste("~ 0 +", predictive_str)
+
+cat("Response formula:", resp_formula, "\n")
+cat("Prognostic formula (unshrunk):", prognostic_formula, "\n")
+cat("Predictive formula (shrunk):", predictive_formula, "\n")
+```
+
+---
+
+## 6. Run Model with Each Phi Value
+
+```{r run_models, cache=TRUE, warning=FALSE}
+# Create temporary directory for cmdstan output
+temp_dir <- tempdir()
+
+# Run models with each phi value
+model_results <- list()
+
+for (i in seq_along(prior_specs)) {
+  phi_name <- names(prior_specs)[i]
+  prior_spec <- prior_specs[[i]]
+  
+  cat("\n", strrep("=", 60), "\n")
+  cat("Running model with:", phi_name, "(phi =", prior_spec$phi_value, ")\n")
+  cat(strrep("=", 60), "\n")
+  
+  # Create unique directory for this model
+  cmdstan_dir <- file.path(temp_dir, paste0("cmdstan_", phi_name))
+  dir.create(cmdstan_dir, recursive = TRUE, showWarnings = FALSE)
+  
+  # Run the analysis
+  tryCatch({
+    fit <- run_brms_analysis(
+      data = first_dataset,
+      response_formula = resp_formula,
+      response_type = "survival",
+      unshrunk_terms_formula = prognostic_formula,
+      shrunk_predictive_formula = predictive_formula,
+      shrunk_predictive_prior = prior_spec$prior,
+      stanvars = prior_spec$stanvars,
+      chains = 2,
+      iter = 1000,
+      warmup = 500,
+      seed=0,
+      cores = 1,
+      backend = "cmdstanr",
+      output_dir = cmdstan_dir
+    )
+    
+    # Get estimates
+    output <- summary_subgroup_effects(fit)
+    est_df <- output$estimates
+    
+    # Extract diagnostics
+    rhat_vals <- brms::rhat(fit)
+    max_rhat <- ifelse(!is.null(rhat_vals), max(rhat_vals, na.rm = TRUE), NA)
+    neff_ratio <- brms::neff_ratio(fit)
+    mean_neff_ratio <- ifelse(!is.null(neff_ratio), mean(neff_ratio, na.rm = TRUE), NA)
+    
+    # Add phi information
+    est_df$phi_value <- prior_spec$phi_value
+    est_df$phi_name <- phi_name
+    est_df$max_rhat <- max_rhat
+    est_df$mean_neff_ratio <- mean_neff_ratio
+    
+    model_results[[phi_name]] <- list(
+      fit = fit,
+      estimates = est_df,
+      stanvars = prior_spec$stanvars
+    )
+    
+    
+    # Clean up
+    unlink(cmdstan_dir, recursive = TRUE)
+    
+  }, error = function(e) {
+    cat("Error running model:", e$message, "\n")
+  })
+}
+
+cat("\n", strrep("=", 60), "\n")
+cat("Completed modeling with all phi values\n")
+cat(strrep("=", 60), "\n")
+```
+
+---
+
+## 7. Compare Estimates Across Phi Values
+
+```{r compare_estimates}
+if (length(model_results) > 0) {
+  # Combine all estimates
+  all_estimates <- bind_rows(lapply(model_results, function(x) x$estimates))
+  
+  cat("Number of estimates per model:", nrow(all_estimates) / length(model_results), "\n\n")
+  
+  # Compare estimates for same subgroups across different phis
+  comparison_table <- all_estimates %>%
+    select(Subgroup, phi_name, phi_value, Median, CI_Lower, CI_Upper) %>%
+    arrange(Subgroup, phi_name)
+  
+  cat("Sample of estimates for first 6 subgroups:\n")
+  print(head(comparison_table, 18))
+}
+```
+
+---
+
+## 7b. Convergence Diagnostics for Each Model
+
+```{r convergence_diagnostics}
+if (length(model_results) > 0) {
+  cat(strrep("=", 70), "\n")
+  cat("CONVERGENCE DIAGNOSTICS\n")
+  cat(strrep("=", 70), "\n\n")
+  
+  # Extract detailed diagnostics from each model
+  convergence_data <- list()
+  
+  for (phi_name in names(model_results)) {
+    fit <- model_results[[phi_name]]$fit
+    phi_value <- model_results[[phi_name]]$estimates$phi_value[1]
+    
+    cat(sprintf("\n%s (phi = %.4f):\n", phi_name, phi_value))
+    cat(strrep("-", 60), "\n")
+    
+    tryCatch({
+      # Get Rhat values
+      rhat_vals <- brms::rhat(fit)
+      max_rhat <- max(rhat_vals, na.rm = TRUE)
+      n_rhat_over_1_05 <- sum(rhat_vals > 1.05, na.rm = TRUE)
+      n_rhat_over_1_01 <- sum(rhat_vals > 1.01, na.rm = TRUE)
+      
+      # Get effective sample size ratio
+      neff_ratio <- brms::neff_ratio(fit)
+      mean_neff_ratio <- mean(neff_ratio, na.rm = TRUE)
+      min_neff_ratio <- min(neff_ratio, na.rm = TRUE)
+      
+      # Get divergent transitions
+      sampler_diag <- fit$sampler_diagnostics
+      if (!is.null(sampler_diag)) {
+        n_divergent <- sum(sampler_diag[, , "divergent__"], na.rm = TRUE)
+      } else {
+        n_divergent <- NA
+      }
+      
+      # Get tree depth exceedances
+      if (!is.null(sampler_diag) && "treedepth__" %in% dimnames(sampler_diag)[[3]]) {
+        n_treedepth <- sum(sampler_diag[, , "treedepth__"], na.rm = TRUE)
+      } else {
+        n_treedepth <- NA
+      }
+      
+      # Print diagnostics
+      cat(sprintf("  Rhat (convergence):\n"))
+      cat(sprintf("    Max Rhat: %.4f", max_rhat))
+      if (max_rhat < 1.01) {
+        cat(" ✓ EXCELLENT\n")
+      } else if (max_rhat < 1.05) {
+        cat(" ⚠ ACCEPTABLE\n")
+      } else {
+        cat(" ✗ PROBLEMATIC\n")
+      }
+      
+      cat(sprintf("    Parameters with Rhat > 1.05: %d\n", n_rhat_over_1_05))
+      cat(sprintf("    Parameters with Rhat > 1.01: %d\n", n_rhat_over_1_01))
+      
+      cat(sprintf("  Effective Sample Size (ESS):\n"))
+      cat(sprintf("    Mean ESS ratio: %.3f", mean_neff_ratio))
+      if (mean_neff_ratio > 0.5) {
+        cat(" ✓ GOOD\n")
+      } else {
+        cat(" ⚠ LOW\n")
+      }
+      cat(sprintf("    Min ESS ratio: %.3f\n", min_neff_ratio))
+      
+      cat(sprintf("  Divergent transitions: %d", n_divergent))
+      if (n_divergent == 0) {
+        cat(" ✓ IDEAL\n")
+      } else if (n_divergent < 10) {
+        cat(" ⚠ ACCEPTABLE\n")
+      } else {
+        cat(" ✗ PROBLEMATIC\n")
+      }
+      
+      cat(sprintf("  Tree depth exceedances: %d\n", n_treedepth))
+      
+      # Get n_eff and n_samples
+      n_samples <- fit$nsamples
+      
+      # Store for comparison
+      convergence_data[[phi_name]] <- data.frame(
+        phi_name = phi_name,
+        phi_value = phi_value,
+        max_rhat = max_rhat,
+        n_rhat_over_1_01 = n_rhat_over_1_01,
+        n_rhat_over_1_05 = n_rhat_over_1_05,
+        mean_neff_ratio = mean_neff_ratio,
+        min_neff_ratio = min_neff_ratio,
+        n_divergent = n_divergent,
+        n_treedepth = n_treedepth,
+        n_samples = n_samples
+      )
+      
+    }, error = function(e) {
+      cat(sprintf("  Error extracting diagnostics: %s\n", e$message))
+    })
+  }
+  
+  # Create comparison table
+  if (length(convergence_data) > 0) {
+    cat("\n", strrep("=", 70), "\n")
+    cat("CONVERGENCE SUMMARY TABLE\n")
+    cat(strrep("=", 70), "\n\n")
+    
+    convergence_table <- bind_rows(convergence_data)
+    
+    # Display formatted table
+    print(convergence_table %>% 
+            select(phi_name, max_rhat, mean_neff_ratio, n_divergent, n_samples))
+  }
+}
+```
+
+---
+
+## 7c. Convergence Status Visualization
+
+```{r convergence_visualization, fig.width=12, fig.height=8}
+if (length(convergence_data) > 0) {
+  convergence_comparison <- bind_rows(convergence_data)
+  
+  # Plot 1: Rhat comparison
+  ggplot(convergence_comparison, aes(x = phi_name, y = max_rhat, fill = phi_name)) +
+    geom_col(alpha = 0.7) +
+    geom_hline(yintercept = 1.01, linetype = "dashed", color = "red", linewidth = 1) +
+    geom_hline(yintercept = 1.05, linetype = "dotted", color = "orange", linewidth = 1) +
+    labs(
+      title = "Maximum Rhat by Phi Value",
+      subtitle = "Red line: threshold 1.01 (excellent), Orange: 1.05 (acceptable)",
+      x = "Prior (Phi Value)",
+      y = "Max Rhat",
+      fill = "Phi Setting"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Plot 2: ESS ratio comparison
+  ggplot(convergence_comparison, aes(x = phi_name, y = mean_neff_ratio, fill = phi_name)) +
+    geom_col(alpha = 0.7) +
+    geom_hline(yintercept = 0.5, linetype = "dashed", color = "orange", linewidth = 1) +
+    geom_hline(yintercept = 0.1, linetype = "dashed", color = "red", linewidth = 1) +
+    labs(
+      title = "Mean ESS Ratio by Phi Value",
+      subtitle = "Orange line: threshold 0.5 (good), Red: 0.1 (poor)",
+      x = "Prior (Phi Value)",
+      y = "Mean ESS Ratio",
+      fill = "Phi Setting"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+  # Plot 3: Problem diagnostics
+  convergence_comparison %>%
+    select(phi_name, n_divergent, n_treedepth) %>%
+    pivot_longer(cols = -phi_name, names_to = "diagnostic", values_to = "count") %>%
+    ggplot(aes(x = phi_name, y = count, fill = diagnostic)) +
+    geom_col(alpha = 0.7, position = "dodge") +
+    labs(
+      title = "Sampling Issues by Phi Value",
+      x = "Prior (Phi Value)",
+      y = "Count",
+      fill = "Diagnostic"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+```
+
+---
+
+## 8. Visualize Effect Estimates Across Phi Values
+
+```{r viz_estimates}
+if (length(model_results) > 1 && nrow(all_estimates) > 0) {
+  
+  # Select a subset of subgroups for visualization
+  subgroups_to_plot <- unique(all_estimates$Subgroup)[1:12]
+  
+  plot_data <- all_estimates %>%
+    filter(Subgroup %in% subgroups_to_plot) %>%
+    arrange(phi_value)
+  
+  ggplot(plot_data, aes(x = phi_name, y = Median, color = phi_name)) +
+    geom_point(size = 2) +
+    geom_errorbar(aes(ymin = CI_Lower, ymax = CI_Upper), width = 0.2, size = 1) +
+    facet_wrap(~Subgroup, scales = "free_y") +
+    labs(
+      title = "Subgroup Effect Estimates Across Different Phi Values",
+      x = "Prior (Phi Value)",
+      y = "Effect Estimate",
+      color = "Phi Setting"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+```
+
+---
+
+## 9. Compare Uncertainty (Credible Intervals)
+
+```{r compare_uncertainty}
+if (length(model_results) > 1 && nrow(all_estimates) > 0) {
+  
+  # Calculate interval width as a measure of uncertainty
+  uncertainty_summary <- all_estimates %>%
+    mutate(interval_width = ifelse(!is.na(CI_Upper) & !is.na(CI_Lower), 
+                                    CI_Upper - CI_Lower, NA)) %>%
+    group_by(phi_name, phi_value) %>%
+    summarise(
+      mean_interval_width = mean(interval_width, na.rm = TRUE),
+      median_interval_width = median(interval_width, na.rm = TRUE),
+      sd_interval_width = sd(interval_width, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    arrange(phi_value)
+  
+  cat("\nUncertainty Summary Across Phi Values:\n")
+  print(uncertainty_summary)
+  
+  # Visualize uncertainty across phis
+  ggplot(uncertainty_summary, aes(x = phi_name, y = mean_interval_width, fill = phi_name)) +
+    geom_col(alpha = 0.7) +
+    labs(
+      title = "Mean 95% Credible Interval Width Across Phi Values",
+      x = "Prior (Phi Value)",
+      y = "Mean Interval Width",
+      fill = "Phi Setting"
+    ) +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+}
+```
+
+---
+
+## 10. Extract and Visualize Sigma_pred Chains
+
+```{r extract_sigma_pred_chains}
+if (length(model_results) > 0) {
+  cat("Extracting sigma_pred samples from each model...\n\n")
+  
+  # Extract sigma_pred samples from all models
+  sigma_pred_chains <- list()
+  
+  for (phi_name in names(model_results)) {
+    fit <- model_results[[phi_name]]$fit
+    
+    tryCatch({
+      # Extract draws from the fit object
+      # Use as_draws_df with fixed = TRUE (new recommended approach)
+      draws <- as_draws_df(fit)
+      
+      # Filter to sigma_pred variable
+      sigma_cols <- grep("sigma_pred", colnames(draws), fixed = TRUE, value = TRUE)
+      
+      if (length(sigma_cols) > 0) {
+        draws <- draws[, c(".chain", ".iteration", ".draw", sigma_cols), drop = FALSE]
+      } else {
+        draws <- data.frame()
+      }
+      
+      if (nrow(draws) > 0) {
+        sigma_pred_chains[[phi_name]] <- draws
+        cat(sprintf("  ✓ %s: extracted %d samples of sigma_pred\n", phi_name, nrow(draws)))
+      } else {
+        cat(sprintf("  ⚠ %s: could not extract sigma_pred samples\n", phi_name))
+      }
+      
+    }, error = function(e) {
+      cat(sprintf("  ✗ %s: error - %s\n", phi_name, e$message))
+    })
+  }
+}
+```
+
+---
+
+## 11. Chain Plot (Trace Plot) for Sigma_pred
+
+```{r trace_plot_sigma_pred, fig.width=14, fig.height=8}
+if (length(model_results) > 0) {
+  # Create trace plots for each model
+  
+  for (phi_name in names(model_results)) {
+    fit <- model_results[[phi_name]]$fit
+    phi_value <- model_results[[phi_name]]$estimates$phi_value[1]
+    
+    tryCatch({
+      # Create trace plot using brms built-in function
+      cat(sprintf("\nGenerating trace plot for %s (phi = %.4f)\n", phi_name, phi_value))
+      
+      # Plot sigma_pred traces
+      p <- plot(fit, ask = FALSE, variable = "^sigma_pred$", regex = TRUE)
+      print(p)
+      
+    }, error = function(e) {
+      cat(sprintf("  Could not create trace plot: %s\n", e$message))
+      
+      # Alternative: manual trace plot using as_draws_df
+      tryCatch({
+        if (phi_name %in% names(sigma_pred_chains)) {
+          draws_df <- sigma_pred_chains[[phi_name]]
+          
+          # Reshape for plotting
+          if (ncol(draws_df) > 0) {
+            # Create a manual trace plot
+            trace_data <- data.frame(
+              iteration = 1:nrow(draws_df),
+              sigma_pred = draws_df[, 1],
+              chain = rep(1, nrow(draws_df))
+            )
+            
+            ggplot(trace_data, aes(x = iteration, y = sigma_pred)) +
+              geom_line(alpha = 0.7) +
+              facet_wrap(~chain) +
+              labs(
+                title = sprintf("Trace Plot: sigma_pred for %s (phi = %.4f)", phi_name, phi_value),
+                x = "Iteration",
+                y = "sigma_pred"
+              ) +
+              theme_minimal()
+          }
+        }
+      }, error = function(e2) {
+        cat(sprintf("  Alternative trace plot also failed: %s\n", e2$message))
+      })
+    })
+  }
+}
+```
+
+---
+
+## 12. Posterior Distributions of Sigma_pred
+
+```{r posterior_distributions_sigma_pred, fig.width=14, fig.height=6}
+if (length(model_results) > 1) {
+  cat("Creating posterior distribution plots for sigma_pred...\n\n")
+  
+  # Prepare data for combined plot
+  all_sigma_pred <- list()
+  
+  for (phi_name in names(model_results)) {
+    fit <- model_results[[phi_name]]$fit
+    phi_value <- model_results[[phi_name]]$estimates$phi_value[1]
+    
+    tryCatch({
+      # Extract posterior samples using new recommended approach
+      draws_df <- as_draws_df(fit)
+      
+      # Find sigma_pred column
+      sigma_cols <- grep("sigma_pred", colnames(draws_df), fixed = TRUE, value = TRUE)
+      
+      if (length(sigma_cols) > 0) {
+        # Use the first sigma_pred column (typically just one)
+        posterior_values <- draws_df[[sigma_cols[1]]]
+      } else {
+        posterior_values <- NULL
+      }
+      
+      if (!is.null(posterior_values)) {
+        all_sigma_pred[[phi_name]] <- data.frame(
+          sigma_pred = posterior_values,
+          phi_name = phi_name,
+          phi_value = phi_value
+        )
+      }
+      
+    }, error = function(e) {
+      cat(sprintf("  Error processing %s: %s\n", phi_name, e$message))
+    })
+  }
+  
+  # Combined plot
+  if (length(all_sigma_pred) > 0) {
+    combined_posterior <- bind_rows(all_sigma_pred)
+    
+    ggplot(combined_posterior, aes(x = sigma_pred, fill = phi_name)) +
+      geom_density(alpha = 0.5) +
+      labs(
+        title = "Posterior Distributions of sigma_pred Across Different Phi Values",
+        x = "sigma_pred",
+        y = "Density",
+        fill = "Phi Value"
+      ) +
+      theme_minimal() +
+      facet_wrap(~phi_name, scales = "free_y")
+    
+    # Summary statistics for sigma_pred
+    cat("\nSummary Statistics for sigma_pred Posterior:\n")
+    cat(strrep("-", 70), "\n")
+    
+    summary_sigma <- combined_posterior %>%
+      group_by(phi_name, phi_value) %>%
+      summarise(
+        mean = mean(sigma_pred, na.rm = TRUE),
+        median = median(sigma_pred, na.rm = TRUE),
+        sd = sd(sigma_pred, na.rm = TRUE),
+        q2p5 = quantile(sigma_pred, 0.025, na.rm = TRUE),
+        q97p5 = quantile(sigma_pred, 0.975, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      arrange(phi_value)
+    
+    print(summary_sigma)
+    
+    # Visualize summary statistics
+    ggplot(summary_sigma, aes(x = phi_name, y = mean, color = phi_name)) +
+      geom_point(size = 3) +
+      geom_errorbar(aes(ymin = q2p5, ymax = q97p5), width = 0.2, size = 1) +
+      labs(
+        title = "Posterior Mean and 95% Credible Interval for sigma_pred",
+        x = "Prior (Phi Value)",
+        y = "sigma_pred",
+        color = "Phi Setting"
+      ) +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  }
+}
+```
+
+---
+
+## 13. Check Stan Code for Each Model
+
+```{r check_stan_code}
+if (length(model_results) > 0) {
+  for (phi_name in names(model_results)) {
+    
+    cat("\n", strrep("=", 70), "\n")
+    cat("STAN CODE VERIFICATION FOR:", phi_name, "\n")
+    cat(strrep("=", 70), "\n")
+    
+    stanvars <- model_results[[phi_name]]$stanvars
+    
+    if (!is.null(stanvars)) {
+      cat("\nStanvar Block (model block):\n")
+      # Extract the model block code
+      if (inherits(stanvars, "stanvars")) {
+        # Try to extract scode
+        stanvar_list <- attributes(stanvars)
+        cat("Stanvar attributes defined.\n")
+      } else {
+        print(stanvars)
+      }
+    }
+  }
+}
+```
+
+
+
+

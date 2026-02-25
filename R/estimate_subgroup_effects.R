@@ -42,7 +42,7 @@
 #' @importFrom checkmate assert_character assert_count assert_logical assert_subset
 #' @importFrom stringr str_detect str_match_all
 #' @importFrom dplyr bind_rows bind_cols
-#' @importFrom stats contrasts contrasts<-
+#' @importFrom stats contrasts contrasts<- setNames
 #' @importFrom tibble tibble
 #' @importFrom utils head
 #' @export
@@ -549,7 +549,7 @@ estimate_subgroup_effects <- function(brms_fit,
     H0_posterior_list <- list()
 
     if (is.null(strat_var)) {
-      sbhaz_matrix <- as.matrix(sbhaz_draws_df[, all_sbhaz_names])
+      sbhaz_matrix <- as.matrix(sbhaz_draws_df[, all_sbhaz_names], drop_attrs = TRUE)
       H0_posterior_list[["_default_"]] <- as.matrix(i_spline_basis %*% t(sbhaz_matrix))
     } else {
       strat_levels <- levels(factor(original_data[[strat_var]]))
@@ -561,7 +561,7 @@ estimate_subgroup_effects <- function(brms_fit,
         sorted_cols <- level_sbhaz_cols[order(numeric_indices)]
 
         if(length(sorted_cols) > 0) {
-            sbhaz_matrix_level <- as.matrix(sbhaz_draws_df[, sorted_cols])
+            sbhaz_matrix_level <- as.matrix(sbhaz_draws_df[, sorted_cols], drop_attrs = TRUE)
             H0_posterior_list[[level]] <- as.matrix(i_spline_basis %*% t(sbhaz_matrix_level))
         }
       }

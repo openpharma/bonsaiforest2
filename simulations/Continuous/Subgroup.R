@@ -1,107 +1,213 @@
-# -----------------------------------------------------------------
-# RUN NAIVE SUBGROUP ANALYSIS FOR A SINGLE ENDPOINT
-#
-# This script:
-# 1. Sources all functions from `functions.R`.
-# 2. Runs the naive subgroup analysis for the one endpoint
-#    defined in the `ENDPOINT_ID` variable.
-# 3. Saves the results to the `Results/` folder.
-# -----------------------------------------------------------------
+# =========================================================================
+# === NAIVE SUBGROUP ANALYSIS FOR CONTINUOUS OUTCOMES
+# ===
+# === This script:
+# === 1. Loads all scenario datasets
+# === 2. Performs subgroup analyses on each simulation
+# === 3. Tests treatment effects within each subgroup
+# === 4. Saves results to Results/ folder
+# =========================================================================
 
 # --- 0. CONFIGURATION ---
-# SET THIS VARIABLE to the endpoint you want to analyze
-# Options: "tte", "binary", "count", "continuous"
 ENDPOINT_ID <- "continuous"
-
-# Set the main results directory
 RESULTS_DIR <- "Results"
 
-# Set seed for reproducibility
 RNGkind('Mersenne-Twister')
 set.seed(0)
 
-# --- 1. LOAD LIBRARIES AND FUNCTIONS ---
-message("--- Loading Libraries and Functions ---")
+# --- 1. LOAD LIBRARIES ---
+message("--- Loading Libraries ---")
 library(checkmate)
 library(dplyr)
+library(tidyr)
+library(purrr)
 library(broom)
-library(MASS) # For glm.nb (used in naive)
-library(parallel) # For compute_results
-library(survival) # For Surv (used in naive)
-
-# Source all helper functions (e.g., naive, generate_stacked_data, etc.)
-source("functions.R")
+library(parallel)
 
 # --- 2. DEFINE ENDPOINT PARAMETERS ---
 message(paste("--- Configuring for Endpoint:", ENDPOINT_ID, "---"))
 
-# This switch sets all the dynamic parameters for this endpoint
-endpoint_params <- switch(ENDPOINT_ID,
-                          "tte" = list(
-                            folder = "TTE",
-                            resp = "tt_pfs",
-                            status = "ev_pfs",
-                            resptype = "survival"
-                          ),
-                          "binary" = list(
-                            folder = "Binary",
-                            resp = "y",
-                            status = NULL,
-                            resptype = "binary"
-                          ),
-                          "count" = list(
-                            folder = "Count",
-                            resp = "y",
-                            status = NULL,
-                            resptype = "count"
-                          ),
-                          "continuous" = list(
-                            folder = "Continuous",
-                            resp = "y",
-                            status = NULL,
-                            resptype = "continuous"
-                          ),
-                          # Default error case
-                          stop("Invalid ENDPOINT_ID. Must be one of: 'tte', 'binary', 'count', 'continuous'")
-)
-
-
-# --- 3. LOAD SCENARIO DATA ---
-scenarios_to_run <- as.character(1:6)
-scenarios_list <- list()
-
-message(paste("Loading 6 scenarios from folder:", endpoint_params$folder))
-
-for (scen in scenarios_to_run) {
-  scen_file <- file.path(endpoint_params$folder, "Scenarios", paste0("scenario", scen, ".rds"))
-
-  if (!file.exists(scen_file)) {
-    stop(paste("File not found:", scen_file, "- Did you run the simulation generation script?"))
-  }
-
-  message(paste("   Loading:", scen_file))
-  scenarios_list[[scen]] <- readRDS(scen_file)
+# Determine the script's directory to make paths work from anywhere
+script_dir <- dirname(normalizePath(sys.frame(1)$ofile))
+if (is.na(script_dir) || script_dir == ".") {
+  script_dir <- getwd()
 }
 
-# --- 4. RUN ANALYSIS ---
-message("--- Starting Naive Subgroup Analysis ---")
-
-# 1. Create the analysis function using the constructor
-#    'subgroup_method_endpoint' is the method we defined above
-subgroup_analysis <- fun_analysis(subgroup_method_endpoint)
-
-# 2. Define the cache file (the final results file)
-#    This will be e.g. "Results/tte_subgroup.rds"
-cache_file <- file.path(endpoint_params$folder,RESULTS_DIR, paste0(ENDPOINT_ID, "_subgroup.rds"))
-
-# 3. Run the computation
-#    This will apply `subgroup_analysis` to the `scenarios_list`
-#    and save the result to `cache_file`.
-subgroup_results <- compute_results(
-  scenarios = scenarios_list,
-  analyze = subgroup_analysis,
-  cache = cache_file
+endpoint_params <- list(
+  folder = script_dir,
+  resp = "Y",
+  resptype = "continuous"
 )
 
-message("--- Analysis Complete ---")
-message(paste("Results saved to:", cache_file))
+# --- 3. SET UP RESULTS DIRECTORY ---
+results_dir_path <- file.path(endpoint_params$folder, RESULTS_DIR)
+dir.create(results_dir_path, recursive = TRUE, showWarnings = FALSE)
+
+base_file_name <- paste(ENDPOINT_ID, "subgroup", sep = "_")
+results_file <- file.path(results_dir_path, paste0(base_file_name, ".rds"))
+log_file <- file.path(results_dir_path, paste0(base_file_name, ".log"))
+
+if (file.exists(log_file)) file.remove(log_file)
+
+cat(sprintf("Results will be saved to: %s\n", results_file))
+
+# --- 4. LOAD SCENARIO DATA ---
+message("Loading all scenario datasets...")
+scenarios_dir <- file.path(endpoint_params$folder, "Scenarios")
+
+all_scenarios <- list()
+for (scen_no in 1:12) {
+  scenario_file <- file.path(scenarios_dir, sprintf("scenario%d.rds", scen_no))
+  if (file.exists(scenario_file)) {
+    all_scenarios[[scen_no]] <- readRDS(scenario_file)
+  } else {
+    warning(sprintf("Scenario %d not found\n", scen_no))
+  }
+}
+
+cat(sprintf("Loaded %d scenarios\n", length(all_scenarios)))
+
+# --- 5. DEFINE SUBGROUP ANALYSIS FUNCTION ---
+
+#' Perform naive subgroup analysis for a single simulation dataset
+#'
+#' @param df A data frame with columns: trt, subgroup variables, Y
+#' @param subgroup_vars Names of subgrouping variables to test
+#'
+#' @return A data frame with subgroup analyses results
+
+perform_subgroup_analysis <- function(df, subgroup_vars) {
+  
+  results_list <- list()
+  
+  # Test treatment effect within each subgroup variable
+  for (subgroup_var in subgroup_vars) {
+    
+    # Get unique levels of this subgroup variable
+    levels <- unique(df[[subgroup_var]])
+    levels <- levels[!is.na(levels)]
+    
+    # Analyze treatment effect within each level
+    var_results <- map_df(levels, function(level) {
+      
+      # Subset data to this subgroup level
+      df_sub <- df %>% filter(!is.na(.data[[subgroup_var]]), .data[[subgroup_var]] == level)
+      
+      if (nrow(df_sub) < 2) {
+        return(tibble(
+          subgroup_var = subgroup_var,
+          subgroup_level = as.character(level),
+          n = nrow(df_sub),
+          n_trt0 = 0,
+          n_trt1 = 0,
+          trt_effect = NA_real_,
+          trt_se = NA_real_,
+          trt_t_stat = NA_real_,
+          trt_p_value = NA_real_,
+          mean_y_trt0 = NA_real_,
+          mean_y_trt1 = NA_real_,
+          sd_y_trt0 = NA_real_,
+          sd_y_trt1 = NA_real_
+        ))
+      }
+      
+      # Fit linear model: Y ~ trt
+      fit <- lm(Y ~ trt, data = df_sub)
+      tidy_res <- broom::tidy(fit) %>% filter(term == "trt")
+      
+      # Get counts and means by treatment group
+      summary_stats <- df_sub %>%
+        group_by(trt) %>%
+        summarise(
+          n_trt = n(),
+          mean_y = mean(Y),
+          sd_y = sd(Y),
+          .groups = "drop"
+        ) %>%
+        pivot_wider(
+          names_from = trt,
+          values_from = c(n_trt, mean_y, sd_y),
+          names_glue = "{.value}_trt{trt}"
+        )
+      
+      # Combine results
+      tibble(
+        subgroup_var = subgroup_var,
+        subgroup_level = as.character(level),
+        n = nrow(df_sub),
+        n_trt0 = summary_stats$n_trt_trt0,
+        n_trt1 = summary_stats$n_trt_trt1,
+        trt_effect = tidy_res$estimate[1],
+        trt_se = tidy_res$std.error[1],
+        trt_t_stat = tidy_res$statistic[1],
+        trt_p_value = tidy_res$p.value[1],
+        mean_y_trt0 = summary_stats$mean_y_trt0,
+        mean_y_trt1 = summary_stats$mean_y_trt1,
+        sd_y_trt0 = summary_stats$sd_y_trt0,
+        sd_y_trt1 = summary_stats$sd_y_trt1
+      )
+    })
+    
+    results_list[[subgroup_var]] <- var_results
+  }
+  
+  bind_rows(results_list)
+}
+
+# --- 6. RUN ANALYSIS FOR ALL SCENARIOS ---
+
+message("--- Starting Naive Subgroup Analysis ---")
+
+# Subgrouping variables to analyze
+subgroup_vars <- c("X1", "X2", "X3", "X4", "X8", "X11cat", "X14cat", "X17cat")
+
+all_results <- list()
+
+for (scen_no in seq_along(all_scenarios)) {
+  
+  scenario_data <- all_scenarios[[scen_no]]
+  
+  cat(sprintf("\n--- Scenario %d (%s) ---\n", 
+              scen_no, unique(scenario_data$scenario)[1]))
+  
+  start_t <- Sys.time()
+  
+  # Perform subgroup analysis for each simulation
+  scenario_results <- scenario_data %>%
+    group_by(sim_id) %>%
+    nest() %>%
+    mutate(
+      subgroup_results = map(data, ~perform_subgroup_analysis(.x, subgroup_vars))
+    ) %>%
+    unnest(subgroup_results) %>%
+    select(-data) %>%
+    mutate(
+      scenario_no = scen_no,
+      scenario = unique(scenario_data$scenario)[1],
+      .before = sim_id
+    )
+  
+  end_t <- Sys.time()
+  elapsed <- difftime(end_t, start_t, units = "secs")
+  
+  cat(sprintf("Completed in %0.1f seconds\n", elapsed))
+  cat(sprintf("Generated %d subgroup estimates\n", nrow(scenario_results)))
+  
+  all_results[[scen_no]] <- scenario_results
+}
+
+# --- 7. COMBINE AND SAVE ---
+
+combined_results <- bind_rows(all_results)
+
+saveRDS(combined_results, file = results_file)
+cat(sprintf("\n✓ All results saved to %s\n", results_file))
+cat(sprintf("✓ Processed %d scenarios\n", n_distinct(combined_results$scenario_no)))
+cat(sprintf("✓ Generated %d total subgroup estimates\n", nrow(combined_results)))
+
+# Summary statistics
+cat("\n--- Summary ---\n")
+cat(sprintf("Subgroup variables tested: %s\n", paste(subgroup_vars, collapse = ", ")))
+cat(sprintf("Scenarios: %d (1-12)\n", n_distinct(combined_results$scenario_no)))
+cat(sprintf("Simulations per scenario: %d\n", n_distinct(combined_results$sim_id)))
+cat(sprintf("Total subgroup estimates: %d\n", nrow(combined_results)))

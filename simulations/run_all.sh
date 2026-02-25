@@ -18,8 +18,27 @@ echo "Password received. Starting parallel batch (2 jobs at a time)..."
 echo ""
 
 # --- Configuration: Define the simulation list ---
-data_types=("Count")
-models=("Horseshoe_strong" "Horseshoe_mid" "Horseshoe_low" "R2D2_strong" "R2D2_mid" "R2D2_low")
+data_types=("TTE")
+models=(
+  "OVAT_1_oneway_HN_phi_1"
+  "OVAT_2_oneway_HN_phi_1"
+  "OVAT_3_oneway_HN_phi_1"
+  "OVAT_4_oneway_HN_phi_1"
+  "OVAT_5_oneway_HN_phi_1"
+  "OVAT_6_oneway_HN_phi_1"
+  "OVAT_1_oneway_HN_phi_delta_plan"
+  "OVAT_1_oneway_HN_phi_delta_plan_half"
+  "OVAT_2_oneway_HN_phi_delta_plan"
+  "OVAT_2_oneway_HN_phi_delta_plan_half"
+  "OVAT_3_oneway_HN_phi_delta_plan"
+  "OVAT_3_oneway_HN_phi_delta_plan_half"
+  "OVAT_4_oneway_HN_phi_delta_plan"
+  "OVAT_4_oneway_HN_phi_delta_plan_half"
+  "OVAT_5_oneway_HN_phi_delta_plan"
+  "OVAT_5_oneway_HN_phi_delta_plan_half"
+  "OVAT_6_oneway_HN_phi_delta_plan"
+  "OVAT_6_oneway_HN_phi_delta_plan_half"
+)
 
 # --- Main Logic: Generate list and pipe to xargs ---
 
@@ -44,7 +63,7 @@ generate_job_list() {
 # 5. bash -c './run_one.sh "{}"': The command to run. We use bash -c
 #    to ensure './run_one.sh "TTE/Horseshoe_strong.R"' is called correctly.
 
-generate_job_list | xargs -P 1 -I {} bash -c './run_one.sh "{}"'
+generate_job_list | xargs -P 2 -I {} bash -c './run_one.sh "{}"'
 
 echo ""
 echo "--------------------------------------------------"
