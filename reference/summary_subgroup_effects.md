@@ -10,7 +10,8 @@ summary_subgroup_effects(
   brms_fit,
   trt_var = NULL,
   response_type = NULL,
-  subgroup_vars = "auto"
+  subgroup_vars = "auto",
+  conf = 0.95
 )
 ```
 
@@ -47,6 +48,12 @@ summary_subgroup_effects(
   detects treatment interactions from all formula components
   (`unshrunktermeffect`, `shprogeffect`, `shpredeffect`). Cannot be
   `NULL`.
+
+- conf:
+
+  A numeric scalar. Credible interval confidence level. Default is 0.95
+  (corresponding to 95% credible intervals). Example: use 0.90 for 90%
+  credible intervals.
 
 ## Value
 
