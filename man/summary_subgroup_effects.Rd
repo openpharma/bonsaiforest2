@@ -8,7 +8,8 @@ summary_subgroup_effects(
   brms_fit,
   trt_var = NULL,
   response_type = NULL,
-  subgroup_vars = "auto"
+  subgroup_vars = "auto",
+  conf = 0.95
 )
 }
 \arguments{
@@ -28,6 +29,9 @@ match the treatment variable used in model fitting.}
 to generate summaries. Defaults to \code{"auto"}, which automatically detects treatment
 interactions from all formula components (\code{unshrunktermeffect}, \code{shprogeffect},
 \code{shpredeffect}). Cannot be \code{NULL}.}
+
+\item{conf}{A numeric scalar. Credible interval confidence level. Default is 0.95
+(corresponding to 95\% credible intervals). Example: use 0.90 for 90\% credible intervals.}
 }
 \value{
 \code{subgroup_summary}. S3 object containing:

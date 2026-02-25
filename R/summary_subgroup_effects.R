@@ -16,6 +16,8 @@
 #'   to generate summaries. Defaults to `"auto"`, which automatically detects treatment
 #'   interactions from all formula components (`unshrunktermeffect`, `shprogeffect`,
 #'   `shpredeffect`). Cannot be `NULL`.
+#' @param conf A numeric scalar. Credible interval confidence level. Default is 0.95
+#'   (corresponding to 95% credible intervals). Example: use 0.90 for 90% credible intervals.
 #'
 #' @return `subgroup_summary`. S3 object containing:
 #'   \describe{
@@ -33,7 +35,8 @@
 summary_subgroup_effects <- function(brms_fit,
                                      trt_var = NULL,
                                      response_type = NULL,
-                                     subgroup_vars = "auto") {
+                                     subgroup_vars = "auto",
+                                     conf = 0.95) {
 
   # --- 1. Argument Validation ---
   # Validate inputs to ensure compatibility with brms model structure
@@ -71,6 +74,9 @@ summary_subgroup_effects <- function(brms_fit,
     checkmate::assert_subset(subgroup_vars, names(brms_fit$data))
   }
 
+  # Validate confidence level
+  checkmate::assert_number(conf, lower = 0, upper = 1)
+
   # --- 2. Calculate subgroup effects ---
   # estimate_subgroup_effects will detect treatment interactions from all formula components:
   # - unshrunktermeffect: all unshrunk terms (if "auto" is used)
@@ -83,7 +89,8 @@ summary_subgroup_effects <- function(brms_fit,
     brms_fit = brms_fit,
     trt_var = trt_var,
     subgroup_vars = subgroup_vars,
-    response_type = response_type
+    response_type = response_type,
+    conf = conf
   )
 
   estimates_tbl <- subgroup_effects_list$estimates
@@ -92,7 +99,7 @@ summary_subgroup_effects <- function(brms_fit,
   summary_output <- list(
     estimates = estimates_tbl,
     response_type = response_type,
-    ci_level = 0.95,
+    ci_level = conf,
     trt_var = trt_var
   )
 
