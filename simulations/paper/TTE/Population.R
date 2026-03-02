@@ -59,10 +59,10 @@ endpoint_params <- switch(ENDPOINT_ID,
 )
 
 # --- 3. LOAD SCENARIO DATA ---
-scenarios_to_run <- as.character(1:6)
+scenarios_to_run <- as.character(1:4)
 scenarios_list <- list()
 
-message(paste("Loading 6 scenarios from folder:", endpoint_params$folder))
+message(paste("Loading 4 scenarios from folder:", endpoint_params$folder))
 
 for (scen in scenarios_to_run) {
   scen_file <- file.path(endpoint_params$folder, "Scenarios", paste0("scenario", scen, ".rds"))

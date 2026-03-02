@@ -62,7 +62,7 @@ rm(scenarios, all_datasets_processed); gc()
 cat(sprintf("Successfully loaded %d datasets from scenarios 1-3.\n", length(flat_named_list)))
 
 # --- 4. DEFINE PARAMETERS AND GRID ---
-subgr_vars <- c("X1", "X2", "X3", "X4", "X8", "X11cat", "X14cat", "X17cat")
+subgr_vars <- c("X1", "X2", "X4", "X8", "X11cat", "X14cat", "X17cat")
 num_cores <- 96
 
 task_grid <- expand.grid(
@@ -110,7 +110,6 @@ run_ovat_task <- function(i) {
       unshrunk_terms_formula = as.formula(paste("~", covariate)),
       shrunk_prognostic_formula = NULL,
       shrunk_predictive_formula = as.formula(paste("~ (0 + trt ||", covariate, ")")),
-      intercept_prior = "normal(0, 10)",
       unshrunk_prior = NULL,
       shrunk_predictive_prior = task_prior,
       chains = 4, iter = 2000, warmup = 1000, cores = 4, refresh = 0, backend = "cmdstanr"
@@ -142,10 +141,17 @@ run_ovat_task <- function(i) {
   })
 
   if (is.data.frame(out) && !"error" %in% names(out)) {
+    # Extract scenario_no and replication_id from sim_id
+    parts <- as.integer(strsplit(sim_id, "_")[[1]])
+    scenario_no <- parts[1]
+    replication_id <- parts[2]
+    
+    out$scenario_no <- scenario_no
+    out$replication_id <- replication_id
     out$model_type <- current_task$model_type
     out$prior_name <- current_task$prior_name
     out$task_idx <- i
-    out <- out %>% dplyr::select(task_idx, model_type, prior_name, everything())
+    out <- out %>% dplyr::select(task_idx, scenario_no, replication_id, model_type, prior_name, everything())
   }
 
   dur <- difftime(Sys.time(), start_t, units = "mins")
@@ -161,32 +167,32 @@ for (cov_idx in seq_along(subgr_vars)) {
   current_cov <- subgr_vars[cov_idx]
   cov_task_indices <- which(task_grid$covariate == current_cov)
   n_cov_tasks <- length(cov_task_indices)
-  
+
   if (n_cov_tasks == 0) next
-  
-  cat(sprintf("\n--- Processing Covariate %s (%d/%d) | %d tasks ---\n", 
+
+  cat(sprintf("\n--- Processing Covariate %s (%d/%d) | %d tasks ---\n",
               current_cov, cov_idx, length(subgr_vars), n_cov_tasks))
-  
+
   cat(sprintf("Pre-compiling %s with first dataset...\n", current_cov))
   first_task_idx <- cov_task_indices[1]
   precompile_result <- run_ovat_task(first_task_idx)
-  
+
   if (n_cov_tasks > 1) {
     cat(sprintf("Running remaining %d tasks in parallel...\n", n_cov_tasks - 1))
     remaining_task_indices <- cov_task_indices[-1]
-    
+
     results_parallel <- mclapply(
       X = remaining_task_indices,
       FUN = run_ovat_task,
       mc.cores = num_cores,
       mc.preschedule = FALSE
     )
-    
+
     cov_results <- c(list(precompile_result), results_parallel)
   } else {
     cov_results <- list(precompile_result)
   }
-  
+
   all_results_by_cov[[paste(current_cov, sep = "_")]] <- cov_results
 }
 
@@ -200,7 +206,7 @@ final_results_df <- bind_rows(results_list)
 if (nrow(final_results_df) > 0) {
   final_results_df <- final_results_df %>%
     left_join(
-      task_grid %>% 
+      task_grid %>%
         mutate(task_idx = row_number()) %>%
         select(task_idx, sim_id),
       by = "task_idx"

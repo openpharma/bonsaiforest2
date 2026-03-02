@@ -88,22 +88,22 @@ cat(sprintf("Loaded %d scenarios\n", length(all_scenarios)))
 #' @return A data frame with subgroup analyses results
 
 perform_subgroup_analysis <- function(df, subgroup_vars) {
-  
+
   results_list <- list()
-  
+
   # Test treatment effect within each subgroup variable
   for (subgroup_var in subgroup_vars) {
-    
+
     # Get unique levels of this subgroup variable
     levels <- unique(df[[subgroup_var]])
     levels <- levels[!is.na(levels)]
-    
+
     # Analyze treatment effect within each level
     var_results <- map_df(levels, function(level) {
-      
+
       # Subset data to this subgroup level
       df_sub <- df %>% filter(!is.na(.data[[subgroup_var]]), .data[[subgroup_var]] == level)
-      
+
       if (nrow(df_sub) < 2) {
         return(tibble(
           subgroup_var = subgroup_var,
@@ -121,11 +121,11 @@ perform_subgroup_analysis <- function(df, subgroup_vars) {
           sd_y_trt1 = NA_real_
         ))
       }
-      
+
       # Fit linear model: Y ~ trt
       fit <- lm(Y ~ trt, data = df_sub)
       tidy_res <- broom::tidy(fit) %>% filter(term == "trt")
-      
+
       # Get counts and means by treatment group
       summary_stats <- df_sub %>%
         group_by(trt) %>%
@@ -138,30 +138,31 @@ perform_subgroup_analysis <- function(df, subgroup_vars) {
         pivot_wider(
           names_from = trt,
           values_from = c(n_trt, mean_y, sd_y),
-          names_glue = "{.value}_trt{trt}"
+          names_glue = "{.value}_trt{trt}",
+          values_fill = NA_real_
         )
-      
-      # Combine results
+
+      # Combine results - safely extract values (even if treatment group is missing)
       tibble(
         subgroup_var = subgroup_var,
         subgroup_level = as.character(level),
         n = nrow(df_sub),
-        n_trt0 = summary_stats$n_trt_trt0,
-        n_trt1 = summary_stats$n_trt_trt1,
+        n_trt0 = ifelse("n_trt_trt0" %in% names(summary_stats), summary_stats$n_trt_trt0, NA_real_),
+        n_trt1 = ifelse("n_trt_trt1" %in% names(summary_stats), summary_stats$n_trt_trt1, NA_real_),
         trt_effect = tidy_res$estimate[1],
         trt_se = tidy_res$std.error[1],
         trt_t_stat = tidy_res$statistic[1],
         trt_p_value = tidy_res$p.value[1],
-        mean_y_trt0 = summary_stats$mean_y_trt0,
-        mean_y_trt1 = summary_stats$mean_y_trt1,
-        sd_y_trt0 = summary_stats$sd_y_trt0,
-        sd_y_trt1 = summary_stats$sd_y_trt1
+        mean_y_trt0 = ifelse("mean_y_trt0" %in% names(summary_stats), summary_stats$mean_y_trt0, NA_real_),
+        mean_y_trt1 = ifelse("mean_y_trt1" %in% names(summary_stats), summary_stats$mean_y_trt1, NA_real_),
+        sd_y_trt0 = ifelse("sd_y_trt0" %in% names(summary_stats), summary_stats$sd_y_trt0, NA_real_),
+        sd_y_trt1 = ifelse("sd_y_trt1" %in% names(summary_stats), summary_stats$sd_y_trt1, NA_real_)
       )
     })
-    
+
     results_list[[subgroup_var]] <- var_results
   }
-  
+
   bind_rows(results_list)
 }
 
@@ -170,41 +171,51 @@ perform_subgroup_analysis <- function(df, subgroup_vars) {
 message("--- Starting Naive Subgroup Analysis ---")
 
 # Subgrouping variables to analyze
-subgroup_vars <- c("X1", "X2", "X3", "X4", "X8", "X11cat", "X14cat", "X17cat")
+subgroup_vars <- c("X1", "X2", "X4", "X8", "X11cat", "X14cat", "X17cat")
 
 all_results <- list()
 
 for (scen_no in seq_along(all_scenarios)) {
-  
+
   # Combine the list of data.frames into a single stacked data.frame
   scenario_data <- bind_rows(all_scenarios[[scen_no]])
-  
-  cat(sprintf("\n--- Scenario %d (%s) ---\n", 
+
+  cat(sprintf("\n--- Scenario %d (%s) ---\n",
               scen_no, unique(scenario_data$scenario)[1]))
-  
+
   start_t <- Sys.time()
-  
+
   # Perform subgroup analysis for each simulation
+  # Note: We need to capture perform_subgroup_analysis and subgroup_vars in a closure
+  analyze_fn <- perform_subgroup_analysis
+  vars_to_use <- subgroup_vars
+
   scenario_results <- scenario_data %>%
-    group_by(sim_id) %>%
+    group_by(scenario_no,sim_id) %>%
     nest() %>%
     mutate(
-      subgroup_results = map(data, ~perform_subgroup_analysis(.x, subgroup_vars))
+      subgroup_results = map(data, ~analyze_fn(.x, vars_to_use))
     ) %>%
     unnest(subgroup_results) %>%
     select(-data) %>%
     mutate(
       scenario_no = scen_no,
       scenario = unique(scenario_data$scenario)[1],
+      # Extract replication_id from sim_id (format: "scenario_replication")
+      replication_id = tryCatch(
+        as.integer(strsplit(as.character(sim_id), "_")[[1]][2]),
+        error = function(e) NA_integer_,
+        warning = function(w) NA_integer_
+      ),
       .before = sim_id
     )
-  
+
   end_t <- Sys.time()
   elapsed <- difftime(end_t, start_t, units = "secs")
-  
+
   cat(sprintf("Completed in %0.1f seconds\n", elapsed))
   cat(sprintf("Generated %d subgroup estimates\n", nrow(scenario_results)))
-  
+
   all_results[[scen_no]] <- scenario_results
 }
 

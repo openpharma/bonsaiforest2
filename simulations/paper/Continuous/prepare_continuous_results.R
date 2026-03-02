@@ -23,7 +23,7 @@ load(cont_truth_file)
 cat("Loaded truth data from:", cont_truth_file, "\n")
 
 # Extract subgroup-level truth (treatment effect)
-cont_truth_subgroup <- simulation_truth_filtered %>%
+cont_truth_subgroup <- simulation_truth %>%
   mutate(scenario_no = as.character(scenario_no)) %>%
   dplyr::select(scenario_no, scenario, subgroup_var, level, trt_effect) %>%
   rename(truth_trt_effect = trt_effect)
@@ -41,29 +41,32 @@ cat("Found", length(cont_all_files), "result files\n\n")
 
 # Function to load and standardize Continuous results
 load_and_standardize_continuous <- function(file_path) {
-  
+
   df <- readRDS(file_path)
   file_name <- basename(file_path)
-  
+
   # Create estimator name
   estimator_name <- str_remove(file_name, "^continuous_") %>%
                     str_remove("\\.rds$")
-  
+
   # Normalize scenario column (some files use scenario_no, others use scenario_id)
   if (!"scenario_no" %in% names(df) && "scenario_id" %in% names(df)) {
     df <- df %>% mutate(scenario_no = scenario_id)
   }
-  
+
   # Check if it's a naive estimator (naivepop/subgroup) or bonsaiforest2
   if (estimator_name %in% c("naivepop", "subgroup")) {
     # Naive estimators - old format
+    # Compute 95% CI from estimate and standard error: CI = estimate ± 1.96 * SE
     if (estimator_name == "naivepop") {
       df_clean <- df %>%
         mutate(
           scenario_id = as.integer(scenario_no),
           replication_id = as.integer(sim_id),
           estimator = "population",
-          estimate = trt_effect
+          estimate = trt_effect,
+          ci_lower = trt_effect - 1.96 * trt_se,
+          ci_upper = trt_effect + 1.96 * trt_se
         )
     } else {
       df_clean <- df %>%
@@ -72,15 +75,23 @@ load_and_standardize_continuous <- function(file_path) {
           replication_id = as.integer(sim_id),
           estimator = "subgroup",
           estimate = trt_effect,
+          ci_lower = trt_effect - 1.96 * trt_se,
+          ci_upper = trt_effect + 1.96 * trt_se,
           subgroup_var = subgroup_var,
           level = subgroup_level
         )
     }
   } else {
-    # bonsaiforest2 estimators - new format with Median column
+    # bonsaiforest2 estimators - new format with Median column and credible intervals
     # Handle different column naming conventions
     repl_col <- ifelse("replication_id" %in% names(df), "replication_id", "simulation_id")
-    
+
+    # Normalize CI column names to lowercase
+    ci_lower_col <- ifelse("CI_Lower" %in% names(df), "CI_Lower",
+                          ifelse("ci_lower" %in% names(df), "ci_lower", NA))
+    ci_upper_col <- ifelse("CI_Upper" %in% names(df), "CI_Upper",
+                          ifelse("ci_upper" %in% names(df), "ci_upper", NA))
+
     df_clean <- df %>%
       filter(Subgroup != "Overall") %>%
       mutate(
@@ -88,16 +99,19 @@ load_and_standardize_continuous <- function(file_path) {
         replication_id = as.integer(!!sym(repl_col)),
         estimator = paste(model_type, prior_name, sep = "_"),
         estimate = Median,  # Use Median column for estimate
+        # Extract credible intervals (normalized to lowercase)
+        ci_lower = if (!is.na(ci_lower_col)) !!sym(ci_lower_col) else NA_real_,
+        ci_upper = if (!is.na(ci_upper_col)) !!sym(ci_upper_col) else NA_real_,
         # Parse subgroup column (e.g., "X1: N" -> subgroup_var="X1", level="N")
         subgroup_var = str_extract(Subgroup, "^[^:]+"),
         level = str_trim(str_remove(Subgroup, "^[^:]+:\\s*"))
       )
   }
-  
+
   df_clean %>%
     mutate(scenario_no = as.character(scenario_id)) %>%
-    dplyr::select(any_of(c("scenario_id", "replication_id", "scenario_no", "estimator", 
-                           "estimate", "subgroup_var", "level")))
+    dplyr::select(any_of(c("replication_id", "scenario_no", "estimator",
+                           "estimate", "ci_lower", "ci_upper", "subgroup_var", "level")))
 }
 
 # Load and process all files
@@ -120,10 +134,10 @@ cont_results_merged <- cont_all_results %>%
   {
     pop_results <- filter(., is.na(subgroup_var) | estimator == "population")
     subgroup_results <- filter(., !is.na(subgroup_var) & estimator != "population")
-    
+
     cat("Population estimator results:", nrow(pop_results), "rows\n")
     cat("Subgroup estimator results:", nrow(subgroup_results), "rows\n\n")
-    
+
     # Population: expand to all subgroups
     if (nrow(pop_results) > 0) {
       pop_joined <- pop_results %>%
@@ -136,7 +150,7 @@ cont_results_merged <- cont_all_results %>%
     } else {
       pop_joined <- tibble()
     }
-    
+
     # Subgroup: match to truth
     if (nrow(subgroup_results) > 0) {
       subgroup_joined <- subgroup_results %>%
@@ -145,7 +159,7 @@ cont_results_merged <- cont_all_results %>%
     } else {
       subgroup_joined <- tibble()
     }
-    
+
     bind_rows(pop_joined, subgroup_joined)
   }
 
