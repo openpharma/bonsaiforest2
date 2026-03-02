@@ -22,31 +22,26 @@ load(tte_truth_file)
 cat("Loaded truth data from:", tte_truth_file, "\n")
 
 # Extract subgroup-level truth (log hazard ratios)
-tte_truth_subgroup <- simul_parameter$true_subgroup_ahr %>%
-  mutate(scenario_no = as.character(row_number())) %>%
-  pivot_longer(
-    cols = -scenario_no,
-    names_to = "subgroup_raw",
-    values_to = "truth_ahr"
-  ) %>%
+# truth_effects is a list with scenario1, scenario2, scenario3, scenario4
+# Each element contains named numeric vectors with log-scale effects
+tte_truth_subgroup <- map_dfr(names(truth_effects), function(scenario_name) {
+  scenario_no <- gsub("scenario", "", scenario_name)
+  effects_vector <- truth_effects[[scenario_name]]
+
+  data.frame(
+    scenario_no = scenario_no,
+    subgroup_raw = names(effects_vector),
+    truth_log = as.numeric(effects_vector),
+    stringsAsFactors = FALSE
+  )
+}) %>%
   mutate(
     join_key = gsub("x_|\\.", "", subgroup_raw) %>% tolower(),
-    truth_log = log(truth_ahr)
+    truth_ahr = exp(truth_log)
   ) %>%
   dplyr::select(scenario_no, join_key, truth_log, truth_ahr)
 
 # Extract population-level truth
-tte_truth_population <- simul_parameter$true_overall_results %>%
-  mutate(
-    scenario_no = as.character(1:6),
-    truth_pop_ahr = AHR,
-    truth_pop_log = log(AHR)
-  ) %>%
-  dplyr::select(scenario_no, truth_pop_ahr, truth_pop_log)
-
-cat("Truth subgroup rows:", nrow(tte_truth_subgroup), "\n")
-cat("Unique scenarios:", unique(tte_truth_subgroup$scenario_no), "\n\n")
-
 # Load all TTE result files
 tte_all_files <- list.files(tte_results_path, pattern = "\\.rds$", full.names = TRUE)
 
@@ -54,11 +49,11 @@ cat("Found", length(tte_all_files), "result files\n\n")
 
 # Function to load and standardize TTE results
 load_and_standardize_tte <- function(file_path) {
-  
+
   df <- readRDS(file_path)
   estimator_name <- str_remove(basename(file_path), "^tte_") %>%
                     str_remove("\\.rds$")
-  
+
   # Check if it's a naive estimator (population/subgroup) or bonsaiforest2
   if (estimator_name %in% c("population", "subgroup")) {
     # Naive estimators
@@ -66,8 +61,8 @@ load_and_standardize_tte <- function(file_path) {
       mutate(
         scenario_id = as.integer(scenario_no),
         replication_id = as.integer(simul_no),
-        join_key = gsub("S_|Overall", "", subgroup) %>% 
-                   str_replace_all("[\\._\\s]", "") %>% 
+        join_key = gsub("S_|Overall", "", subgroup) %>%
+                   str_replace_all("[\\._\\s]", "") %>%
                    tolower(),
         estimator = estimator_name,
         estimate_log = estimate,
@@ -75,7 +70,7 @@ load_and_standardize_tte <- function(file_path) {
         ci_upper = upper_ci
       ) %>%
       filter(join_key != "")
-      
+
   } else {
     # bonsaiforest2 estimators (Global/OVAT)
     df_clean <- df %>%
@@ -83,8 +78,8 @@ load_and_standardize_tte <- function(file_path) {
       mutate(
         scenario_id = as.integer(scenario_id),
         replication_id = as.integer(replication_id),
-        join_key = gsub("x_|: | ", "", Subgroup) %>% 
-                   str_replace_all("[\\._\\s]", "") %>% 
+        join_key = gsub("x_|: | ", "", Subgroup) %>%
+                   str_replace_all("[\\._\\s]", "") %>%
                    tolower(),
         estimator = paste(model_type, prior_name, sep = "_"),
         estimate_log = log(Median),
@@ -92,9 +87,9 @@ load_and_standardize_tte <- function(file_path) {
         ci_upper = log(CI_Upper)
       )
   }
-  
+
   df_clean %>%
-    dplyr::select(scenario_id, replication_id, estimator, join_key, 
+    dplyr::select(scenario_id, replication_id, estimator, join_key,
            estimate_log, ci_lower, ci_upper) %>%
     mutate(scenario_no = as.character(scenario_id))
 }
@@ -112,13 +107,12 @@ cat("Estimators found:", n_distinct(tte_all_results$estimator), "\n\n")
 
 # Merge results with truth
 tte_results_merged <- tte_all_results %>%
-  left_join(tte_truth_subgroup, by = c("scenario_no", "join_key")) %>%
-  left_join(tte_truth_population, by = "scenario_no")
+  left_join(tte_truth_subgroup, by = c("scenario_no", "join_key"))
 
-# Filter to only rows with truth values and keep scenarios 1, 2, 4, 5
+# Filter to only rows with truth values and keep scenarios 1, 2, 3, 4
 tte_results_merged <- tte_results_merged %>%
   filter(!is.na(truth_log)) %>%
-  filter(scenario_no %in% c("1", "2", "4", "5"))
+  filter(scenario_no %in% c("1", "2", "3", "4"))
 
 cat("Total estimates with truth:", nrow(tte_results_merged), "\n\n")
 

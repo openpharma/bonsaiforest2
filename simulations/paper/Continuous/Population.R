@@ -80,20 +80,20 @@ cat(sprintf("Loaded %d scenarios\n", length(all_scenarios)))
 # --- 5. DEFINE NAIVE POPULATION ANALYSIS FUNCTION ---
 
 run_naive_population_analysis <- function(scenario_list, scenario_no) {
-  
+
   # scenario_list is a list of data.frames - combine them vertically
   scenario_data <- bind_rows(scenario_list)
-  
-  cat(sprintf("Processing scenario %d: %d simulations\n", 
+
+  cat(sprintf("Processing scenario %d: %d simulations\n",
               scenario_no, n_distinct(scenario_data$sim_id)))
-  
+
   results <- scenario_data %>%
     group_by(sim_id) %>%
     nest() %>%
     mutate(
       # Fit unadjusted model: Y ~ trt (to match TTE approach)
       fit = map(data, ~lm(Y ~ trt, data = .x)),
-      tidy_result = map(fit, ~broom::tidy(.x) %>% 
+      tidy_result = map(fit, ~broom::tidy(.x) %>%
                         filter(term == "trt") %>%
                         select(term, estimate, std.error, statistic, p.value)),
       glance_result = map(fit, ~broom::glance(.x) %>%
@@ -109,10 +109,12 @@ run_naive_population_analysis <- function(scenario_list, scenario_no) {
     ) %>%
     mutate(
       scenario_no = scenario_no,
-      scenario = unique(scenario_data$scenario)
+      scenario = unique(scenario_data$scenario),
+      # Extract replication_id from sim_id (format: "scenario_replication")
+      replication_id = as.integer(strsplit(as.character(sim_id), "_")[[1]][2])
     ) %>%
-    select(scenario_no, scenario, sim_id, everything())
-  
+    select(scenario_no, replication_id, scenario, sim_id, everything())
+
   return(results)
 }
 
@@ -121,16 +123,16 @@ run_naive_population_analysis <- function(scenario_list, scenario_no) {
 all_results <- list()
 
 for (scen_no in seq_along(all_scenarios)) {
-  
+
   cat(sprintf("\n--- Scenario %d ---\n", scen_no))
-  
+
   start_t <- Sys.time()
   result <- run_naive_population_analysis(all_scenarios[[scen_no]], scen_no)
   end_t <- Sys.time()
-  
+
   elapsed <- difftime(end_t, start_t, units = "secs")
   cat(sprintf("✓ Completed in %0.1f seconds\n", elapsed))
-  
+
   all_results[[scen_no]] <- result
 }
 
@@ -140,6 +142,6 @@ combined_results <- bind_rows(all_results)
 
 saveRDS(combined_results, file = results_file)
 cat(sprintf("\n✓ All results saved to %s\n", results_file))
-cat(sprintf("Processed %d scenarios with %d total simulations\n", 
+cat(sprintf("Processed %d scenarios with %d total simulations\n",
             n_distinct(combined_results$scenario_no),
             nrow(combined_results)))

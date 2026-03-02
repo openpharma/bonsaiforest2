@@ -31,7 +31,7 @@ library(rlang)
 
 ## Load TTE Results
 
-```{r load_tte_results}
+```{r load_tte_results, include=FALSE}
 # Set paths for TTE
 tte_base_path <- "/home/pedreram/bonsaiforest2/simulations/paper/TTE"
 tte_data_file <- file.path(tte_base_path, "tte_results_prepared.rds")
@@ -44,11 +44,7 @@ if (!file.exists(tte_data_file)) {
 }
 
 # Load merged TTE results (with estimates and truth)
-tte_all_results <- readRDS(tte_data_file) %>%
-  mutate(
-    # Rename scenarios: 4→3, 5→4
-    scenario_no = dplyr::recode(scenario_no, `4` = "3", `5` = "4")
-  )
+tte_all_results <- readRDS(tte_data_file) 
 
 cat("✓ Loaded TTE merged results from:", tte_data_file, "\n")
 cat("  Rows:", nrow(tte_all_results), "\n")
@@ -76,8 +72,6 @@ tte_subgroup_metrics <- tte_all_results %>%
     coverage = mean(ci_contains_truth, na.rm = TRUE),
     truth_log = first(truth_log),
     truth_ahr = first(truth_ahr),
-    truth_pop_log = first(truth_pop_log),
-    truth_pop_ahr = first(truth_pop_ahr),
     .groups = 'drop'
   )
 
@@ -443,11 +437,12 @@ kbl(worst_accuracy,
 
 # Continuous Simulation Results for Paper
 
+**NOTE:** This results are the ones excluding X3 from the model fitting (it was excluded from everywhere: data generation and model fitting). Also the Horseshoe model have s=2*sigma_plan
 ---
 
 ## Load Continuous Results
 
-```{r load_continuous_results}
+```{r load_continuous_results, include=FALSE}
 # Set paths for Continuous
 cont_base_path <- "/home/pedreram/bonsaiforest2/simulations/paper/Continuous"
 cont_data_file <- file.path(cont_base_path, "continuous_results_prepared.rds")
@@ -466,6 +461,10 @@ cat("✓ Loaded Continuous merged results from:", cont_data_file, "\n")
 cat("  Rows:", nrow(cont_all_results), "\n")
 cat("  Estimators:", n_distinct(cont_all_results$estimator), "\n")
 cat("  Scenarios:", unique(sort(cont_all_results$scenario_no)), "\n\n")
+
+
+cont_all_results <- cont_all_results %>%
+  dplyr::select(scenario_no, replication_id,subgroup_var, level, estimator, estimate, ci_lower, ci_upper, truth_trt_effect)
 ```
 
 ```{r cont_calculate_metrics}
@@ -480,7 +479,8 @@ cont_subgroup_metrics <- cont_all_results %>%
   ) %>%
   group_by(scenario_no, estimator, subgroup_var, level) %>%
   summarise(
-    n_replications = n(),
+    estimate_mean = mean(estimate, na.rm=TRUE),
+    estimate_var=var(estimate, na.rm=TRUE),
     RMSE = sqrt(mean(error^2, na.rm = TRUE)),
     bias = mean(error, na.rm = TRUE),  # Signed bias per subgroup
     abs_bias = abs(bias),  # Take absolute value of signed bias (not mean of abs)
@@ -490,18 +490,12 @@ cont_subgroup_metrics <- cont_all_results %>%
 
 # Second: calculate overall metrics per estimator-scenario
 # RMSE is computed from ALL replication-subgroup pairs combined
-cont_performance_by_scenario <- cont_all_results %>%
-  mutate(
-    error = estimate - truth_trt_effect
-  ) %>%
+cont_performance_by_scenario <- cont_subgroup_metrics %>%
   group_by(scenario_no, estimator) %>%
   summarise(
-    n_subgroups = n_distinct(paste(subgroup_var, level)),
-    n_total_pairs = n(),
-    # RMSE: sqrt(mean of all squared errors across all reps and subgroups)
-    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
-    Bias = mean(error, na.rm = TRUE),
-    AbsBias = mean(abs(error), na.rm = TRUE),
+    RMSE = mean(RMSE, na.rm = TRUE),
+    Bias = mean(bias, na.rm = TRUE),
+    AbsBias = mean(abs_bias, na.rm = TRUE),
     .groups = 'drop'
   ) %>%
   arrange(as.numeric(scenario_no), estimator)
@@ -516,7 +510,7 @@ cont_performance_overall <- cont_all_results %>%
   mutate(
     error = estimate - truth_trt_effect
   ) %>%
-  group_by(estimator) %>%
+  group_by(estimator, scenario_no) %>%
   summarise(
     RMSE = sqrt(mean(error^2, na.rm = TRUE)),
     Bias = mean(error, na.rm = TRUE),
@@ -539,17 +533,19 @@ beautify_cont_estimator <- function(estimator_name) {
     estimator_name == "population" ~ "Population",
     estimator_name == "subgroup" ~ "Subgroup",
     # Global HN
-    grepl("Global_HN.*phi_delta_half", estimator_name) ~ "Global - HN(φ=δ/2)",
-    grepl("Global_HN.*phi_sigma_plan", estimator_name) ~ "Global - HN(σ=σ_plan)",
-    grepl("Global_HN.*phi_delta_plan$", estimator_name) ~ "Global - HN(φ=δ)",
+    grepl("Global_HN.*phi_delta_half", estimator_name) ~ "Global - HN(φ=δ_plan/2)",
+    grepl("Global_HN.*phi_sigma_plan", estimator_name) ~ "Global - HN(φ=σ_plan)",
+    grepl("Global_HN.*phi_delta_plan$", estimator_name) ~ "Global - HN(φ=δ_plan)",
     # Global Horseshoe
-    grepl("Global_Horseshoe.*delta_half", estimator_name) ~ "Global - Horseshoe(δ/2)",
-    grepl("Global_Horseshoe.*sigma_plan", estimator_name) ~ "Global - Horseshoe(σ_plan)",
-    grepl("Global_Horseshoe.*delta_plan$", estimator_name) ~ "Global - Horseshoe(δ)",
+        grepl("Global_Horseshoe.*delta_10", estimator_name) ~ "Global - Horseshoe(τ_0 =δ_plan/10, s=2*σ_plan)",
+            grepl("Global_Horseshoe.*delta_100", estimator_name) ~ "Global - Horseshoe(τ_0 =δ_plan/100, s=2*σ_plan)",
+    grepl("Global_Horseshoe.*delta_half", estimator_name) ~ "Global - Horseshoe(τ_0 =δ_plan/2, s=2*σ_plan)",
+    grepl("Global_Horseshoe.*sigma_plan", estimator_name) ~ "Global - Horseshoe(τ_0 =σ_plan, s=2*σ_plan)",
+    grepl("Global_Horseshoe.*delta_plan$", estimator_name) ~ "Global - Horseshoe(τ_0 =δ_plan, s=2*σ_plan)",
     # OVAT HN
-    grepl("OVAT_HN.*phi_delta_half", estimator_name) ~ "OVAT - HN(φ=δ/2)",
-    grepl("OVAT_HN.*phi_sigma_plan", estimator_name) ~ "OVAT - HN(σ=σ_plan)",
-    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "OVAT - HN(φ=δ)",
+    grepl("OVAT_HN.*phi_delta_half", estimator_name) ~ "OVAT - HN(φ=δ_plan/2)",
+    grepl("OVAT_HN.*phi_sigma_plan", estimator_name) ~ "OVAT - HN(φ=σ_plan)",
+    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "OVAT - HN(φ=δ_plan)",
     TRUE ~ estimator_name
   )
 }
@@ -573,23 +569,29 @@ cont_baselines <- cont_performance_by_scenario %>%
   filter(estimator == "subgroup") %>%
   dplyr::select(scenario_no, baseline_rmse = RMSE)
 
+cont_plot_data <- cont_plot_data %>%
+  mutate(estimator_display = ifelse(estimator=="Global_Horseshoe_global_delta_100", "Global - Horseshoe(τ_0 =δ_plan/100, s=2*σ_plan)",
+                                    estimator_display))
+
 # Standardize RMSE
 cont_plot_data_standardized <- cont_plot_data %>%
   left_join(cont_baselines, by = "scenario_no") %>%
   mutate(
-    RMSE_standardized = RMSE 
+    RMSE_standardized = RMSE/baseline_rmse 
   )
 
 # Create plot with manual color scheme
 cont_color_map <- c(
   "Subgroup" = "red",
   "Population" = "orange",
-  "OVAT - HN(φ=δ/2)" = "skyblue",
-  "OVAT - HN(φ=δ)" = "royalblue",
-  "OVAT - HN(σ=σ_plan)" = "navy",
-  "Global - Horseshoe(δ/2)" = "palegreen3",
-  "Global - Horseshoe(δ)" = "forestgreen",
-  "Global - Horseshoe(σ_plan)" = "darkgreen"
+  "OVAT - HN(φ=δ_plan/2)" = "skyblue",
+  "OVAT - HN(φ=δ_plan)" = "royalblue",
+  "OVAT - HN(φ=σ_plan)" = "navy",
+  "Global - Horseshoe(τ_0 =δ_plan/100, s=2*σ_plan)" = "purple",
+  "Global - Horseshoe(τ_0 =δ_plan/10, s=2*σ_plan)" = "palegreen2",
+  "Global - Horseshoe(τ_0 =δ_plan/2, s=2*σ_plan)" = "palegreen3",
+  "Global - Horseshoe(τ_0 =δ_plan, s=2*σ_plan)" = "forestgreen",
+  "Global - Horseshoe(τ_0 =σ_plan, s=2*σ_plan)" = "darkgreen"
 )
 
 ggplot(cont_plot_data_standardized, aes(x = scenario_no_numeric, y = RMSE_standardized, 
@@ -624,6 +626,7 @@ ggplot(cont_plot_data_standardized, aes(x = scenario_no_numeric, y = RMSE_standa
 ```{r cont_table_by_scenario}
 # Create summary table with bias/abs_bias ranges from subgroup metrics
 # Filter to main section (exclude Global HN)
+
 cont_table_summary <- cont_subgroup_metrics %>%
   filter(!grepl("Global_HN", estimator)) %>%
   group_by(scenario_no, estimator) %>%
@@ -640,105 +643,299 @@ cont_table_summary <- cont_subgroup_metrics %>%
     .groups = 'drop'
   )
 
-cont_table_data <- cont_table_summary %>%
+# First: calculate per-subgroup metrics with coverage if available
+cont_subgroup_metrics_full <- cont_all_results %>%
+  mutate(
+    error = estimate - truth_trt_effect,
+    ci_contains_truth = if_else(!is.na(ci_lower) & !is.na(ci_upper),
+                                 (truth_trt_effect >= ci_lower) & (truth_trt_effect <= ci_upper),
+                                 NA)
+  ) %>%
+  group_by(scenario_no, estimator, subgroup_var, level) %>%
+  summarise(
+    n_replications = n(),
+    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
+    abs_bias = abs(mean(error, na.rm = TRUE)),
+    coverage = if_else(all(is.na(ci_contains_truth)), NA_real_, mean(ci_contains_truth, na.rm = TRUE)),
+    truth_trt_effect = first(truth_trt_effect),
+    .groups = 'drop'
+  )
+
+# Update cont_table_summary to include coverage and remove bias
+cont_table_summary <- cont_subgroup_metrics_full %>%
+  filter(!grepl("Global_HN", estimator)) %>%
+  group_by(scenario_no, estimator) %>%
+  summarise(
+    RMSE_mean = mean(RMSE, na.rm = TRUE),
+    RMSE_min = min(RMSE, na.rm = TRUE),
+    RMSE_max = max(RMSE, na.rm = TRUE),
+    AbsBias_mean = mean(abs_bias, na.rm = TRUE),
+    AbsBias_min = min(abs_bias, na.rm = TRUE),
+    AbsBias_max = max(abs_bias, na.rm = TRUE),
+    Coverage_mean = mean(coverage, na.rm = TRUE),
+    Coverage_min = min(coverage, na.rm = TRUE),
+    Coverage_max = max(coverage, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+# Format values and reshape to scenarios as columns, estimators as rows within each metric
+cont_table_formatted <- cont_table_summary %>%
   mutate(
     Estimator = beautify_cont_estimator(estimator),
+    Scenario = paste("Scenario", scenario_no),
     RMSE_display = paste0(display(RMSE_mean, 2), " (", display(RMSE_min, 2), "-", display(RMSE_max, 2), ")"),
-    Bias_range = paste0(display(Bias_mean, 4), " (", display(Bias_min, 4), "-", display(Bias_max, 4), ")"),
-    AbsBias_range = paste0(display(AbsBias_mean, 2), " (", display(AbsBias_min, 2), "-", display(AbsBias_max, 2), ")")
+    AbsBias_display = paste0(display(AbsBias_mean, 2), " (", display(AbsBias_min, 2), "-", display(AbsBias_max, 2), ")"),
+    Coverage_display = paste0(getPercentage(Coverage_mean, 0), " (", getPercentage(Coverage_min, 0), "-", getPercentage(Coverage_max, 0), ")")
   ) %>%
-  dplyr::select(
-    Scenario = scenario_no,
-    Estimator,
-    RMSE = RMSE_display,
-    Bias = Bias_range,
-    `|Bias|` = AbsBias_range
-  ) %>%
-  arrange(as.numeric(Scenario), Estimator)
+  dplyr::select(Estimator,estimator ,Scenario, RMSE_display, AbsBias_display, Coverage_display)
 
-kbl(cont_table_data,
-    caption = "Continuous: Overall RMSE and mean (range) of bias of subgroup treatment effect estimators across all replications and subgroups",
+cont_table_formatted <- cont_table_formatted %>%
+  mutate(Estimator = ifelse(estimator=="Global_Horseshoe_global_delta_100", "Global - Horseshoe(τ_0 =δ_plan/100, s=2*σ_plan)",
+                                    Estimator))%>%
+  dplyr::select(-estimator)
+
+# Create table grouped by METRIC first, then estimators
+cont_pivot_table <- tibble()
+
+# Group 1: RMSE rows
+cont_pivot_table <- bind_rows(cont_pivot_table,
+  tibble(Metric = "RMSE", Estimator = "", 
+         `Scenario 1` = "", `Scenario 2` = "", `Scenario 3` = "")
+)
+
+for (est in sort(unique(cont_table_formatted$Estimator))) {
+  est_data <- cont_table_formatted %>%
+    filter(Estimator == est) %>%
+    arrange(factor(Scenario, levels = paste("Scenario", 1:3)))
+  
+  row_data <- tibble(
+    Metric = "",
+    Estimator = est,
+    `Scenario 1` = est_data %>% filter(Scenario == "Scenario 1") %>% pull(RMSE_display) %>% first(),
+    `Scenario 2` = est_data %>% filter(Scenario == "Scenario 2") %>% pull(RMSE_display) %>% first(),
+    `Scenario 3` = est_data %>% filter(Scenario == "Scenario 3") %>% pull(RMSE_display) %>% first()
+  )
+  cont_pivot_table <- bind_rows(cont_pivot_table, row_data)
+}
+
+# Group 2: Absolute Bias rows
+cont_pivot_table <- bind_rows(cont_pivot_table,
+  tibble(Metric = "Absolute Bias", Estimator = "", 
+         `Scenario 1` = "", `Scenario 2` = "", `Scenario 3` = "")
+)
+
+for (est in sort(unique(cont_table_formatted$Estimator))) {
+  est_data <- cont_table_formatted %>%
+    filter(Estimator == est) %>%
+    arrange(factor(Scenario, levels = paste("Scenario", 1:3)))
+  
+  row_data <- tibble(
+    Metric = "",
+    Estimator = est,
+    `Scenario 1` = est_data %>% filter(Scenario == "Scenario 1") %>% pull(AbsBias_display) %>% first(),
+    `Scenario 2` = est_data %>% filter(Scenario == "Scenario 2") %>% pull(AbsBias_display) %>% first(),
+    `Scenario 3` = est_data %>% filter(Scenario == "Scenario 3") %>% pull(AbsBias_display) %>% first()
+  )
+  cont_pivot_table <- bind_rows(cont_pivot_table, row_data)
+}
+
+# Group 3: Coverage rows
+cont_pivot_table <- bind_rows(cont_pivot_table,
+  tibble(Metric = "Coverage", Estimator = "", 
+         `Scenario 1` = "", `Scenario 2` = "", `Scenario 3` = "")
+)
+
+for (est in sort(unique(cont_table_formatted$Estimator))) {
+  est_data <- cont_table_formatted %>%
+    filter(Estimator == est) %>%
+    arrange(factor(Scenario, levels = paste("Scenario", 1:3)))
+  
+  row_data <- tibble(
+    Metric = "",
+    Estimator = est,
+    `Scenario 1` = est_data %>% filter(Scenario == "Scenario 1") %>% pull(Coverage_display) %>% first(),
+    `Scenario 2` = est_data %>% filter(Scenario == "Scenario 2") %>% pull(Coverage_display) %>% first(),
+    `Scenario 3` = est_data %>% filter(Scenario == "Scenario 3") %>% pull(Coverage_display) %>% first()
+  )
+  cont_pivot_table <- bind_rows(cont_pivot_table, row_data)
+}
+
+kbl(cont_pivot_table,
+    caption = "Continuous: Performance metrics (mean and range) by estimator and scenario",
     booktabs = TRUE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
-                full_width = FALSE) %>%
-  collapse_rows(columns = 1)
+                full_width = FALSE)
+```
+
+---
+
+## Continuous Forest Plots: RMSE by Subgroup and Scenario
+
+```{r cont_forest_plot_prep}
+# Prepare data for forest plots: use per-subgroup RMSE
+# Use main estimators (exclude Global HN) for cleaner visualization
+
+cont_forest_data <- cont_subgroup_metrics %>%
+  filter(!grepl("Global_HN", estimator)) %>%
+  mutate(
+    estimator_display = beautify_cont_estimator(estimator),
+    subgroup_label = paste0(subgroup_var, "=", level)
+  ) %>%
+  arrange(as.numeric(scenario_no), estimator_display, subgroup_label)
+
+cat("Forest plot data prepared:\n")
+cat("  Scenarios:", unique(cont_forest_data$scenario_no), "\n")
+cat("  Estimators:", n_distinct(cont_forest_data$estimator_display), "\n")
+cat("  Subgroups per scenario:", n_distinct(cont_forest_data$subgroup_label), "\n")
+```
+
+```{r cont_forest_plot}
+# Create forest plots for each scenario
+# Traditional forest plot style showing RMSE per subgroup
+
+scenarios <- sort(unique(cont_forest_data$scenario_no))
+
+# Use the same color map as the overall RMSE plot
+cont_color_map <- c(
+  "Subgroup" = "red",
+  "Population" = "orange",
+  "OVAT - HN(φ=δ_plan/2)" = "skyblue",
+  "OVAT - HN(φ=δ_plan)" = "royalblue",
+  "OVAT - HN(φ=σ_plan)" = "navy",
+  "Global - Horseshoe(τ_0 =δ_plan/10, s=2*σ_plan)" = "palegreen1",
+  "Global - Horseshoe(τ_0 =δ_plan/2, s=2*σ_plan)" = "palegreen3",
+  "Global - Horseshoe(τ_0 =σ_plan, s=2*σ_plan)" = "forestgreen",
+  "Global - Horseshoe(τ_0 =δ_plan, s=2*σ_plan)" = "darkgreen"
+)
+
+for (scen in scenarios) {
+  scen_data <- cont_forest_data %>%
+    filter(scenario_no == scen) %>%
+    # Create a combined label for sorting/grouping
+    mutate(
+      subgroup_label_only = paste0(subgroup_var, "=", level)
+    ) %>%
+    # Sort by subgroup for better grouping
+    arrange(subgroup_var, level, estimator_display) %>%
+    mutate(
+      subgroup_label_only = factor(subgroup_label_only, 
+                                    levels = unique(subgroup_label_only))
+    )
+  
+  # Create forest plot
+  p <- ggplot(scen_data, aes(x = RMSE, y = subgroup_label_only, color = estimator_display)) +
+    geom_vline(xintercept = 0, linetype = "dashed", color = "gray70", size = 0.5) +
+    geom_point(size = 4, alpha = 0.8, position = position_dodge(width = 0.5)) +
+    scale_color_manual(values = cont_color_map, name = "Estimator") +
+    labs(
+      title = paste0("Continuous Scenario ", scen, ": RMSE per Subgroup"),
+      subtitle = "Smaller RMSE indicates better estimation accuracy",
+      x = "Root Mean Squared Error (RMSE)",
+      y = "Subgroup"
+    ) +
+    theme_bw() +
+    theme(
+      plot.title = element_text(face = "bold", size = 13),
+      plot.subtitle = element_text(size = 10, color = "gray50"),
+      axis.text.y = element_text(size = 10),
+      axis.text.x = element_text(size = 10),
+      legend.position = "right",
+      legend.text = element_text(size = 9),
+      panel.grid.major.y = element_line(color = "gray95", size = 0.3),
+      panel.grid.minor.x = element_blank(),
+      panel.spacing = unit(1, "lines")
+    )
+  
+  print(p)
+}
 ```
 
 ---
 
 ## Continuous Table: Performance for Scenario 3 (Strong Heterogeneity)
 
+### Performance Table for X11cat level a (Worst Subgroup in Scenario 3)
+
 ```{r cont_scenario_3_analysis}
 # Scenario 3 typically has strong heterogeneity
-# Get all subgroups for scenario 3
-cont_scenario_3_metrics <- cont_subgroup_metrics %>%
-  filter(scenario_no == "3")
+# X11cat level a is the worst subgroup (largest absolute effect)
+# Create performance table for X11cat=a by estimator using cont_subgroup_metrics_full
 
-# Get truth values for scenario 3
-cont_scenario_3_truth <- cont_scenario_3_metrics %>%
-  dplyr::select(subgroup_var, level, truth_trt_effect) %>%
-  distinct()
-
-# Identify "null" subgroup (X1 level N)
-cont_null_subgroup <- cont_scenario_3_metrics %>%
-  filter(subgroup_var == "X1" & level == "N") %>%
-  group_by(estimator) %>%
-  slice(1)
-
-if (nrow(cont_null_subgroup) == 0) {
-  # Alternative: take first X1 level
-  cont_null_subgroup <- cont_scenario_3_metrics %>%
-    filter(subgroup_var == "X1") %>%
-    group_by(estimator) %>%
-    slice(1)
-}
-
-# Identify worst subgroup (largest absolute effect, excluding X3 as per instructions)
-cont_worst_candidates <- cont_scenario_3_truth %>%
-  filter(!(subgroup_var == "X3")) %>%
-  arrange(desc(abs(truth_trt_effect)))
-
-cont_worst_subgroup_info <- cont_worst_candidates %>%
-  slice(1)
-
-# Get performance for worst subgroup
-cont_worst_subgroup <- cont_scenario_3_metrics %>%
-  filter(subgroup_var == cont_worst_subgroup_info$subgroup_var[1] &
-         level == cont_worst_subgroup_info$level[1]) %>%
-  group_by(estimator) %>%
-  slice(1)
-
-# Prepare null subgroup table
-cont_null_table <- cont_null_subgroup %>%
+cont_subgroup_x11cat_a_perf <- cont_subgroup_metrics_full %>%
+  filter(!grepl("Global_HN", estimator)) %>%
+  filter(scenario_no == "3", subgroup_var == "X11cat", level == "a") %>%
   mutate(
-    Estimator = beautify_cont_estimator(estimator),
-    Subgroup = "Null (X1=N)",
-    Truth = display(truth_trt_effect, 4),
-    Bias = display(bias, 4),
-    `|Bias|` = display(abs_bias, 4)
+    Estimator = beautify_cont_estimator(estimator)
   ) %>%
-  dplyr::select(Subgroup, Estimator, Truth, Bias, `|Bias|`)
-
-# Prepare worst subgroup table
-cont_worst_table <- cont_worst_subgroup %>%
+  dplyr::select(Estimator, RMSE, abs_bias, coverage, truth_trt_effect, n_replications) %>%
   mutate(
-    Estimator = beautify_cont_estimator(estimator),
-    Subgroup = paste0("Worst (", subgroup_var, "=", level, ")"),
-    Truth = display(truth_trt_effect, 4),
-    Bias = display(bias, 4),
-    `|Bias|` = display(abs_bias, 4)
+    RMSE = display(RMSE, 2),
+    AbsBias = display(abs_bias, 2),
+    Coverage = getPercentage(coverage, 0),
+    TruthEffect = display(truth_trt_effect, 4)
   ) %>%
-  dplyr::select(Subgroup, Estimator, Truth, Bias, `|Bias|`)
+  dplyr::select(Estimator, RMSE, AbsBias, Coverage) %>%
+  arrange(Estimator)
 
-# Combine
-cont_worst_table_data <- bind_rows(cont_null_table, cont_worst_table) %>%
-  arrange(Subgroup, Estimator)
-
-kbl(cont_worst_table_data,
-    caption = "Continuous Scenario 3 (Strong Heterogeneity): Performance for null and worst subgroups. Note: Subgroups defined by X_3 were excluded as candidates for worst subgroup.",
-    booktabs = TRUE) %>%
+kbl(cont_subgroup_x11cat_a_perf,
+    caption = "Continuous Scenario 3: Performance Metrics for X11cat level a (Worst Subgroup)",
+    booktabs = TRUE,
+    col.names = c("Estimator", "RMSE", "Absolute Bias", "95% CI Coverage")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE)
+```
+
+### Worst Subgroup Identification Accuracy
+
+```{r cont_worst_accuracy}
+# For each replication and estimator in Scenario 3, identify the subgroup with the smallest absolute treatment effect (closest to 0 = worst)
+# Then check if it correctly identifies X11cat=a
+
+true_worst_subgroup_a <- "a"
+true_worst_subgroup_var <- "X11cat"
+
+predicted_worst_cont <- cont_all_results %>%
+  filter(!grepl("Global_HN", estimator)) %>%
+  filter(estimator != "population") %>%
+  filter(scenario_no == "3", !is.na(estimate)) %>%
+  group_by(replication_id, estimator) %>%
+  mutate(
+    # Identify worst: 
+    is_worst_pred = estimate == min(estimate, na.rm = TRUE)
+  ) %>%
+  filter(is_worst_pred) %>%
+  dplyr::select(scenario_no, replication_id, estimator, subgroup_var, level) %>%
+  rename(pred_worst_var = subgroup_var, pred_worst_level = level) %>%
+  distinct()
+
+# Compare predicted vs true worst subgroups (should be X11cat=a)
+worst_accuracy_cont <- predicted_worst_cont %>%
+  mutate(
+    correctly_identified = (pred_worst_var == true_worst_subgroup_var) & (pred_worst_level == true_worst_subgroup_a)
+  ) %>%
+  group_by(estimator) %>%
+  summarise(
+    n_replications = n(),
+    n_correct = sum(correctly_identified, na.rm = TRUE),
+    accuracy = n_correct / n_replications,
+    accuracy_pct = getPercentage(accuracy, 0),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    Estimator = beautify_cont_estimator(estimator)
+  ) %>%
+  dplyr::select(Estimator, Replications = n_replications, `Correct Identifications` = n_correct, `Accuracy (%)` = accuracy_pct) %>%
+  arrange(Estimator)
+
+kbl(worst_accuracy_cont,
+    caption = "Continuous Scenario 3: Accuracy of Identifying X11cat level a as the Worst Subgroup",
+    booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE) %>%
+  footnote(
+    general = "Accuracy shows the proportion of 1,000 replications where each estimator correctly identified X11cat=a as the worst (smallest absolute treatment effect - closest to 0).",
+    general_title = ""
+  )
 ```
 
 ---

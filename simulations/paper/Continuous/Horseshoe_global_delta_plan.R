@@ -11,15 +11,15 @@ RESULTS_DIR <- "Results"
 sigma_plan <- 1.2
 delta_plan <- 0.35
 
-# Horseshoe specification: theta0 = delta_plan, s = 2*delta_plan
+# Horseshoe specification: theta0 = delta_plan, s = 2*sigma_plan (fixed)
 horseshoe_theta0 <- delta_plan
-horseshoe_scale_slab <- 2 * delta_plan
+horseshoe_scale_slab <- 2 * sigma_plan
 
 message(paste("Defining Horseshoe prior: theta0 =", horseshoe_theta0, ", scale_slab =", horseshoe_scale_slab, "..."))
 
 PRIOR_SPECIFICATIONS <- list(
   Horseshoe_global_delta_plan = list(
-    prior = brms::set_prior(paste0("horseshoe(", horseshoe_theta0, ", scale_slab = ", horseshoe_scale_slab, ")"), class = "b"),
+    prior = brms::set_prior(paste0("horseshoe(", horseshoe_theta0, ", scale_slab = ", horseshoe_scale_slab, ", autoscale=FALSE)"), class = "b"),
     autoscale = FALSE
   )
 )
@@ -84,7 +84,7 @@ gc()
 RNGkind('Mersenne-Twister')
 set.seed(0)
 
-covariate_set <- c("X1", "X2", "X3", "X4", "X8", "X11cat", "X14cat", "X17cat")
+covariate_set <- c("X1", "X2","X4", "X8", "X11cat", "X14cat", "X17cat")
 num_cores <- 96
 
 task_grid <- expand.grid(sim_id = names(flat_named_list), model_type = c("Global"), prior_name = names(PRIOR_SPECIFICATIONS), stringsAsFactors = FALSE)
@@ -142,7 +142,12 @@ run_single_task <- function(i) {
     n_divergent <- sum(fit$sampler_diagnostics[, , "divergent__"])
     neff_ratio <- mean(brms::neff_ratio(fit), na.rm = TRUE)
 
-    est_df <- est_df %>% mutate(model_type = current_task$model_type, prior_name = current_task$prior_name, max_rhat = max_rhat, n_rhats_gt_1_05 = rhat_gt_1_05, n_divergent = n_divergent, mean_neff_ratio = neff_ratio)
+    # Extract scenario_no and replication_id from sim_id
+    parts <- as.integer(strsplit(sim_id, "_")[[1]])
+    scenario_no <- parts[1]
+    replication_id <- parts[2]
+
+    est_df <- est_df %>% mutate(scenario_no = scenario_no, replication_id = replication_id, model_type = current_task$model_type, prior_name = current_task$prior_name, max_rhat = max_rhat, n_rhats_gt_1_05 = rhat_gt_1_05, n_divergent = n_divergent, mean_neff_ratio = neff_ratio)
     unlink(cmdstan_output_dir, recursive = TRUE)
     est_df
 

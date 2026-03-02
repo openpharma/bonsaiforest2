@@ -19,7 +19,7 @@ message(paste("Defining Horseshoe prior: theta0 =", horseshoe_theta0, ", scale_s
 
 PRIOR_SPECIFICATIONS <- list(
   Horseshoe_global_sigma_plan = list(
-    prior = brms::set_prior(paste0("horseshoe(", horseshoe_theta0, ", scale_slab = ", horseshoe_scale_slab, ")"), class = "b"),
+    prior = brms::set_prior(paste0("horseshoe(scale_global =", horseshoe_theta0, ", scale_slab = ", horseshoe_scale_slab, ", autoscale=FALSE)"), class = "b"),
     autoscale = FALSE
   )
 )
@@ -113,7 +113,7 @@ gc()
 RNGkind('Mersenne-Twister') # Recommended for parallel reproducibility
 set.seed(0)
 
-covariate_set <- c("X1", "X2", "X3", "X4", "X8", "X11cat", "X14cat", "X17cat")
+covariate_set <- c("X1", "X2", "X4", "X8", "X11cat", "X14cat", "X17cat")
 num_cores <- 96
 
 task_grid <- expand.grid(
@@ -194,9 +194,16 @@ run_single_task <- function(i) {
     # Get neff ratio
     neff_ratio <- mean(brms::neff_ratio(fit), na.rm = TRUE)
 
+    # Extract scenario_no and replication_id from sim_id
+    parts <- as.integer(strsplit(sim_id, "_")[[1]])
+    scenario_no <- parts[1]
+    replication_id <- parts[2]
+
     # Add metadata
     est_df <- est_df %>%
       mutate(
+        scenario_no = scenario_no,
+        replication_id = replication_id,
         model_type = current_task$model_type,
         prior_name = current_task$prior_name,
         max_rhat = max_rhat,

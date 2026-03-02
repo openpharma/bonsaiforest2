@@ -1,84 +1,104 @@
-#--------------------------------------------------------------------------------------------------
-#------ GENERATE AND STORE SIMULATION DATASETS FOR TTE SCENARIOS (1, 2, 3, 4)
-#------
-#------ This script:
-#------ 1. Generates n_simulations datasets for each selected scenario
-#------ 2. Stores each scenario's datasets in a single RDS file for efficient loading
-#------ 3. Uses the Wolbers et al. (2025) framework with renumbered scenarios
-#--------------------------------------------------------------------------------------------------
-
+# Ensure all required libraries are loaded
 library(checkmate)
-library(tidyverse)
+library(MASS) # Used by simul_covariates
 
-set.seed(0)
+# --- LOAD ALL FUNCTIONS ---
+source('functions.R')
+
+# --- REPRODUCIBILITY ---
+# Set seed for all random generation, as seen in the legacy code
 RNGkind('Mersenne-Twister')
+set.seed(0)
+rnorm(25, mean = 0, sd = 0.3)
 
-# ==================== CONFIGURATION ====================
+# --- LOOP PARAMETERS ---
+# Edit 'endpoints' to generate specific endpoints or all:
+# c("binary", "count", "continuous") for new endpoints only
+# c("binary") for testing single endpoint
+# TTE uses exact Wolbers et al. (2025) data via simul_scenario()
+endpoints <- c("tte")
+scenarios <- as.character(1:4)  # All 6 scenarios
 
-# Number of simulations per scenario
-n_simulations <- 1000
+# --- COMMON PARAMETERS ---
+# Number of replications (simulated datasets) per scenario
+n_datasets <- 1000
 
-# Scenarios to generate (1, 2, 3, 4 - renumbered from original 1, 2, 4, 5)
-scenarios_to_use <- c(1, 2, 3, 4)
-
-# Load functions from parent directory
-source('../functions.R')
-
-# ==================== TTE PARAMETERS ====================
-
+# --- TTE-SPECIFIC PARAMETERS ---
+# (Only used if endpoint == "tte")
+# TTE uses exact Wolbers et al. (2025) data via simul_scenario() function
 tte_params <- list(
   n_patients = 1000,
   n_events = 247,
-  sigma_aft = 0.85,
-  recr_duration = 3,
-  rate_cens = 0.02,
+  sigma_aft = 0.85,    # AFT Weibull scale parameter
+  recr_duration = 3,   # Recruitment period (years)
+  rate_cens = 0.02,    # Censoring rate
   add_uncensored_pfs = FALSE,
   inflation_factor = 1
 )
+# --- DEFINE SUBGROUP INTERACTION NAMES ---
+# All possible treatment-by-subgroup interaction terms
+# Based on 10 categorical variables with 2-3 levels each (total 25 combinations)
+group_coefs_names <- c(
+  "x_1a_arm", "x_1b_arm", "x_2a_arm", "x_2b_arm",
+  "x_3a_arm", "x_3b_arm", "x_4a_arm", "x_4b_arm", "x_4c_arm", "x_5a_arm",
+  "x_5b_arm", "x_5c_arm", "x_5d_arm", "x_6a_arm", "x_6b_arm", "x_7a_arm",
+  "x_7b_arm", "x_8a_arm", "x_8b_arm", "x_8c_arm", "x_9a_arm", "x_9b_arm",
+  "x_10a_arm", "x_10b_arm", "x_10c_arm"
+)  # Total: 25 interaction terms
 
-# ==================== CREATE OUTPUT DIRECTORY ====================
 
-output_dir <- "Scenarios"
-if (!dir.exists(output_dir)) {
-  dir.create(output_dir, showWarnings = FALSE)
-}
 
-# ==================== GENERATE SCENARIOS ====================
+for (ep in endpoints) {
 
-message("Starting TTE scenario generation (Scenarios 1, 2, 3, 4)...")
-message(paste("Number of simulations per scenario:", n_simulations))
-
-for (scenario in scenarios_to_use) {
-
-  start_time <- Sys.time()
-  message(paste("\nGenerating Scenario", scenario, "..."))
-
-  # Generate n_simulations datasets for this scenario
-  scenario_data <- simul_scenario(
-    scenario = as.character(scenario),
-    n_datasets = n_simulations,
-    n_patients = tte_params$n_patients,
-    n_events = tte_params$n_events,
-    sigma_aft = tte_params$sigma_aft,
-    recr_duration = tte_params$recr_duration,
-    rate_cens = tte_params$rate_cens,
-    add_uncensored_pfs = tte_params$add_uncensored_pfs,
-    inflation_factor = tte_params$inflation_factor
+  # Get the correct folder name (capitalization matters)
+  endpoint_folder <- switch(ep,
+                            "tte" = "TTE",
+                            "binary" = "Binary",
+                            "count" = "Count",
+                            "continuous" = "Continuous"
   )
 
-  # Save to RDS file
-  output_file <- file.path(output_dir, paste0("scenario", scenario, ".rds"))
-  saveRDS(scenario_data, file = output_file)
+  for (scen in scenarios) {
 
-  elapsed_time <- difftime(Sys.time(), start_time, units = "mins")
-  file_size_mb <- file.size(output_file) / (1024^2)
+    # --- 1. Log Start ---
+    message("------------------------------------------------------")
+    message(paste("🚀 Starting:", ep, "- Scenario", scen))
 
-  message(paste("    Scenario", scenario, "complete"))
-  message(paste("    File:", basename(output_file)))
-  message(paste("    Size:", round(file_size_mb, 1), "MB"))
-  message(paste("    Time:", round(elapsed_time, 1), "minutes"))
+    # --- 2. Set Up Function Arguments ---
+    # Construct arguments for simul_study_data() function
+    call_args <- list(
+      endpoint = ep,
+      scenario = scen,
+      n_datasets = n_datasets
+    )
+
+    # TTE uses different function (simul_scenario) with specific parameters
+    if (ep == "tte") {
+      call_args <- c(call_args, tte_params)
+    }
+    # Binary, Count, Continuous: use .simul_new_endpoint_single() internally
+
+    # --- 3. Generate Data ---
+    # Call simul_study_data() which dispatches to appropriate generator:
+    #   - simul_scenario() for TTE (uses Wolbers et al. 2025 exact data)
+    #   - .simul_new_endpoint_single() for Binary/Count/Continuous (new generation)
+    message("   ...generating data...")
+    dataset_list <- do.call(simul_study_data, call_args)
+
+
+    # --- 4. Define Save Path and Save ---
+    file_name <- paste0("scenario", scen, ".rds")
+
+    # Construct the full relative path
+    save_path <- file.path(endpoint_folder, "Scenarios", file_name)
+
+    # Save the resulting list (e.g., of 1000 data.frames) as a single .rds file
+    message(paste("   ...saving to", save_path))
+    saveRDS(dataset_list, file = save_path)
+
+    message(paste("✅ Completed:", ep, "- Scenario", scen))
+  }
 }
 
-message("\nAll TTE scenarios generated successfully!")
-message(paste("Scenarios:", paste(scenarios_to_use, collapse = ", ")))
-message(paste("Location:", file.path(getwd(), output_dir)))
+message("------------------------------------------------------")
+message("🎉 All simulations generated and saved successfully! 🎉")

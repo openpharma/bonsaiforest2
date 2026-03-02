@@ -1,6 +1,6 @@
 #--------------------------------------------------------------------------------------------------
 #------ GENERATE AND STORE SIMULATION DATASETS FOR ALL CONTINUOUS SCENARIOS
-#------ 
+#------
 #------ This script:
 #------ 1. Loads the calibrated scenario parameters
 #------ 2. Generates n_simulations datasets for each scenario
@@ -38,35 +38,35 @@ source('SimulationTruth.R')
 #' @param selected_scen_par Data frame with calibrated scenario parameters
 #' @param n_patients Sample size (default 500)
 #'
-#' @return A data frame with columns: trt, X1, X2, X3, X4, X8, X11cat, X14cat, X17cat, Y
+#' @return A data frame with columns: trt, X1, X2, X4, X8, X11cat, X14cat, X17cat, Y
 simulate_scenario <- function(scenario_no, selected_scen_par, n_patients = 500) {
-  
+
   scen <- selected_scen_par[scenario_no, ]
-  
+
   # Simulate covariates (via resampling from large population)
   df <- benchtm:::X_large_pop[sample(1:50000, n_patients), ]
-  
+
   # Create categorical variables at specified cutpoints
   df$X11cat <- cut(df$X11, c(-Inf, 0.4615385, Inf), labels = c("a", "b"))
   df$X14cat <- cut(df$X14, c(-Inf, 0.2478632, 0.3333833, Inf), labels = c("a", "b", "c"))
   df$X17cat <- cut(df$X17, c(-Inf, 0.5888801, Inf), labels = c("a", "b"))
-  
+
   # Simulate treatment assignment (balanced)
   trt <- rep(c(0, 1), n_patients / 2)
-  
+
   # Simulate outcome Y
   df <- generate_y(
-    X = df, 
+    X = df,
     trt = trt,
-    prog = scen$prog, 
-    pred = scen$pred, 
-    b0 = scen$b0, 
-    b1 = scen$b1, 
+    prog = scen$prog,
+    pred = scen$pred,
+    b0 = scen$b0,
+    b1 = scen$b1,
     type = scen$type
   )
-  
+
   # Select and return relevant variables
-  df |> select(trt, X1, X2, X3, X4, X8, X11cat, X14cat, X17cat, Y)
+  df |> select(trt, X1, X2, X4, X8, X11cat, X14cat, X17cat, Y)
 }
 
 
@@ -75,24 +75,24 @@ simulate_scenario <- function(scenario_no, selected_scen_par, n_patients = 500) 
 message("Generating simulation datasets for all scenarios...")
 
 for (scenario_no in 1:nrow(selected_scen_par)) {
-  
+
   # Get scenario info for messaging
   scen_info <- selected_scen_par[scenario_no, ]
-  message(sprintf("  Scenario %d (%s): Generating %d simulations...", 
-                  scenario_no, 
+  message(sprintf("  Scenario %d (%s): Generating %d simulations...",
+                  scenario_no,
                   as.character(scen_info$scenario),
                   n_simulations))
-  
+
   # Generate all simulations for this scenario as a list
   scenario_data <- replicate(
     n_simulations,
     simulate_scenario(scenario_no, selected_scen_par),
     simplify = FALSE
   )
-  
+
   # Keep as list and name by sim_id (1, 2, 3, ..., 1000)
   names(scenario_data) <- as.character(1:n_simulations)
-  
+
   # Add metadata to each data frame in the list
   scenario_data <- lapply(names(scenario_data), function(sim_id) {
     df <- scenario_data[[sim_id]]
@@ -104,10 +104,10 @@ for (scenario_no in 1:nrow(selected_scen_par)) {
         .before = trt
       )
   })
-  
+
   # Name the list elements by sim_id
   names(scenario_data) <- as.character(1:n_simulations)
-  
+
   # Save to RDS file
   output_file <- sprintf("Scenarios/scenario%d.rds", scenario_no)
   saveRDS(scenario_data, file = output_file)

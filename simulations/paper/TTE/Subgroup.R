@@ -67,7 +67,7 @@ endpoint_params <- switch(ENDPOINT_ID,
 
 
 # --- 3. LOAD SCENARIO DATA ---
-scenarios_to_run <- as.character(1:6)
+scenarios_to_run <- as.character(1:4)
 scenarios_list <- list()
 
 message(paste("Loading 6 scenarios from folder:", endpoint_params$folder))

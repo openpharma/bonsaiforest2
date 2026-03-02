@@ -1,0 +1,458 @@
+---
+title: "Forest Plot: Comparing Treatment Effect Estimators Against Truth"
+subtitle: "Random Simulation from Scenario 3"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+    fig_width: 12
+    fig_height: 8
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  message = TRUE,
+  warning = FALSE,
+  fig.width = 14,
+  fig.height = 10
+)
+```
+
+# Overview
+
+This document demonstrates how to:
+1. Load a randomly selected simulation from Scenario 3
+2. Fit multiple treatment effect estimators (Naive Subgroup and Population)
+3. Compare estimates against the ground truth
+4. Visualize results in a forest plot
+
+---
+
+# 1. Load Libraries and Data
+
+```{r load_libraries}
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(broom)
+library(tibble)
+library(purrr)
+
+# Set working directory to Continuous folder
+# Try to use the document directory if available, otherwise use explicit path
+tryCatch({
+  setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+}, error = function(e) {
+  # Fallback: set to Continuous folder explicitly
+  setwd("~/bonsaiforest2/simulations/paper/Continuous")
+})
+
+# Verify we're in the right directory
+cat("Working directory:", getwd(), "\n")
+```
+
+```{r load_truth_and_scenarios}
+# Load ground truth
+load("Scenarios/truth.RData")
+
+# Load scenario 3 data (list of 1000 simulations)
+scenario3_all <- readRDS("Scenarios/scenario3.rds")
+
+# Randomly select one simulation
+set.seed(0)  # Change seed for different random selections
+random_sim_id <- sample(1:length(scenario3_all), 1)
+sim_data <- as.data.frame(scenario3_all[[random_sim_id]])
+
+cat(sprintf("Selected simulation #%d from Scenario 3\n", random_sim_id))
+cat(sprintf("Sample size: %d\n", nrow(sim_data)))
+cat(sprintf("Covariates: %s\n", paste(names(sim_data)[!names(sim_data) %in% c("trt", "Y")], collapse = ", ")))
+
+# Get truth data for scenario 3
+truth_scen3 <- simulation_truth %>%
+  filter(scenario_no == 3)
+
+head(truth_scen3)
+```
+
+---
+
+# 2. Naive Subgroup Analysis
+
+Fit a linear model `Y ~ trt` for each subgroup, using only data from that subgroup level.
+
+```{r subgroup_analysis}
+# Define subgroup variables
+subgroup_vars <- c("X1", "X2", "X4", "X8", "X11cat", "X14cat", "X17cat")
+
+# Create unique combinations of (subgroup_var, level)
+subgroup_combinations <- expand.grid(
+  subgroup_var = subgroup_vars,
+  stringsAsFactors = FALSE
+) %>%
+  as_tibble() %>%
+  rowwise() %>%
+  mutate(
+    levels_list = list(unique(na.omit(sim_data[[subgroup_var]])))
+  ) %>%
+  unnest(levels_list) %>%
+  rename(subgroup_level = levels_list) %>%
+  mutate(
+    subgroup_id = paste0(subgroup_var, ".", as.character(subgroup_level))
+  ) %>%
+  ungroup()
+
+cat(sprintf("Analyzing %d unique subgroup combinations\n", nrow(subgroup_combinations)))
+
+# Fit a model for each unique subgroup combination
+subgroup_results <- map_df(seq_len(nrow(subgroup_combinations)), function(i) {
+  
+  row <- subgroup_combinations[i, ]
+  subgroup_var <- row$subgroup_var
+  subgroup_level <- row$subgroup_level
+  subgroup_id <- row$subgroup_id
+  
+  # Subset data to this subgroup (convert to character to handle factors safely)
+  df_sub <- sim_data %>% 
+    filter(!is.na(.data[[subgroup_var]]), as.character(.data[[subgroup_var]]) == as.character(subgroup_level))
+  
+  n_obs <- nrow(df_sub)
+  
+  if (n_obs < 2) {
+    return(tibble(
+      subgroup_id = subgroup_id,
+      subgroup_var = subgroup_var,
+      subgroup_level = as.character(subgroup_level),
+      estimator = "Naive Subgroup",
+      n = n_obs,
+      n_trt0 = NA_real_,
+      n_trt1 = NA_real_,
+      trt_effect = NA_real_,
+      trt_se = NA_real_,
+      trt_t_stat = NA_real_,
+      trt_p_value = NA_real_,
+      ci_lower = NA_real_,
+      ci_upper = NA_real_,
+      mean_y_trt0 = NA_real_,
+      mean_y_trt1 = NA_real_,
+      sd_y_trt0 = NA_real_,
+      sd_y_trt1 = NA_real_
+    ))
+  }
+  
+  # Fit linear model: Y ~ trt
+  fit <- lm(Y ~ trt, data = df_sub)
+  tidy_res <- broom::tidy(fit) %>% filter(term == "trt")
+  
+  # Get counts and means by treatment group
+  summary_stats <- df_sub %>%
+    group_by(trt) %>%
+    summarise(
+      n_trt = n(),
+      mean_y = mean(Y),
+      sd_y = sd(Y),
+      .groups = "drop"
+    ) %>%
+    pivot_wider(
+      names_from = trt,
+      values_from = c(n_trt, mean_y, sd_y),
+      names_glue = "{.value}_trt{trt}",
+      values_fill = NA_real_
+    )
+  
+  # Safely extract values (even if treatment group is missing)
+  tibble(
+    subgroup_id = subgroup_id,
+    subgroup_var = subgroup_var,
+    subgroup_level = as.character(subgroup_level),
+    estimator = "Naive Subgroup",
+    n = n_obs,
+    n_trt0 = ifelse("n_trt_trt0" %in% names(summary_stats), summary_stats$n_trt_trt0, NA_real_),
+    n_trt1 = ifelse("n_trt_trt1" %in% names(summary_stats), summary_stats$n_trt_trt1, NA_real_),
+    trt_effect = tidy_res$estimate[1],
+    trt_se = tidy_res$std.error[1],
+    trt_t_stat = tidy_res$statistic[1],
+    trt_p_value = tidy_res$p.value[1],
+    ci_lower = trt_effect - 1.96 * trt_se,
+    ci_upper = trt_effect + 1.96 * trt_se,
+    mean_y_trt0 = ifelse("mean_y_trt0" %in% names(summary_stats), summary_stats$mean_y_trt0, NA_real_),
+    mean_y_trt1 = ifelse("mean_y_trt1" %in% names(summary_stats), summary_stats$mean_y_trt1, NA_real_),
+    sd_y_trt0 = ifelse("sd_y_trt0" %in% names(summary_stats), summary_stats$sd_y_trt0, NA_real_),
+    sd_y_trt1 = ifelse("sd_y_trt1" %in% names(summary_stats), summary_stats$sd_y_trt1, NA_real_)
+  )
+})
+
+cat(sprintf("Generated %d subgroup estimates\n", nrow(subgroup_results)))
+head(subgroup_results)
+```
+
+---
+
+# 3. Naive Population Analysis
+
+Fit a linear model `Y ~ trt` using all data (overall/global effect).
+
+```{r population_analysis}
+# Fit population-level model
+pop_fit <- lm(Y ~ trt, data = sim_data)
+pop_coef <- broom::tidy(pop_fit) %>% filter(term == "trt")
+
+# Get summary statistics
+pop_summary <- sim_data %>%
+  group_by(trt) %>%
+  summarise(
+    n = n(),
+    mean_y = mean(Y),
+    sd_y = sd(Y),
+    .groups = "drop"
+  )
+
+# Extract values for population results
+pop_trt_effect <- pop_coef$estimate[1]
+pop_trt_se <- pop_coef$std.error[1]
+pop_ci_lower <- pop_trt_effect - 1.96 * pop_trt_se
+pop_ci_upper <- pop_trt_effect + 1.96 * pop_trt_se
+
+population_results <- tibble(
+  subgroup_id = "Overall",
+  subgroup_var = "Overall",
+  subgroup_level = "All",
+  estimator = "Naive Population",
+  n = nrow(sim_data),
+  n_trt0 = pop_summary$n[1],
+  n_trt1 = pop_summary$n[2],
+  trt_effect = pop_trt_effect,
+  trt_se = pop_trt_se,
+  ci_lower = pop_ci_lower,
+  ci_upper = pop_ci_upper,
+  mean_y_trt0 = pop_summary$mean_y[1],
+  mean_y_trt1 = pop_summary$mean_y[2],
+  sd_y_trt0 = pop_summary$sd_y[1],
+  sd_y_trt1 = pop_summary$sd_y[2]
+)
+
+cat("Population-level estimates:\n")
+print(population_results[, c("estimator", "trt_effect", "trt_se", "ci_lower", "ci_upper")])
+```
+
+---
+
+# 4. Merge with Ground Truth
+
+```{r merge_with_truth}
+# Check structure of truth data
+cat("Columns in truth_scen3: ", paste(names(truth_scen3), collapse = ", "), "\n")
+str(truth_scen3)
+
+# Prepare truth data for merging
+truth_for_merge <- truth_scen3 %>%
+  mutate(
+    subgroup_level_char = as.character(level),
+    subgroup_id = paste0(subgroup_var, ".", subgroup_level_char),
+    truth_value = trt_effect
+  )
+
+# Calculate overall truth (mean across all subgroups)
+overall_truth <- truth_scen3$trt_effect %>% mean()
+
+truth_pop <- tibble(
+  subgroup_id = "Overall",
+  subgroup_var = "Overall",
+  truth_value = overall_truth
+)
+
+truth_all <- bind_rows(
+  truth_for_merge %>% dplyr::select(subgroup_id, subgroup_var, truth_value),
+  truth_pop
+)
+
+# Combine all estimates
+all_estimates <- bind_rows(subgroup_results, population_results)
+
+# Merge with truth
+comparison_data <- all_estimates %>%
+  left_join(
+    truth_all %>% dplyr::select(subgroup_id, truth_value),
+    by = "subgroup_id"
+  ) %>%
+  mutate(
+    bias = trt_effect - truth_value,
+    coverage = (ci_lower <= truth_value) & (truth_value <= ci_upper)
+  )
+
+head(comparison_data, 15)
+```
+
+---
+
+# 5. Summary Table
+
+```{r summary_table}
+summary_table <- comparison_data %>%
+  group_by(estimator, subgroup_var) %>%
+  summarise(
+    n_subgroups = n(),
+    mean_estimate = mean(trt_effect, na.rm = TRUE),
+    mean_bias = mean(bias, na.rm = TRUE),
+    mean_se = mean(trt_se, na.rm = TRUE),
+    coverage = mean(coverage, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(subgroup_var, estimator)
+
+knitr::kable(summary_table, caption = "Summary of Estimates by Estimator and Subgroup Variable")
+```
+
+---
+
+# 6. Forest Plot: All Subgroups
+
+```{r forest_plot_all}
+# Prepare data for forest plot
+forest_data <- comparison_data %>%
+  filter(estimator == "Naive Subgroup") %>%
+  arrange(subgroup_var, subgroup_level) %>%
+  mutate(
+    group_label = paste0(subgroup_var, " = ", subgroup_level),
+    group_order = row_number()
+  )
+
+# Create forest plot
+p_forest <- ggplot(forest_data, aes(x = reorder(group_label, -group_order), y = trt_effect)) +
+  geom_point(aes(color = "Estimate"), size = 3, position = position_dodge(width = 0.2)) +
+  geom_errorbar(
+    aes(ymin = ci_lower, ymax = ci_upper, color = "Estimate"),
+    width = 0.3,
+    position = position_dodge(width = 0.2)
+  ) +
+  geom_point(
+    aes(y = truth_value, color = "Truth"),
+    size = 3,
+    shape = 4,
+    stroke = 2,
+    position = position_dodge(width = 0.2)
+  ) +
+  facet_wrap(~subgroup_var, scales = "free", ncol = 2) +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    strip.text = element_text(face = "bold", size = 11),
+    legend.position = "bottom"
+  ) +
+  labs(
+    title = "Forest Plot: Naive Subgroup Estimates vs. Ground Truth",
+    subtitle = sprintf("Scenario 3, Simulation #%d", random_sim_id),
+    x = "Subgroup",
+    y = "Treatment Effect Estimate (95% CI)",
+    color = "Type"
+  ) +
+  scale_color_manual(
+    values = c("Estimate" = "steelblue", "Truth" = "red")
+  ) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", alpha = 0.5)
+
+print(p_forest)
+```
+
+---
+
+# 7. Forest Plot: Population vs. Subgroup Estimates
+
+```{r forest_plot_comparison}
+# Select representative subgroups for cleaner visualization
+representative_subgroups <- comparison_data %>%
+  filter(estimator == "Naive Subgroup") %>%
+  group_by(subgroup_var) %>%
+  slice(1:3) %>%  # First 3 levels of each variable
+  ungroup() %>%
+  dplyr::select(subgroup_id)
+
+# Add population estimate
+comparison_data_subset <- comparison_data %>%
+  filter(subgroup_id %in% c(representative_subgroups$subgroup_id, "Overall")) %>%
+  mutate(
+    group_label = ifelse(subgroup_id == "Overall", "Overall Population", subgroup_id),
+    estimator = factor(estimator, levels = c("Naive Population", "Naive Subgroup"))
+  )
+
+# Forest plot comparing all estimators
+comparison_data_subset <- comparison_data_subset %>%
+  mutate(
+    group_order = row_number()
+  )
+
+p_forest_comp <- ggplot(comparison_data_subset, aes(x = reorder(group_label, group_order), y = trt_effect)) +
+  geom_point(aes(color = estimator), size = 3, position = position_dodge(width = 0.5)) +
+  geom_errorbar(
+    aes(ymin = ci_lower, ymax = ci_upper, color = estimator),
+    width = 0.4,
+    position = position_dodge(width = 0.5)
+  ) +
+  geom_point(
+    aes(y = truth_value),
+    color = "red",
+    size = 3.5,
+    shape = 4,
+    stroke = 2,
+    position = position_dodge(width = 0.5)
+  ) +
+  coord_flip() +
+  theme_minimal() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    legend.position = "top"
+  ) +
+  labs(
+    title = "Forest Plot: Population vs. Subgroup Estimates",
+    subtitle = sprintf("Scenario 3, Simulation #%d (Red ✕ = Ground Truth)", random_sim_id),
+    x = "Subgroup",
+    y = "Treatment Effect Estimate (95% CI)",
+    color = "Estimator"
+  ) +
+  scale_color_manual(
+    values = c("Naive Population" = "steelblue", "Naive Subgroup" = "orange")
+  ) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "gray50", alpha = 0.5)
+
+print(p_forest_comp)
+```
+
+---
+
+# 8. Performance Metrics
+
+```{r performance_metrics}
+performance <- comparison_data %>%
+  group_by(estimator) %>%
+  summarise(
+    n_estimates = n(),
+    mean_bias = mean(bias, na.rm = TRUE),
+    rmse_bias = sqrt(mean(bias^2, na.rm = TRUE)),
+    mean_se = mean(trt_se, na.rm = TRUE),
+    empirical_coverage = mean(coverage, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    mean_bias = round(mean_bias, 4),
+    rmse_bias = round(rmse_bias, 4),
+    mean_se = round(mean_se, 4),
+    empirical_coverage = round(empirical_coverage, 4)
+  )
+
+knitr::kable(
+  performance,
+  caption = "Performance Metrics by Estimator",
+  col.names = c("Estimator", "N Estimates", "Mean Bias", "RMSE Bias", "Mean SE", "Coverage Rate")
+)
+```
+
+---
+
+# 9. Session Info
+
+```{r session_info}
+sessionInfo()
+```

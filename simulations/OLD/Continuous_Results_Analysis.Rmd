@@ -1,0 +1,760 @@
+---
+title: "Continuous Simulation Results Analysis"
+subtitle: "RMSE, Bias, and Covariate Balance Analysis"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE, 
+                      fig.width = 14, fig.height = 9)
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+library(rlang)
+```
+
+# Continuous Simulation Results Analysis
+
+This document analyzes Continuous outcome simulation results, calculating:
+- **RMSE** (Root Mean Squared Error)
+- **Bias** (Mean difference between estimate and truth)
+- **Coverage** (Proportion of 95% CIs containing the true value)
+
+All metrics are calculated on the original scale (treatment effect).
+
+---
+
+## Load Results
+
+```{r load_results}
+# Set paths
+base_path <- "/home/pedreram/bonsaiforest2/simulations/Continuous"
+results_path <- file.path(base_path, "Results")
+
+# Find all RDS files
+all_files <- list.files(results_path, pattern = "\\.rds$", full.names = TRUE)
+cat("Found", length(all_files), "result files:\n")
+cat(paste("-", basename(all_files), collapse = "\n"), "\n")
+
+```
+
+---
+
+## Load Truth Values
+
+```{r load_truth}
+# Load truth data
+truth_file <- file.path(base_path, "Scenarios", "truth.RData")
+load(truth_file)
+cat("Loaded truth values from:", truth_file, "\n")
+
+# Extract population-level truth (treatment effect)
+truth_population <- simulation_truth %>%
+  group_by(scenario_no, scenario) %>%
+  summarise(
+    truth_trt_effect = first(pop_trt_effect),
+    .groups = 'drop'
+  ) %>%
+  mutate(scenario_no = as.character(scenario_no))
+
+cat("\nTruth data loaded successfully.\n")
+cat("Scenarios:", unique(truth_population$scenario_no), "\n")
+```
+
+---
+
+## Process Results Files
+
+```{r process_results}
+# Function to load and standardize a single RDS file
+load_and_standardize <- function(file_path) {
+  
+  df <- readRDS(file_path)
+  file_name <- basename(file_path)
+  
+  # Detect file format: new bonsaiforest2 models vs old format
+  has_new_format <- "scenario_id" %in% names(df)
+  
+  if (has_new_format) {
+    # NEW FORMAT: Global and OVAT models from bonsaiforest2
+    # Create estimator from model_type and prior_name columns
+    if ("model_type" %in% names(df) && "prior_name" %in% names(df)) {
+      # Get the estimator name from data columns
+      estimator_name <- df %>% 
+        distinct(model_type, prior_name) %>% 
+        pull() %>% 
+        paste(collapse = "_")
+      # Format: "{model_type}_{prior_name}"
+      estimator_name <- paste(df$model_type[1], df$prior_name[1], sep = "_")
+    } else {
+      estimator_name <- str_remove(file_name, "\\.rds$")
+    }
+    
+    cat("Processing:", estimator_name, "\n")
+    
+    # Find estimate, ci_lower, ci_upper columns (try multiple possible names)
+    
+    estimate_col <- names(df)[names(df) %in% c("estimate", "Effect", "Estimate", "trt_effect", "Median")] %>% 
+      first(default = NA)
+    lower_col <- names(df)[names(df) %in% c("lower", "ci_lower", "2.5%", "Lower", "CI_Lower")] %>% 
+      first(default = NA)
+    upper_col <- names(df)[names(df) %in% c("upper", "ci_upper", "97.5%", "Upper", "CI_Upper")] %>% 
+      first(default = NA)
+    
+    if (is.na(estimate_col)) {
+      cat("  WARNING: Could not find estimate column. Available columns:", 
+          paste(names(df), collapse = ", "), "\n")
+      return(tibble())
+    }
+    
+    # Rename columns to standard names
+    if (!is.na(lower_col) && lower_col != "ci_lower") {
+      df <- df %>% rename(ci_lower = all_of(lower_col))
+    } else if (is.na(lower_col)) {
+      df$ci_lower <- NA_real_
+    }
+    
+    if (!is.na(upper_col) && upper_col != "ci_upper") {
+      df <- df %>% rename(ci_upper = all_of(upper_col))
+    } else if (is.na(upper_col)) {
+      df$ci_upper <- NA_real_
+    }
+    
+    if (estimate_col != "estimate") {
+      df <- df %>% rename(estimate = all_of(estimate_col))
+    }
+    
+    df_clean <- df %>%
+      mutate(
+        scenario_no = as.character(scenario_id),
+        estimator = estimator_name
+      )
+    
+    # Select relevant columns
+    cols_to_keep <- c("scenario_id", "replication_id", "scenario_no", "estimator", 
+                      "estimate", "ci_lower", "ci_upper")
+    # Add optional columns if they exist
+    if ("level" %in% names(df_clean)) cols_to_keep <- c(cols_to_keep, "level")
+    if ("subgroup_var" %in% names(df_clean)) cols_to_keep <- c(cols_to_keep, "subgroup_var")
+    if ("covariate_tested" %in% names(df_clean)) cols_to_keep <- c(cols_to_keep, "covariate_tested")
+    
+    df_clean <- df_clean %>%
+      dplyr::select(any_of(cols_to_keep))
+    
+  } else {
+    # OLD FORMAT: naive/subgroup estimators from standard analysis
+    estimator_name <- str_remove(file_name, "\\.rds$")
+    
+    cat("Processing:", estimator_name, "\n")
+    
+    # Try to find estimate column (handles various naming conventions)
+    estimate_col <- names(df)[names(df) %in% c("estimate", "Effect", "Estimate", "trt_effect", "Median")] %>% 
+      first(default = NA)
+    se_col <- names(df)[names(df) %in% c("se", "SE", "trt_se", "std.error")] %>% 
+      first(default = NA)
+    replication_col <- names(df)[names(df) %in% c("sim_id", "simulation_id", "replication_id", "rep_id")] %>%
+      first(default = NA)
+    
+    if (is.na(estimate_col)) {
+      cat("  WARNING: Could not find estimate column in old format file. Available columns:", 
+          paste(names(df), collapse = ", "), "\n")
+      return(tibble())
+    }
+    
+    if (is.na(replication_col)) {
+      cat("  WARNING: Could not find replication ID column in old format file. Available columns:", 
+          paste(names(df), collapse = ", "), "\n")
+      return(tibble())
+    }
+    
+    # Build base data frame
+    df_clean <- df %>%
+      mutate(
+        scenario_id = as.integer(scenario_no),
+        replication_id = as.integer(!!rlang::sym(replication_col)),
+        estimator = estimator_name,
+        estimate = !!rlang::sym(estimate_col),
+        scenario_no = as.character(scenario_id)
+      )
+    
+    # Add CIs if SE available
+    if (!is.na(se_col)) {
+      df_clean <- df_clean %>%
+        mutate(
+          ci_lower = estimate - 1.96 * !!rlang::sym(se_col),
+          ci_upper = estimate + 1.96 * !!rlang::sym(se_col)
+        )
+    } else {
+      df_clean <- df_clean %>%
+        mutate(
+          ci_lower = NA_real_,
+          ci_upper = NA_real_
+        )
+    }
+    
+    # For subgroup estimator, keep subgroup_var and subgroup_level
+    if ("subgroup_level" %in% names(df)) {
+      df_clean <- df_clean %>%
+        mutate(
+          level = subgroup_level
+        ) %>%
+        dplyr::select(scenario_id, replication_id, scenario_no, estimator, estimate, 
+               ci_lower, ci_upper, subgroup_var, level)
+    } else {
+      df_clean <- df_clean %>%
+        dplyr::select(scenario_id, replication_id, scenario_no, estimator, estimate, 
+               ci_lower, ci_upper)
+    }
+  }
+  
+  return(df_clean)
+}
+
+# Load all files
+all_results <- map_dfr(all_files, load_and_standardize)
+
+# Add scenario description from truth data
+scenario_map <- simulation_truth %>%
+  distinct(scenario_no, scenario) %>%
+  mutate(scenario_no = as.character(scenario_no))
+
+all_results <- all_results %>%
+  left_join(scenario_map, by = "scenario_no")
+
+cat("\nTotal rows loaded:", nrow(all_results), "\n")
+cat("Estimators found:", paste(unique(all_results$estimator), collapse = ", "), "\n")
+```
+
+---
+
+## Merge with Truth
+
+```{r merge_truth}
+# IMPORTANT NOTE ON TRUTH MATCHING:
+# Results structure depends on model type:
+#
+# OLD FORMAT (naive/subgroup estimators):
+# - Population estimator (Y~trt): Produces one estimate that applies to ALL subgroups.
+#   We evaluate how well this single estimate captures the truth in each subgroup.
+# - Subgroup estimator (Y~trt within group): Produces subgroup-specific estimates.
+#   We evaluate each estimate against its corresponding subgroup truth.
+#
+# NEW FORMAT (global/OVAT shrinkage models from bonsaiforest2):
+# - Global models: May produce population-level or subgroup-level estimates
+# - OVAT models: Produce estimates for each covariate tested
+#
+# This reveals the bias-variance tradeoff:
+# - In homogeneous scenarios: Global and population estimators have low RMSE
+# - In heterogeneous scenarios: OVAT adapts and may have different RMSE profile
+
+# Get subgroup-specific truth values
+truth_subgroup <- simulation_truth %>%
+  mutate(
+    scenario_no = as.character(scenario_no),
+    level = as.character(level)
+  ) %>%
+  dplyr::select(scenario_no, scenario, subgroup_var, level, trt_effect) %>%
+  rename(truth_trt_effect = trt_effect)
+
+# Merge results with truth
+# For population estimators (no subgroup_var): Expand to all subgroups in each scenario
+# For subgroup estimators (with subgroup_var): Match to corresponding subgroup truth
+results_with_truth <- all_results %>%
+  mutate(scenario_no = as.character(scenario_no)) %>%
+  # Handle population estimators: expand to all subgroup truths
+  {
+    pop_results <- filter(., is.na(subgroup_var))
+    subgroup_results <- filter(., !is.na(subgroup_var))
+    
+    # For population: join with all subgroup truths
+    if (nrow(pop_results) > 0) {
+      pop_joined <- pop_results %>%
+        dplyr::select(-subgroup_var, -level) %>%
+        left_join(truth_subgroup %>% dplyr::select(scenario_no, subgroup_var, level, truth_trt_effect),
+                  by = "scenario_no", relationship = "many-to-many")
+    } else {
+      pop_joined <- pop_results %>% mutate(truth_trt_effect = NA_real_)
+    }
+    
+    # For subgroup: join with matching subgroup truth
+    if (nrow(subgroup_results) > 0) {
+      subgroup_joined <- subgroup_results %>%
+        left_join(truth_subgroup,
+                  by = c("scenario_no", "subgroup_var", "level"))
+    } else {
+      subgroup_joined <- subgroup_results %>% mutate(truth_trt_effect = NA_real_)
+    }
+    
+    bind_rows(pop_joined, subgroup_joined)
+  }
+
+cat("Results merged with truth values.\n")
+cat("Total result-truth pairs:", nrow(results_with_truth), "\n")
+cat("Pairs with truth values:", sum(!is.na(results_with_truth$truth_trt_effect)), "\n")
+
+```
+
+---
+
+## Helper Functions
+
+```{r helper_functions}
+# Helper function to beautify estimator names
+beautify_estimator_name <- function(estimator_name) {
+  dplyr::case_when(
+    # Old format estimators
+    estimator_name == "naivepop" ~ "Population (Y~trt)",
+    estimator_name == "subgroup" ~ "Subgroup (Y~trt within groups)",
+    
+    # New format: Global models with HN priors
+    str_detect(estimator_name, "global.*phi_delta_plan_scenarios_1_6") ~ "Global - HN(δ_plan) [Sc 1-6]",
+    str_detect(estimator_name, "global.*phi_delta_plan_scenarios_7_12") ~ "Global - HN(δ_plan) [Sc 7-12]",
+    str_detect(estimator_name, "global.*phi_delta_half_scenarios_1_6") ~ "Global - HN(δ_plan/2) [Sc 1-6]",
+    str_detect(estimator_name, "global.*phi_delta_half_scenarios_7_12") ~ "Global - HN(δ_plan/2) [Sc 7-12]",
+    str_detect(estimator_name, "global.*phi_sigma_plan_scenarios_1_6") ~ "Global - HN(σ_plan) [Sc 1-6]",
+    str_detect(estimator_name, "global.*phi_sigma_plan_scenarios_7_12") ~ "Global - HN(σ_plan) [Sc 7-12]",
+    
+    # New format: Horseshoe models
+    str_detect(estimator_name, "horseshoe.*scenarios_1_6") ~ "Horseshoe (3 models) [Sc 1-6]",
+    str_detect(estimator_name, "horseshoe.*scenarios_7_12") ~ "Horseshoe (3 models) [Sc 7-12]",
+    
+    # New format: OVAT models with HN priors
+    str_detect(estimator_name, "ovat.*phi_sigma_plan_scenarios_1_6") ~ "OVAT - HN(σ_plan) [Sc 1-6]",
+    str_detect(estimator_name, "ovat.*phi_sigma_plan_scenarios_7_12") ~ "OVAT - HN(σ_plan) [Sc 7-12]",
+    str_detect(estimator_name, "ovat.*phi_delta_plan_scenarios_1_6") ~ "OVAT - HN(δ_plan) [Sc 1-6]",
+    str_detect(estimator_name, "ovat.*phi_delta_plan_scenarios_7_12") ~ "OVAT - HN(δ_plan) [Sc 7-12]",
+    str_detect(estimator_name, "ovat.*phi_delta_half_scenarios_1_6") ~ "OVAT - HN(δ_plan/2) [Sc 1-6]",
+    str_detect(estimator_name, "ovat.*phi_delta_half_scenarios_7_12") ~ "OVAT - HN(δ_plan/2) [Sc 7-12]",
+    
+    # Legacy cases
+    estimator_name == "Global_full_hierarchical_05" ~ "GM - HN(0.5)",
+    estimator_name == "Global_full_hierarchical" ~ "GM - HN(1)",
+    estimator_name == "Global_horseshoe_1" ~ "GM - Horseshoe(1)",
+    estimator_name == "OVAT_halfnormal_05" ~ "OVAT - HN(0.5)",
+    estimator_name == "OVAT_halfnormal" ~ "OVAT - HN(1)",
+    
+    TRUE ~ estimator_name
+  )
+}
+
+# Helper function to format numbers
+display <- function(x, digits = 3) {
+  formatC(x, format = "f", digits = digits)
+}
+
+# Helper function to format percentages
+getPercentage <- function(x, digits = 0) {
+  val <- 100 * x
+  ifelse(is.na(val), "NA",
+    paste(formatC(val, digits = digits, format = "f"), "%", sep = "")
+  )
+}
+```
+
+---
+
+## Calculate Performance Metrics
+
+```{r calculate_metrics}
+# Prepare data for metrics calculation
+# Both estimators compared to SUBGROUP-SPECIFIC truths:
+# - Population estimator: Single estimate compared to all subgroup truths
+#   (High RMSE in heterogeneous scenarios as diversity in truths increases)
+# - Subgroup estimator: Each subgroup estimate compared to its specific truth
+#   (Adapts to heterogeneity, lower RMSE in heterogeneous scenarios)
+
+results_for_metrics <- results_with_truth %>%
+  filter(!is.na(truth_trt_effect)) %>%
+  mutate(
+    error = estimate - truth_trt_effect,
+    ci_contains_truth = (truth_trt_effect >= ci_lower) & (truth_trt_effect <= ci_upper)
+  )
+
+# Calculate RMSE, Bias, and Coverage by estimator and scenario
+performance_by_scenario <- results_for_metrics %>%
+  group_by(scenario_no, estimator) %>%
+  summarise(
+    n_estimates = n(),
+    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
+    Bias = mean(error, na.rm = TRUE),
+    AbsBias = mean(abs(error), na.rm = TRUE),
+    Coverage = mean(ci_contains_truth, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  left_join(
+    simulation_truth %>% 
+      distinct(scenario_no, scenario) %>%
+      mutate(scenario_no = as.character(scenario_no)),
+    by = "scenario_no"
+  ) %>%
+  arrange(as.numeric(scenario_no), estimator)
+
+# Calculate overall metrics (across all scenarios)
+performance_overall <- results_for_metrics %>%
+  group_by(estimator) %>%
+  summarise(
+    n_estimates = n(),
+    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
+    Bias = mean(error, na.rm = TRUE),
+    AbsBias = abs(Bias),
+    Coverage = mean(ci_contains_truth, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator)
+
+cat("Performance metrics calculated.\n")
+cat("Both estimators evaluated against subgroup-specific truth values.\n")
+cat("Population estimator: Single estimate repeated across all subgroups for comparison.\n")
+```
+
+---
+
+## Bias-Variance Diagnostics
+
+```{r bias_variance_check}
+# Key diagnostic: Check if subgroup estimator is UNBIASED and population is BIASED
+# 
+# Theory:
+# - Subgroup estimator (Y~trt within group): Should be UNBIASED (Bias ≈ 0) with HIGH VARIANCE
+# - Population estimator (Y~trt overall): Could be BIASED in heterogeneous scenarios with LOW VARIANCE
+#
+# RMSE = sqrt(Bias² + Variance), so:
+# - Subgroup RMSE ≈ sqrt(Variance) since Bias ≈ 0
+# - Population RMSE ≈ sqrt(Bias² + Variance)
+
+diagnostics <- results_for_metrics %>%
+  group_by(scenario_no, scenario, estimator) %>%
+  summarise(
+    n = n(),
+    mean_error = mean(error, na.rm = TRUE),
+    mean_abs_error = mean(abs(error), na.rm = TRUE),
+    variance_error = var(error, na.rm = TRUE),
+    bias_squared = mean_error^2,
+    rmse = sqrt(mean(error^2, na.rm = TRUE)),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    bias_component = sqrt(bias_squared),
+    variance_component = sqrt(variance_error)
+  ) %>%
+  arrange(as.numeric(scenario_no), estimator)
+
+
+```
+
+
+
+```{r}
+diagnostics_2 <- results_for_metrics %>%
+  filter(estimator %in% c("continuous_naivepop", "continuous_subgroup")) %>%
+  group_by(scenario_no, scenario, estimator, subgroup_var, level) %>%
+  summarise(
+    n = n(),
+    mean_estimate = mean(estimate, na.rm = TRUE),
+    mean_bias = mean(error, na.rm = TRUE),
+    mean_abs_bias = mean(abs(error), na.rm = TRUE),
+    rmse = sqrt(mean(error^2, na.rm = TRUE)),
+    .groups = 'drop'
+  )
+```
+
+
+---
+
+## Results: Overall Performance
+
+```{r table_overall}
+performance_overall %>%
+  mutate(
+    Estimator = beautify_estimator_name(estimator),
+    RMSE = round(RMSE, 4),
+    Bias = round(Bias, 4),
+    AbsBias = round(AbsBias, 4),
+    Coverage = paste0(round(Coverage * 100, 1), "%")
+  ) %>%
+  dplyr::select(Estimator, RMSE, Bias, AbsBias, Coverage) %>%
+  kable(caption = "Overall Performance Metrics (All Scenarios Combined)") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE)
+```
+
+---
+
+## Results: Performance by Scenario
+
+```{r table_by_scenario}
+performance_by_scenario %>%
+  filter(estimator %in% c('continuous_naivepop', "continuous_subgroup"))%>%
+  mutate(
+    Estimator = beautify_estimator_name(estimator),
+    RMSE = round(RMSE, 4),
+    Bias = round(Bias, 4),
+    AbsBias = round(AbsBias, 4),
+    Coverage = paste0(round(Coverage * 100, 1), "%")
+  ) %>%
+  dplyr::select(Scenario = scenario_no, Scenario_Name = scenario, 
+         Estimator, RMSE, Bias, AbsBias, Coverage) %>%
+  kable(caption = "Performance Metrics by Scenario") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE)
+```
+
+---
+
+## Visualization: RMSE by Scenario Group
+
+```{r plot_rmse_grouped, fig.height=10}
+# Create scenario grouping
+scenario_groups <- data.frame(
+  scenario_no = as.character(1:12),
+  group = rep(c("Group 1\n(Scenarios 1-3)", 
+                "Group 2\n(Scenarios 4-6)", 
+                "Group 3\n(Scenarios 7-9)",
+                "Group 4\n(Scenarios 10-12)"), each = 3)
+)
+
+# Create plot data with scenario groups and clean estimator names
+plot_data_rmse <- performance_by_scenario %>%
+  mutate(
+    scenario_no_numeric = as.numeric(scenario_no)
+  ) %>%
+  left_join(scenario_groups, by = "scenario_no") %>%
+  mutate(
+    estimator = beautify_estimator_name(estimator),
+    group = factor(group, levels = c("Group 1\n(Scenarios 1-3)", 
+                                     "Group 2\n(Scenarios 4-6)", 
+                                     "Group 3\n(Scenarios 7-9)",
+                                     "Group 4\n(Scenarios 10-12)"))
+  )
+
+# RMSE plot with grouping
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = RMSE, 
+                            color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  facet_wrap(~group, scales = "free_x", nrow = 2) +
+  labs(
+    title = "RMSE by Scenario Group and Estimator",
+    subtitle = "Root Mean Squared Error - Treatment Effect Scale",
+    x = "Scenario",
+    y = "RMSE",
+    color = "Estimator"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold", size = 11)
+  ) +
+  guides(color = guide_legend(ncol = 2))
+```
+
+---
+
+## Visualization: Overall RMSE Trend
+
+```{r plot_rmse_overall, fig.height=7}
+# Overall RMSE trend across all scenarios
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = RMSE, 
+                            color = estimator, group = estimator)) +
+  geom_line(size = 1.3) +
+  geom_point(size = 3.5) +
+  scale_x_continuous(breaks = 1:12) +
+  labs(
+    title = "RMSE Across All Scenarios",
+    subtitle = "Treatment Effect Scale",
+    x = "Scenario",
+    y = "RMSE",
+    color = "Estimator"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 2))
+```
+
+---
+
+
+
+
+
+---
+
+## Heatmap: RMSE Comparison
+
+```{r heatmap_rmse, fig.height=8}
+# Create heatmap
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = estimator, fill = RMSE)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = round(RMSE, 3)), size = 3) +
+  scale_fill_gradient2(
+    low = "#2166ac", 
+    mid = "#f7f7f7", 
+    high = "#b2182b",
+    midpoint = median(plot_data_rmse$RMSE, na.rm = TRUE),
+    name = "RMSE"
+  ) +
+  scale_x_continuous(breaks = 1:12, labels = 1:12) +
+  labs(
+    title = "RMSE Heatmap: Estimator × Scenario",
+    subtitle = "Lower values (blue) indicate better performance",
+    x = "Scenario",
+    y = "Estimator"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    legend.position = "right"
+  )
+```
+
+---
+
+## Heatmap: Absolute Bias Comparison
+
+```{r heatmap_abs_bias, fig.height=8}
+# Create absolute bias heatmap
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = estimator, fill = AbsBias)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = round(AbsBias, 3)), size = 3) +
+  scale_fill_gradient2(
+    low = "#2166ac", 
+    mid = "#f7f7f7", 
+    high = "#b2182b",
+    midpoint = median(plot_data_rmse$AbsBias, na.rm = TRUE),
+    name = "|Bias|"
+  ) +
+  scale_x_continuous(breaks = 1:12, labels = 1:12) +
+  labs(
+    title = "Absolute Bias Heatmap: Estimator × Scenario",
+    subtitle = "Lower values (blue) indicate less deviation from truth",
+    x = "Scenario",
+    y = "Estimator"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    legend.position = "right"
+  )
+```
+
+---
+
+## Heatmap: Coverage Comparison
+
+```{r heatmap_coverage, fig.height=8}
+# Create coverage heatmap
+ggplot(plot_data_rmse, aes(x = scenario_no_numeric, y = estimator, fill = Coverage)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = paste0(round(Coverage * 100, 1), "%")), size = 3) +
+  scale_fill_gradient2(
+    low = "#b2182b", 
+    mid = "#f7f7f7", 
+    high = "#2166ac",
+    midpoint = 0.95,
+    limits = c(0.8, 1.0),
+    name = "Coverage"
+  ) +
+  scale_x_continuous(breaks = 1:12, labels = 1:12) +
+  labs(
+    title = "Coverage Heatmap: Estimator × Scenario",
+    subtitle = "Target coverage = 95% (blue indicates good coverage)",
+    x = "Scenario",
+    y = "Estimator"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    legend.position = "right"
+  )
+```
+
+---
+
+## Summary Statistics by Scenario Group
+
+```{r performance_by_group}
+# Add group assignments and calculate summary by group
+plot_data_rmse_summary <- plot_data_rmse %>%
+  group_by(group, estimator) %>%
+  summarise(
+    mean_RMSE = mean(RMSE, na.rm = TRUE),
+    sd_RMSE = sd(RMSE, na.rm = TRUE),
+    min_RMSE = min(RMSE, na.rm = TRUE),
+    max_RMSE = max(RMSE, na.rm = TRUE),
+    mean_Bias = mean(Bias, na.rm = TRUE),
+    mean_AbsBias = mean(AbsBias, na.rm = TRUE),
+    mean_Coverage = mean(Coverage, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+plot_data_rmse_summary %>%
+  mutate(
+    `Mean RMSE` = display(mean_RMSE, 4),
+    `Range RMSE` = paste0(display(min_RMSE, 4), " - ", display(max_RMSE, 4)),
+    `Mean Bias` = display(mean_Bias, 4),
+    `Mean |Bias|` = display(mean_AbsBias, 4),
+    `Mean Coverage` = getPercentage(mean_Coverage, 1)
+  ) %>%
+  dplyr::select(Group = group, Estimator = estimator, 
+         `Mean RMSE`, `Range RMSE`, `Mean Bias`, `Mean |Bias|`, `Mean Coverage`) %>%
+  kable(caption = "Performance Summary by Scenario Group") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+---
+
+## Notes on Scenarios
+
+```{r scenario_descriptions}
+# Define scenario descriptions for continuous outcomes
+scenario_info <- tibble(
+  Scenario = 1:12,
+  Description = c(
+    "1: Homogeneous effect (no treatment heterogeneity)",
+    "2: Mild heterogeneity by X11cat",
+    "3: Strong heterogeneity by X11cat",
+    "4: Homogeneous effect variant",
+    "5: Mild heterogeneity variant",
+    "6: Strong heterogeneity variant",
+    "7: Homogeneous with different effect size",
+    "8: Mild heterogeneity with different effect size",
+    "9: Strong heterogeneity with different effect size",
+    "10: Homogeneous with another variant",
+    "11: Mild heterogeneity with another variant",
+    "12: Strong heterogeneity with another variant"
+  )
+)
+
+scenario_info %>%
+  kable(caption = "Scenario Descriptions") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE)
+```
+
+---
+
+**Document generated**: `r Sys.time()`

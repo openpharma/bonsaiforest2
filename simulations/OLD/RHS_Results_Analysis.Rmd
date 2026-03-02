@@ -1,0 +1,799 @@
+---
+title: "RHS Global Methods - Simulation Results Analysis"
+subtitle: "RMSE, Bias, Coverage, and Extreme Subgroup Identification Analysis"
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: cosmo
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
+                      fig.width = 12, fig.height = 8)
+
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(purrr)
+library(ggplot2)
+library(knitr)
+library(kableExtra)
+```
+
+# RHS Global Methods - Simulation Results Analysis
+
+This document analyzes Regularized Horseshoe (RHS) global method simulation results, calculating:
+- **RMSE** (Root Mean Squared Error)
+- **Bias** (Mean difference between estimate and truth)
+- **Coverage** (Proportion of 95% CIs containing the true value)
+- **Extreme Subgroup Identification Accuracy** (Proportion of replications correctly identifying the subgroup most different from the overall treatment effect)
+
+All metrics are calculated on the log-scale (log hazard ratios).
+
+---
+
+## Load Results
+
+```{r load_results}
+# Set paths
+base_path <- "/home/pedreram/bonsaiforest2/simulations/TTE"
+results_path <- file.path(base_path, "Results")
+
+# Find all RHS RDS files
+rhs_pattern <- "^tte_RHS.*\\.rds$"
+rhs_files <- list.files(results_path, pattern = rhs_pattern, full.names = TRUE)
+
+# Sort files by name for consistent ordering
+rhs_files <- sort(rhs_files)
+
+cat("Found", length(rhs_files), "RHS result files:\n")
+cat(paste("-", basename(rhs_files), collapse = "\n"), "\n")
+
+# Check dimensions of each RDS file
+cat("\n--- Dimensions of Each RHS RDS File ---\n")
+cat(strrep("-", 80), "\n")
+cat(sprintf("%-50s %10s %10s", "File Name", "Rows", "Columns"), "\n")
+cat(strrep("-", 80), "\n")
+
+file_summary <- data.frame()
+
+for (file_path in rhs_files) {
+  df <- readRDS(file_path)
+  file_name <- basename(file_path)
+  n_rows <- nrow(df)
+  n_cols <- ncol(df)
+  
+  cat(sprintf("%-50s %10s %10s\n", file_name, n_rows, n_cols))
+  
+  # Store summary
+  file_summary <- rbind(file_summary, data.frame(
+    file = file_name,
+    rows = n_rows,
+    cols = n_cols,
+    stringsAsFactors = FALSE
+  ))
+  
+  rm(df)
+}
+
+cat(strrep("-", 80), "\n")
+cat("TOTAL ROWS:", sum(file_summary$rows), "\n")
+cat("TOTAL FILES:", nrow(file_summary), "\n")
+cat("\n")
+
+# Show summary table
+kable(file_summary, caption = "Dimensions of Each RHS RDS File") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"))
+```
+
+---
+
+## Load Truth Values
+
+```{r load_truth}
+# Load truth data
+truth_file <- file.path(base_path, "Scenarios", "truth.RData")
+load(truth_file)
+cat("Loaded truth values from:", truth_file, "\n")
+
+# Extract subgroup-level truth (log hazard ratios)
+truth_subgroup <- simul_parameter$true_subgroup_ahr %>%
+  mutate(scenario_no = as.character(row_number())) %>%
+  pivot_longer(
+    cols = -scenario_no,
+    names_to = "subgroup_raw",
+    values_to = "truth_ahr"
+  ) %>%
+  mutate(
+    # Clean subgroup names to match results (remove x_, dots, etc.)
+    join_key = gsub("x_|\\.", "", subgroup_raw) %>% tolower(),
+    truth_log = log(truth_ahr)
+  ) %>%
+  dplyr::select(scenario_no, join_key, truth_log, truth_ahr)
+
+# Extract population-level truth
+truth_population <- simul_parameter$true_overall_results %>%
+  mutate(
+    scenario_no = as.character(1:6),
+    truth_pop_ahr = AHR,
+    truth_pop_log = log(AHR)
+  ) %>%
+  dplyr::select(scenario_no, truth_pop_ahr, truth_pop_log)
+
+cat("\nTruth data loaded successfully.\n")
+cat("Scenarios:", unique(truth_subgroup$scenario_no), "\n")
+cat("Subgroups per scenario:", length(unique(truth_subgroup$join_key)), "\n")
+
+# Check dimensions of loaded truth dataframes
+cat("\n--- Truth Dataframe Dimensions ---\n")
+cat("truth_subgroup: ", nrow(truth_subgroup), " rows × ", ncol(truth_subgroup), " columns\n", sep = "")
+cat("truth_population: ", nrow(truth_population), " rows × ", ncol(truth_population), " columns\n", sep = "")
+```
+
+---
+
+## Process RHS Results Files
+
+```{r process_results}
+# Function to load and standardize a single RHS RDS file
+load_and_standardize_rhs <- function(file_path) {
+  
+  df <- readRDS(file_path)
+  
+  # RHS estimators from bonsaiforest2
+  df_clean <- df %>%
+    filter(Subgroup != "Overall") %>%
+    mutate(
+      scenario_id = as.integer(scenario_id),
+      replication_id = as.integer(replication_id),
+      # Clean subgroup names (e.g., "x_1: a" -> "1a")
+      join_key = gsub("x_|: | ", "", Subgroup) %>% 
+                 str_replace_all("[\\._\\s]", "") %>% 
+                 tolower(),
+      estimator = paste(model_type, prior_name, sep = "_"),
+      # Convert from hazard ratio scale to log scale
+      estimate_log = log(Median),
+      ci_lower = log(CI_Lower),
+      ci_upper = log(CI_Upper)
+    )
+  
+  # Select common columns
+  df_clean %>%
+    dplyr::select(scenario_id, replication_id, estimator, join_key, 
+           estimate_log, ci_lower, ci_upper) %>%
+    mutate(scenario_no = as.character(scenario_id))
+}
+
+# Load all RHS files and track dimensions
+cat("--- Processing Each RHS RDS File ---\n")
+cat(strrep("-", 100), "\n")
+cat(sprintf("%-50s %10s %10s %25s", "File Name", "Rows (raw)", "Rows (clean)", "Estimator"), "\n")
+cat(strrep("-", 100), "\n")
+
+all_results_list <- list()
+
+for (i in seq_along(rhs_files)) {
+  file_path <- rhs_files[i]
+  file_name <- basename(file_path)
+  
+  # Load raw
+  df_raw <- readRDS(file_path)
+  n_rows_raw <- nrow(df_raw)
+  
+  # Process
+  df_clean <- load_and_standardize_rhs(file_path)
+  n_rows_clean <- nrow(df_clean)
+  estimator <- unique(df_clean$estimator)[1]
+  
+  cat(sprintf("%-50s %10d %10d %25s\n", file_name, n_rows_raw, n_rows_clean, estimator))
+  
+  all_results_list[[i]] <- df_clean
+}
+
+cat(strrep("-", 100), "\n")
+
+# Combine all results
+all_results <- bind_rows(all_results_list)
+
+cat("\nTotal rows after combining:", nrow(all_results), "\n")
+cat("RHS Estimators found:", paste(unique(all_results$estimator), collapse = ", "), "\n")
+
+# Check dimensions before merging
+cat("\n--- Dataframe Dimensions Before Merging ---\n")
+cat("all_results: ", nrow(all_results), " rows × ", ncol(all_results), " columns\n", sep = "")
+cat("  Unique scenarios: ", n_distinct(all_results$scenario_no), "\n", sep = "")
+cat("  Unique estimators: ", n_distinct(all_results$estimator), "\n", sep = "")
+cat("  Unique subgroups: ", n_distinct(all_results$join_key), "\n", sep = "")
+```
+
+---
+
+## Merge with Truth
+
+```{r merge_truth}
+# Show dimensions before merge
+cat("\n--- Before Merging ---\n")
+cat("all_results: ", nrow(all_results), " rows\n", sep = "")
+cat("truth_subgroup: ", nrow(truth_subgroup), " rows\n", sep = "")
+cat("truth_population: ", nrow(truth_population), " rows\n", sep = "")
+
+# Merge subgroup-level truth
+results_with_truth <- all_results %>%
+  left_join(truth_subgroup, by = c("scenario_no", "join_key")) %>%
+  left_join(truth_population, by = "scenario_no")
+
+cat("\n--- After Merging ---\n")
+cat("results_with_truth: ", nrow(results_with_truth), " rows × ", ncol(results_with_truth), " columns\n", sep = "")
+
+# Check for missing truth values
+missing_truth <- results_with_truth %>%
+  filter(is.na(truth_log)) %>%
+  distinct(scenario_no, join_key)
+
+if (nrow(missing_truth) > 0) {
+  cat("\nWarning: Missing truth values for:\n")
+  print(missing_truth)
+} else {
+  cat("\nAll estimates successfully matched with truth values.\n")
+}
+
+cat("Total estimates with truth:", sum(!is.na(results_with_truth$truth_log)), "\n")
+```
+
+---
+
+## Helper Functions
+
+```{r helper_functions}
+# Helper function to beautify RHS estimator names
+beautify_rhs_estimator <- function(estimator_name) {
+  dplyr::case_when(
+    estimator_name == "Global_RHS_theta0_1_s_2" ~ "RHS (θ₀=1, σ=2)",
+    estimator_name == "Global_RHS_theta0_delta_plan_half_s_2" ~ "RHS (θ₀=δ/2, σ=2)",
+    estimator_name == "Global_RHS_theta0_delta_plan_half_s_delta_plan" ~ "RHS (θ₀=δ/2, σ=δ)",
+    estimator_name == "Global_RHS_theta0_delta_plan_s_2" ~ "RHS (θ₀=δ, σ=2)",
+    estimator_name == "Global_RHS_theta0_delta_plan_s_2delta_plan" ~ "RHS (θ₀=δ, σ=2δ)",
+    TRUE ~ estimator_name
+  )
+}
+
+# Helper function to format numbers
+display <- function(x, digits = 2) {
+  formatC(x, format = "f", digits = digits)
+}
+
+# Helper function to format percentages
+getPercentage <- function(x, digits = 0) {
+  val <- 100 * x
+  ifelse(is.na(val), "NA",
+    paste(formatC(val, digits = digits, format = "f"), "%", sep = "")
+  )
+}
+```
+
+---
+
+## Calculate Performance Metrics
+
+```{r calculate_metrics}
+# Calculate RMSE, Bias, and Coverage by estimator and scenario
+performance_by_scenario <- results_with_truth %>%
+  filter(!is.na(truth_log)) %>%
+  mutate(
+    # Calculate error and coverage indicator
+    error = estimate_log - truth_log,
+    ci_contains_truth = (truth_log >= ci_lower) & (truth_log <= ci_upper)
+  ) %>%
+  group_by(scenario_no, estimator) %>%
+  summarise(
+    n_estimates = n(),
+    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
+    Bias = mean(error, na.rm = TRUE),
+    Coverage = mean(ci_contains_truth, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(scenario_no, estimator)
+
+# Calculate overall metrics (across all scenarios)
+performance_overall <- results_with_truth %>%
+  filter(!is.na(truth_log)) %>%
+  mutate(
+    error = estimate_log - truth_log,
+    ci_contains_truth = (truth_log >= ci_lower) & (truth_log <= ci_upper)
+  ) %>%
+  group_by(estimator) %>%
+  summarise(
+    n_estimates = n(),
+    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
+    Bias = mean(error, na.rm = TRUE),
+    Coverage = mean(ci_contains_truth, na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator)
+
+cat("RHS performance metrics calculated.\n")
+```
+
+---
+
+## Visualization: RMSE by Scenario
+
+```{r plot_rmse, fig.height=7}
+# Define scenario labels
+scenario_labels <- c(
+  `1` = "Scenario 1:\nPositive (homogeneous)",
+  `2` = "Scenario 2:\nPositive (except 1)",
+  `3` = "Scenario 3:\nNegative (except 1)",
+  `4` = "Scenario 4:\nMild heterogeneity",
+  `5` = "Scenario 5:\nStrong heterogeneity",
+  `6` = "Scenario 6:\nMisspecified"
+)
+
+# Create plot data with scenario labels and clean estimator names
+plot_data_rmse <- performance_by_scenario %>%
+  mutate(
+    scenario_no = as.numeric(scenario_no),
+    scenario_label = scenario_labels[as.character(scenario_no)],
+    estimator = beautify_rhs_estimator(estimator)
+  ) 
+
+# RMSE plot
+ggplot(plot_data_rmse, aes(x = scenario_no, y = RMSE, 
+                            color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    title = "RMSE by Scenario - RHS Global Methods",
+    subtitle = "Root Mean Squared Error on log-hazard ratio scale",
+    x = "Scenario",
+    y = "RMSE",
+    color = "RHS Model"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 2))
+```
+
+---
+
+## Visualization: RMSE - Fixed σ=2 Estimators
+
+```{r plot_rmse_sigma_fixed, fig.height=7}
+# Plot with estimators that have σ=2 fixed
+plot_data_sigma_fixed <- performance_by_scenario %>%
+  filter(estimator %in% c(
+    "Global_RHS_theta0_1_s_2",
+    "Global_RHS_theta0_delta_plan_half_s_2",
+    "Global_RHS_theta0_delta_plan_s_2"
+  )) %>%
+  mutate(
+    scenario_no = as.numeric(scenario_no),
+    scenario_label = scenario_labels[as.character(scenario_no)],
+    estimator = beautify_rhs_estimator(estimator)
+  )
+
+# RMSE plot - σ=2 fixed
+ggplot(plot_data_sigma_fixed, aes(x = scenario_no, y = RMSE, 
+                                   color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    title = "RMSE by Scenario - RHS Global Methods with σ=2 (Fixed)",
+    subtitle = "Root Mean Squared Error on log-hazard ratio scale",
+    x = "Scenario",
+    y = "RMSE",
+    color = "RHS Model"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 1))
+```
+
+---
+
+## Visualization: RMSE - Changing σ with Delta Estimators
+
+```{r plot_rmse_sigma_changing, fig.height=7}
+# Plot with estimators that have σ changing with delta
+# Note: θ₀=1, σ=2 case is included here as delta_plan=1 makes σ=2 equivalent to σ=δ
+plot_data_sigma_changing <- performance_by_scenario %>%
+  filter(estimator %in% c(
+    "Global_RHS_theta0_1_s_2",
+    "Global_RHS_theta0_delta_plan_half_s_delta_plan",
+    "Global_RHS_theta0_delta_plan_s_2delta_plan"
+  )) %>%
+  mutate(
+    scenario_no = as.numeric(scenario_no),
+    scenario_label = scenario_labels[as.character(scenario_no)],
+    estimator = beautify_rhs_estimator(estimator)
+  )
+
+# RMSE plot - σ changing
+ggplot(plot_data_sigma_changing, aes(x = scenario_no, y = RMSE, 
+                                      color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    title = "RMSE by Scenario - RHS Global Methods with σ Changing (σ ∝ δ)",
+    subtitle = "Root Mean Squared Error on log-hazard ratio scale; θ₀=1,σ=2 included (δ=1 case)",
+    x = "Scenario",
+    y = "RMSE",
+    color = "RHS Model"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 1))
+```
+
+## weird stuff
+## Visualization: RMSE - Fixed σ=2 Estimators
+
+```{r plot_rmse_sigma_fixed, fig.height=7}
+# Plot with estimators that have σ=2 fixed
+plot_data_sigma_fixed <- performance_by_scenario %>%
+  filter(estimator %in% c(
+    "Global_RHS_theta0_delta_plan_s_2",
+    "Global_RHS_theta0_delta_plan_s_2delta_plan"
+  )) %>%
+  mutate(
+    scenario_no = as.numeric(scenario_no),
+    scenario_label = scenario_labels[as.character(scenario_no)],
+    estimator = beautify_rhs_estimator(estimator)
+  )
+
+# RMSE plot - σ=2 fixed
+ggplot(plot_data_sigma_fixed, aes(x = scenario_no, y = RMSE, 
+                                   color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    title = "RMSE by Scenario - RHS Global Methods with θ₀=δ (Fixed)",
+    subtitle = "Root Mean Squared Error on log-hazard ratio scale",
+    x = "Scenario",
+    y = "RMSE",
+    color = "RHS Model"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 1))
+```
+
+## weird stuff
+## Visualization: RMSE - Fixed σ=2 Estimators
+
+```{r plot_rmse_sigma_fixed, fig.height=7}
+# Plot with estimators that have σ=2 fixed
+plot_data_sigma_fixed <- performance_by_scenario %>%
+  filter(estimator %in% c(
+    "Global_RHS_theta0_delta_plan_half_s_2",
+    "Global_RHS_theta0_delta_plan_half_s_delta_plan"
+  )) %>%
+  mutate(
+    scenario_no = as.numeric(scenario_no),
+    scenario_label = scenario_labels[as.character(scenario_no)],
+    estimator = beautify_rhs_estimator(estimator)
+  )
+
+# RMSE plot - σ=2 fixed
+ggplot(plot_data_sigma_fixed, aes(x = scenario_no, y = RMSE, 
+                                   color = estimator, group = estimator)) +
+  geom_line(size = 1.2) +
+  geom_point(size = 3) +
+  labs(
+    title = "RMSE by Scenario - RHS Global Methods with θ₀=δ/2 (Fixed)",
+    subtitle = "Root Mean Squared Error on log-hazard ratio scale",
+    x = "Scenario",
+    y = "RMSE",
+    color = "RHS Model"
+  ) +
+  theme_bw() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  ) +
+  guides(color = guide_legend(ncol = 1))
+```
+---
+
+## Heatmap: RMSE Comparison
+
+```{r heatmap_rmse, fig.height=8}
+# Create heatmap
+ggplot(plot_data_rmse, aes(x = scenario_no, y = estimator, fill = RMSE)) +
+  geom_tile(color = "white", size = 0.5) +
+  geom_text(aes(label = round(RMSE, 3)), size = 3.5) +
+  scale_fill_gradient2(
+    low = "white",
+    mid = "yellow",
+    high = "red",
+    midpoint = median(plot_data_rmse$RMSE, na.rm = TRUE),
+    name = "RMSE"
+  ) +
+  scale_x_continuous(breaks = 1:6, labels = 1:6) +
+  labs(
+    title = "RMSE Heatmap: RHS Model × Scenario",
+    subtitle = "Lower values (white) indicate better performance",
+    x = "Scenario",
+    y = "RHS Model"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    legend.position = "right"
+  )
+```
+
+---
+
+## Performance Table
+
+```{r performance_table}
+# Create subgroup-level performance metrics
+subgroup_performance <- results_with_truth %>%
+  filter(!is.na(truth_log)) %>%
+  group_by(scenario_no, join_key, estimator) %>%
+  summarize(
+    truth_log = first(truth_log),
+    truth_pop_log = first(truth_pop_log),
+    bias = mean(estimate_log - truth_log, na.rm = TRUE),
+    RMSE = sqrt(mean((estimate_log - truth_log)^2, na.rm = TRUE)),
+    coverage = mean((truth_log >= ci_lower) & (truth_log <= ci_upper), na.rm = TRUE),
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    estimator_display = beautify_rhs_estimator(estimator),
+    # For TTE, use log(1.1) as threshold for heterogeneity
+    threshold = log(1.1),
+    heterogeneous = (abs(truth_log - truth_pop_log) > threshold)
+  ) %>%
+  dplyr::select(-threshold)
+
+# Summary by estimator (overall)
+sum_RMSEbias <- subgroup_performance %>%
+  group_by(estimator_display) %>%
+  summarize(
+    RMSE = paste(display(mean(RMSE, na.rm = TRUE), 2), " (", 
+                 display(min(RMSE, na.rm = TRUE), 2), "-", 
+                 display(max(RMSE, na.rm = TRUE), 2), ")", sep = ""),
+    abs_bias = paste(display(mean(abs(bias), na.rm = TRUE), 2), " (", 
+                     display(min(abs(bias), na.rm = TRUE), 2), "-", 
+                     display(max(abs(bias), na.rm = TRUE), 2), ")", sep = ""),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator_display)
+
+sum_coverage <- subgroup_performance %>%
+  group_by(estimator_display) %>%
+  summarize(
+    coverage = ifelse(
+      all(is.na(coverage)), "NA",
+      paste(getPercentage(mean(coverage, na.rm = TRUE)), " (", 
+            getPercentage(min(coverage, na.rm = TRUE)), "-", 
+            getPercentage(max(coverage, na.rm = TRUE)), ")", sep = "")
+    ),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator_display)
+
+# Summary by heterogeneity
+sum_RMSEbias_het <- subgroup_performance %>%
+  group_by(heterogeneous, estimator_display) %>%
+  summarize(
+    RMSE = paste(display(mean(RMSE, na.rm = TRUE), 2), " (", 
+                 display(min(RMSE, na.rm = TRUE), 2), "-", 
+                 display(max(RMSE, na.rm = TRUE), 2), ")", sep = ""),
+    abs_bias = paste(display(mean(abs(bias), na.rm = TRUE), 2), " (", 
+                     display(min(abs(bias), na.rm = TRUE), 2), "-", 
+                     display(max(abs(bias), na.rm = TRUE), 2), ")", sep = ""),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator_display)
+
+sum_coverage_het <- subgroup_performance %>%
+  group_by(heterogeneous, estimator_display) %>%
+  summarize(
+    coverage = ifelse(
+      all(is.na(coverage)), "NA",
+      paste(getPercentage(mean(coverage, na.rm = TRUE)), " (", 
+            getPercentage(min(coverage, na.rm = TRUE)), "-", 
+            getPercentage(max(coverage, na.rm = TRUE)), ")", sep = "")
+    ),
+    .groups = 'drop'
+  ) %>%
+  arrange(estimator_display)
+
+# Assemble table
+estimator_names <- sort(unique(subgroup_performance$estimator_display))
+estimator_rows <- paste("  ", estimator_names, sep = "")
+n_estimators <- length(estimator_names)
+
+estimators_with_coverage <- sum_coverage$estimator_display[sum_coverage$coverage != "NA"]
+estimator_rows_coverage <- paste("  ", estimators_with_coverage, sep = "")
+n_estimators_coverage <- length(estimators_with_coverage)
+
+criteria_vec <- c(
+  "RMSE", estimator_rows,
+  "Absolute bias", estimator_rows,
+  "Coverage of 95% CI", estimator_rows_coverage
+)
+
+overall_vec <- c(
+  " ", sum_RMSEbias$RMSE,
+  " ", sum_RMSEbias$abs_bias,
+  " ", sum_coverage$coverage[sum_coverage$coverage != "NA"]
+)
+
+homo_vec <- c(
+  " ", with(sum_RMSEbias_het, RMSE[!heterogeneous]),
+  " ", with(sum_RMSEbias_het, abs_bias[!heterogeneous]),
+  " ", with(sum_coverage_het, coverage[!heterogeneous & coverage != "NA"])
+)
+
+het_vec <- c(
+  " ", with(sum_RMSEbias_het, RMSE[heterogeneous]),
+  " ", with(sum_RMSEbias_het, abs_bias[heterogeneous]),
+  " ", with(sum_coverage_het, coverage[heterogeneous & coverage != "NA"])
+)
+
+pad_to <- length(criteria_vec)
+pad <- function(x, n) {
+  x <- as.character(x)
+  if (length(x) < n) length(x) <- n
+  x[is.na(x)] <- ""
+  x
+}
+
+performance_table <- data.frame(
+  Criterion = criteria_vec,
+  All_Subgroups = pad(overall_vec, pad_to),
+  Homogeneous = pad(homo_vec, pad_to),
+  Heterogeneous = pad(het_vec, pad_to),
+  stringsAsFactors = FALSE
+)
+
+# Calculate footnotes
+n_scenarios <- n_distinct(subgroup_performance$scenario_no)
+n_subgroups_per_scenario <- n_distinct(subgroup_performance$join_key)
+total_subgroups <- n_scenarios * n_subgroups_per_scenario
+
+count_het <- subgroup_performance %>%
+  filter(estimator == "Global_RHS_theta0_1_s_2") %>%
+  summarise(total_het = sum(heterogeneous))
+total_het <- sum(count_het$total_het)
+total_homo <- total_subgroups - total_het
+
+# Display table
+kbl(performance_table,
+    caption = "Performance Metrics for RHS Global Methods",
+    booktabs = TRUE,
+    linesep = c(
+      "", rep("", n_estimators),
+      "\\addlinespace", rep("", n_estimators),
+      "\\addlinespace", rep("", n_estimators_coverage)
+    ),
+    col.names = c("Criterion", "All subgroups", "Homogeneous", "Heterogeneous")
+  ) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE) %>%
+  footnote(
+    general = c(
+      paste("Summary across", total_subgroups, "subgroups (", n_subgroups_per_scenario, 
+            "subgroups ×", n_scenarios, "scenarios) including", total_homo, 
+            "homogeneous and", total_het, "heterogeneous subgroups.")
+    ),
+    general_title = ""
+  )
+```
+
+---
+
+## Identify True Worst Subgroup
+
+```{r identify_worst_subgroup}
+# For each scenario, identify the subgroup with the worst (lowest) treatment effect
+true_worst_subgroup <- truth_subgroup %>%
+  group_by(scenario_no) %>%
+  mutate(
+    is_worst = truth_ahr == max(truth_ahr, na.rm = TRUE)
+  ) %>%
+  filter(is_worst) %>%
+  dplyr::select(scenario_no, join_key, truth_ahr, truth_log) %>%
+  rename(true_worst_subgroup = join_key, true_worst_ahr = truth_ahr, true_worst_effect = truth_log) %>%
+  distinct()
+
+cat("\nTrue Worst Subgroup by Scenario (Lowest Treatment Effect):\n")
+print(true_worst_subgroup)
+```
+
+---
+
+## Worst Treatment Effect Identification Accuracy
+
+```{r worst_accuracy}
+# For each scenario, replication, and estimator, identify the subgroup with the worst (lowest) estimate
+predicted_worst <- results_with_truth %>%
+  filter(!is.na(estimate_log)) %>%
+  group_by(scenario_no, replication_id, estimator) %>%
+  mutate(
+    estimate_hr = exp(estimate_log),
+    is_worst_pred = estimate_hr == max(estimate_hr, na.rm = TRUE)
+  ) %>%
+  filter(is_worst_pred) %>%
+  dplyr::select(scenario_no, replication_id, estimator, join_key) %>%
+  rename(pred_worst_subgroup = join_key) %>%
+  distinct()
+
+# Compare predicted vs true worst subgroups
+worst_accuracy <- predicted_worst %>%
+  left_join(true_worst_subgroup, by = "scenario_no") %>%
+  mutate(
+    correctly_identified = pred_worst_subgroup == true_worst_subgroup
+  ) %>%
+  group_by(scenario_no, estimator) %>%
+  summarise(
+    n_replications = n(),
+    n_correct = sum(correctly_identified, na.rm = TRUE),
+    accuracy = n_correct / n_replications,
+    .groups = 'drop'
+  ) %>%
+  arrange(scenario_no, estimator)
+
+# Overall accuracy (across all scenarios)
+worst_accuracy_overall <- predicted_worst %>%
+  left_join(true_worst_subgroup, by = "scenario_no") %>%
+  mutate(
+    correctly_identified = pred_worst_subgroup == true_worst_subgroup
+  ) %>%
+  group_by(estimator) %>%
+  summarise(
+    n_replications = n(),
+    n_correct = sum(correctly_identified, na.rm = TRUE),
+    accuracy = n_correct / n_replications,
+    .groups = 'drop'
+  ) %>%
+  mutate(
+    estimator_display = beautify_rhs_estimator(estimator),
+    accuracy_pct = getPercentage(accuracy, 1),
+    accuracy_formatted = paste(n_correct, "/", n_replications, " (", accuracy_pct, ")", sep = "")
+  ) %>%
+  dplyr::select(estimator_display, accuracy_formatted) %>%
+  arrange(estimator_display) %>%
+  rename("RHS Model" = estimator_display, "Correct / Total" = accuracy_formatted)
+
+cat("\nWorst Subgroup Identification Accuracy (Overall - across all scenarios):\n\n")
+kbl(worst_accuracy_overall,
+    caption = "RHS Methods: Accuracy of Identifying Worst Subgroup",
+    booktabs = TRUE) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
+                full_width = FALSE)
+```
+
+---
+
+**Document generated**: `r Sys.time()`

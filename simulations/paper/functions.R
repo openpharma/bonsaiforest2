@@ -1,33 +1,319 @@
-#' Simulate Study Data for TTE Endpoint
+#' Simulate Study Data for Multiple Endpoints and Scenarios
 #'
-#' Generates replicated datasets for time-to-event (TTE) outcomes
-#' based on 4 scenarios from Wolbers et al. (2025).
+#' Generates replicated datasets for TTE, binary, count, or continuous
+#' endpoints based on 6 scenarios from Wolbers et al. (2025).
 #'
-#' @param scenario The simulation scenario (1-4).
+#' @param endpoint The type of outcome data to generate.
+#'   One of: "tte", "binary", "count", "continuous".
+#' @param scenario The simulation scenario (1-6).
 #' @param n_datasets The number of datasets (replications) to generate.
-#' @param ... Additional arguments passed to `simul_scenario`
-#'   (e.g., n_patients, n_events).
+#' @param ... Additional arguments. For "tte", these are passed to
+#'   `simul_scenario` (e.g., n_patients, n_events).
 #'
 #' @return A list of `n_datasets` data frames, each containing a
-#'   simulated TTE dataset.
+#'   simulated dataset.
 #'
-simul_study_data <- function(scenario = c("1", "2", "3", "4"),
+#' @details
+#'   - Assumes `simul_scenario`, `simul_data`, `simul_covariates`, etc.,
+#'     are all available in the environment.
+#'
+simul_study_data <- function(endpoint = c("tte", "binary", "count", "continuous"),
+                             scenario = c("1", "2", "3", "4"),
                              n_datasets = 1000,
                              ...) {
   # Match arguments
+  endpoint <- match.arg(endpoint)
   scenario <- match.arg(scenario)
   assert_count(n_datasets)
 
-  message("Simulating TTE data: Calling simul_scenario() function...")
+  # --- Branch 1: Time-to-Event (TTE) Endpoint ---
+  # Use the user's provided function for TTE.
+  if (endpoint == "tte") {
+    message("Endpoint 'tte': Calling provided simul_scenario() function...")
 
-  # Call simul_scenario for TTE data generation
-  simul_scenario(
-    scenario = scenario,
-    n_datasets = n_datasets,
-    ...
+    # Call the user's function (must be in the Global Environment)
+    # We pass '...' which includes n_patients, n_events, etc.
+    return(
+      simul_scenario(
+        scenario = scenario,
+        n_datasets = n_datasets,
+        ...
+      )
+    )
+  }
+
+  # --- Branch 2: New Endpoints (Binary, Count, Continuous) ---
+  message(paste("Endpoint '", endpoint, "': Calling new simulation generator...", sep = ""))
+
+  # Get model parameters (N, intercept, etc.) for the chosen endpoint
+  model_params <- .get_model_parameters(endpoint)
+
+  # Get the (non-zero) coefficients for this scenario
+  scenario_coefs <- .get_scenario_coefs(scenario, model_params)
+
+  # Generate the list of n_datasets
+  replicate(
+    n_datasets,
+    .simul_new_endpoint_single(
+      n = model_params$N,
+      endpoint = endpoint,
+      model_params = model_params,
+      coefs = scenario_coefs
+    ),
+    simplify = FALSE
   )
 }
 
+#' Simulate a Single Dataset for New Endpoints
+#' (Internal Helper Function)
+#'
+#' @description
+#'   This function is designed to be a "twin" of your `simul_data` function.
+#'   It uses the *exact same* covariate generation (`simul_covariates`)
+#'   and *exact same* design matrix logic, but substitutes a new
+#'   outcome (y) for the TTE outcome.
+#'
+#' @param n Sample size.
+#' @param endpoint "binary", "count", or "continuous".
+#' @param model_params List of parameters from .get_model_parameters().
+#' @param coefs Named vector of *non-zero* coefficients from .get_scenario_coefs().
+#'
+#' @return A single simulated data.frame.
+.simul_new_endpoint_single <- function(n,
+                                       endpoint,
+                                       model_params,
+                                       coefs) {
+
+  # 1. GENERATE COVARIATES
+  # Call your 'simul_covariates' function, just like 'simul_data' does.
+  covariates <- simul_covariates(n = n, p_catvar = 10, add_contvars = FALSE, arm_factor = TRUE)
+
+  # 2. BUILD DESIGN MATRIX
+  # This logic is copied *directly* from your 'simul_data' function
+  # to ensure the design matrix is identical.
+  subgroup_model <- ~ x_1 + x_2 + x_3 + x_4 + x_5 + x_6 + x_7 + x_8 + x_9 + x_10
+
+  design_main <- stats::model.matrix(
+    stats::update(subgroup_model, ~ arm + .),
+    data = covariates
+  )
+  subgroup_vars <- all.vars(subgroup_model)
+  design_ia <- NULL
+  for (j in subgroup_vars) {
+    ia_j <- stats::model.matrix(
+      stats::as.formula(paste("~", j, "-1")),
+      data = covariates
+    ) * design_main[, "arm1"] # Assumes arm_factor=TRUE created 'arm1'
+    design_ia <- cbind(design_ia, ia_j)
+  }
+  colnames(design_ia) <- paste(colnames(design_ia), "arm", sep = "_")
+  colnames(design_ia) <- gsub(" ", "", colnames(design_ia))
+  design_matrix <- cbind(design_main, design_ia)
+
+  # 3. BUILD COEFFICIENT VECTOR
+  # This logic is also from 'simul_data': create a full vector
+  # of zeros and fill in the non-zero scenario coefficients.
+  reg_coef <- rep(0, ncol(design_matrix))
+  names(reg_coef) <- colnames(design_matrix)
+
+  # Check that our scenario coefs are all valid
+  assert_subset(names(coefs), names(reg_coef))
+  reg_coef[names(coefs)] <- coefs
+
+  # Validate that reg_coef is numeric (no NAs)
+  if (any(is.na(reg_coef))) {
+    stop("NA values detected in reg_coef. NA positions: ",
+         paste(names(reg_coef)[is.na(reg_coef)], collapse = ", "),
+         "\nCoefficients provided: ", paste(names(coefs), "=", coefs, collapse = ", "))
+  }
+  if (!is.numeric(reg_coef)) {
+    stop("reg_coef is not numeric. Class: ", class(reg_coef))
+  }
+
+  # 4. CALCULATE LINEAR PREDICTOR (eta)
+  lp <- design_matrix %*% reg_coef
+
+  # 5. GENERATE NEW OUTCOME 'y'
+  # This is the only part that's truly "new".
+  y <- switch(
+    endpoint,
+    "binary" = {
+      p <- plogis(lp) # Inverse-logit to get probabilities
+      rbinom(n, 1, p)
+    },
+    "count" = {
+      mu <- exp(lp) # Inverse-log to get rates
+      rnbinom(n, mu = mu, size = model_params$overdispersion)
+    },
+    "continuous" = {
+      rnorm(n, mean = lp, sd = model_params$sd)
+    }
+  )
+
+  # 6. RETURN FINAL DATA.FRAME
+  # We return 'covariates' (which has x_1...x_10, arm) and the new outcome 'y'.
+  # This matches the structure of the TTE data (which has covariates, tt_pfs, ev_pfs).
+  data.frame(id = 1:n, covariates, y)
+}
+
+#' Get Model Parameters for New Endpoints (Internal Helper Function)
+#'
+#' Returns a list of parameters (N, intercept, base_effect, sigma_scale)
+#' for the binary, count, and continuous models, calibrated for ~80% power.
+#'
+#' CALIBRATION TARGETS:
+#' - Binary: N = 800 (400 per arm) for 80% power to detect OR=0.66
+#' - Count: N = 770 (385 per arm) with overdispersion shape=0.34
+#' - Continuous: N = 770 (385 per arm) with residual SD=2.06
+#'
+#' @param endpoint One of "binary", "count", "continuous".
+#' @return A list of model parameters including N, intercept, base_effect,
+#'   sigma_scale, and endpoint-specific parameters.
+.get_model_parameters <- function(endpoint) {
+  switch(
+    endpoint,
+    "binary" = list(
+      endpoint = "binary",
+      # Sample size: 800 (400 per arm) for ~80% power to detect OR=0.66
+      N = 800,
+      # Intercept -0.2 gives baseline event rate ~45%
+      intercept = -0.2,
+      # Base treatment effect: log(0.66) = -0.416 (beneficial)
+      base_effect = log(0.66),
+      # No coefficient scaling for binary
+      sigma_scale = 1.0
+    ),
+    "count" = list(
+      endpoint = "count",
+      # Sample size: 770 (385 per arm) for ~80% power with overdispersion
+      N = 770,
+      # Intercept 0.0 gives baseline count = exp(0.0) = 1.0
+      intercept = 0.0,
+      # Base treatment effect: log(0.66) = -0.416 (beneficial: reduced rate)
+      base_effect = log(0.66),
+      # Negative Binomial shape parameter: 0.34 (variance/mean ~3)
+      overdispersion = 0.34,
+      # No coefficient scaling for count
+      sigma_scale = 1.0
+    ),
+    "continuous" = list(
+      endpoint = "continuous",
+      # Sample size: 770 (385 per arm) for ~80% power with residual SD=2.06
+      N = 770,
+      # Intercept 0.0 (baseline mean = 0)
+      intercept = 0.0,
+      # Base treatment effect: d = -0.3 (beneficial: lower score)
+      base_effect = -0.3,
+      # Residual standard deviation: 2.06 (calibrated for power)
+      sd = 2.06,
+      # No coefficient scaling for continuous
+      sigma_scale = 1.0
+    )
+  )
+}
+
+#' Get Scenario Coefficients (Direct Translation of TTE Logic)
+#'
+#' @param scenario The simulation scenario (1-4).
+#' @param model_params A list of parameters from .get_model_parameters().
+#' @return A named vector of coefficients.
+#' Internal: Get Scenario Coefficients
+#' Applies endpoint-specific scaling factors and treatment effect signs.
+.get_scenario_coefs <- function(scenario, model_params) {
+  RNGkind('Mersenne-Twister')
+  set.seed(5)
+  # --- SCALING FACTOR ---
+  # Extract from model_params (0.85 for TTE, 1.0 for others)
+  sigma_scale <- model_params$sigma_scale
+
+  subgroup_covariates <- c(
+    "x_1a", "x_1b", "x_2a", "x_2b", "x_3a", "x_3b",
+    "x_4a", "x_4b", "x_4c", "x_5a", "x_5b", "x_5c", "x_5d",
+    "x_6a", "x_6b", "x_7a", "x_7b", "x_8a", "x_8b", "x_8c",
+    "x_9a", "x_9b", "x_10a", "x_10b", "x_10c"
+  )
+  ia_names <- paste0(subgroup_covariates, "_arm")
+
+  # Initialize
+  coefs <- c("(Intercept)" = as.numeric(model_params$intercept))
+
+  # Determine sign for treatment effects based on endpoint
+  # TTE: -log(HR) because lower hazard is better (HR<1 is beneficial)
+  # Binary: log(OR) because interpretation depends on outcome direction
+  # Count: log(RR) because Y is "bad" events, so RR<1 is beneficial
+  # Continuous: direct coefficient because Y is "bad" score, so negative is beneficial
+  endpoint <- model_params$endpoint
+
+  # For prognostic effects, always use same direction as TTE AFT model
+  # In TTE AFT: positive coef = longer survival = beneficial
+  # x_4c: HR=0.7 (beneficial) -> AFT coef = -log(0.7) * 0.85 = positive
+  # x_6b: HR=1.5 (harmful) -> AFT coef = -log(1.5) * 0.85 = negative
+  # For non-TTE: keep same direction of effect
+  if (endpoint == "continuous") {
+    # For continuous, use direct scaling without log transformation
+    coefs["x_4c"] <- -log(0.7) * sigma_scale  # Beneficial (lower bad score)
+    coefs["x_6b"] <- -log(1.5) * sigma_scale  # Harmful (higher bad score)
+  } else {
+    # For binary/count, use log scale
+    coefs["x_4c"] <- log(0.7) * sigma_scale   # Beneficial
+    coefs["x_6b"] <- log(1.5) * sigma_scale   # Harmful
+  }
+
+  # Helper to get treatment effect coefficient based on endpoint
+  # Returns the coefficient corresponding to a given hazard ratio
+  get_trt_coef <- function(hr) {
+    if (endpoint == "continuous") {
+      # For continuous: use direct standardized effect
+      # HR=0.66 maps to d=-0.3 (beneficial = negative for "bad" outcome)
+      # Scale proportionally: log(hr) / log(0.66) * (-0.3)
+      (log(hr) / log(0.66)) * (-0.3) * sigma_scale
+    } else {
+      # For binary/count: use log(effect measure)
+      # OR=0.66 or RR=0.66 (beneficial = <1)
+      log(hr) * sigma_scale
+    }
+  }
+
+  if (scenario == "1") {
+    coefs["arm1"] <- get_trt_coef(0.66)
+  }
+  else if (scenario == "2") {
+    coefs["arm1"] <- get_trt_coef(0.66)
+    # x_4a has NO effect. Cancels out the arm effect.
+    coefs["x_4a_arm"] <- -get_trt_coef(0.66)
+    coefs["x_4b_arm"] <- get_trt_coef(0.8)
+    coefs["x_4c_arm"] <- get_trt_coef(0.8)
+  }
+  else if (scenario == "3") {
+    coefs["arm1"] <- 0
+    # Generate random treatment effects with mild heterogeneity
+    if (endpoint == "continuous") {
+      # For continuous: random effects around 0
+      ia_coefs <- rnorm(25, mean = 0, sd = 0.15) * sigma_scale
+    } else {
+      # For binary/count: random log effects
+      # Negative mean for beneficial direction on average
+      ia_coefs <- -rnorm(25, mean = 0, sd = 0.15) * sigma_scale
+    }
+    names(ia_coefs) <- ia_names
+    coefs <- c(coefs, ia_coefs)
+  }
+  else if (scenario == "4") {
+    coefs["arm1"] <- 0
+    # Generate random treatment effects with large heterogeneity
+    if (endpoint == "continuous") {
+      # For continuous: random effects around 0
+      ia_coefs <- rnorm(25, mean = 0, sd = 0.3) * sigma_scale
+    } else {
+      # For binary/count: random log effects
+      ia_coefs <- -rnorm(25, mean = 0, sd = 0.3) * sigma_scale
+    }
+    names(ia_coefs) <- ia_names
+    coefs <- c(coefs, ia_coefs)
+  }
+
+  return(coefs)
+}
 
 ## Helper functions from original Bonsaiforest library
 
@@ -350,7 +636,7 @@ simul_scenario <- function(scenario = c("1", "2", "3", "4"),
                     "x_4b_arm" = -log(0.8) * sigma_aft,
                     "x_4c_arm" = -log(0.8) * sigma_aft
                   ),
-                  # Mild heterogeneity (formerly scenario 4).
+                  # Mild heterogeneity.
                   "3" = {
                     set.seed(5)
                     c(
@@ -362,7 +648,7 @@ simul_scenario <- function(scenario = c("1", "2", "3", "4"),
                       )
                     )
                   },
-                  # Large heterogeneity (formerly scenario 5).
+                  # Large heterogeneity.
                   "4" = {
                     set.seed(5)
                     c(
@@ -375,14 +661,12 @@ simul_scenario <- function(scenario = c("1", "2", "3", "4"),
                     )
                   }
   )
-  add_interaction <- FALSE
 
   replicate(
     n_datasets,
     simul_data(
       n = n_patients,
       coefs = coefs,
-      add_interaction = add_interaction,
       sigma_aft = sigma_aft,
       recr_duration = recr_duration,
       rate_cens = rate_cens,
@@ -728,8 +1012,8 @@ naivepop <- function(resp, trt, data,
                     tryCatch({
                       suppressWarnings(
                         MASS::glm.nb(model_formula, data = data,
-                                    init.theta = 1.0,  # Use reasonable starting value
-                                    control = glm.control(maxit = 100))
+                                     init.theta = 1.0,  # Use reasonable starting value
+                                     control = glm.control(maxit = 100))
                       )
                     }, error = function(e) {
                       # Fallback to Poisson if glm.nb fails (should be rare with full population)
