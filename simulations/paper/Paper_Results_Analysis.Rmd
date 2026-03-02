@@ -18,6 +18,7 @@ library(tidyr)
 library(stringr)
 library(purrr)
 library(ggplot2)
+library(ggtext)
 library(knitr)
 library(kableExtra)
 library(rlang)
@@ -129,18 +130,15 @@ beautify_tte_estimator <- function(estimator_name) {
   dplyr::case_when(
     estimator_name == "population" ~ "Population",
     estimator_name == "subgroup" ~ "Subgroup",
-    # Global HN
-    grepl("Global_HN.*phi_1$", estimator_name) ~ "Global - HN(φ=1)",
-    grepl("Global_HN.*phi_delta_plan_half", estimator_name) ~ "Global - HN(φ=δ/2)",
-    grepl("Global_HN.*phi_delta_plan$", estimator_name) ~ "Global - HN(φ=δ)",
     # Global RHS
-    grepl("Global_RHS.*theta0_1.*s_2", estimator_name) ~ "Global - RHS(θ₀=1, σ=2)",
-    grepl("Global_RHS.*theta0_delta_plan_half", estimator_name) ~ "Global - RHS(θ₀=δ/2, σ=δ)",
-    grepl("Global_RHS.*theta0_delta_plan.*s_2delta", estimator_name) ~ "Global - RHS(θ₀=δ, σ=2δ)",
+    grepl("Global_RHS.*theta0_1.*s_2", estimator_name) ~ "Global - RHS(τ₀=1, s=2)",
+    grepl("Global_RHS.*theta0_delta_plan_half.*s_2", estimator_name) ~ "Global - RHS(τ₀=δ<sub>plan</sub>/2, s=2)",
+    grepl("Global_RHS.*theta0_delta_plan.*s_2", estimator_name) ~ "Global - RHS(τ₀=δ<sub>plan</sub>, s=2)",
+        grepl("Global_RHS.*theta0_delta_plan_half_10.*s_2", estimator_name) ~ "Global - RHS(τ₀=δ<sub>plan</sub>/10, s=2)",
     # OVAT HN
     grepl("OVAT_HN.*phi_1$", estimator_name) ~ "OVAT - HN(φ=1)",
-    grepl("OVAT_HN.*phi_delta_plan_half", estimator_name) ~ "OVAT - HN(φ=δ/2)",
-    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "OVAT - HN(φ=δ)",
+    grepl("OVAT_HN.*phi_delta_plan_half", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>)",
     TRUE ~ estimator_name
   )
 }
@@ -189,6 +187,11 @@ tte_baselines <- tte_performance_by_scenario %>%
   filter(estimator == "subgroup") %>%
   dplyr::select(scenario_no, baseline_rmse = RMSE)
 
+tte_plot_data <- tte_plot_data %>%
+  mutate(estimator_display = ifelse(estimator=="Global_RHS_theta0_delta_plan_half_10_s_2", "Global - RHS(τ₀=δ<sub>plan</sub>/10, s=2)",
+                                    estimator_display))
+
+
 # Standardize RMSE
 tte_plot_data_standardized <- tte_plot_data %>%
   left_join(tte_baselines, by = "scenario_no") %>%
@@ -201,11 +204,12 @@ tte_color_map <- c(
   "Subgroup" = "red",
   "Population" = "orange",
   "OVAT - HN(φ=1)" = "skyblue",
-  "OVAT - HN(φ=δ/2)" = "royalblue",
-  "OVAT - HN(φ=δ)" = "navy",
-  "Global - RHS(θ₀=1, σ=2)" = "palegreen3",
-  "Global - RHS(θ₀=δ/2, σ=δ)" = "forestgreen",
-  "Global - RHS(θ₀=δ, σ=2δ)" = "darkgreen"
+  "OVAT - HN(φ=δ<sub>plan</sub>/2)" = "royalblue",
+  "OVAT - HN(φ=δ<sub>plan</sub>)" = "navy",
+  "Global - RHS(τ₀=1, s=2)" = "palegreen1",
+  "Global - RHS(τ₀=δ<sub>plan</sub>, s=2)" = "palegreen3",
+  "Global - RHS(τ₀=δ<sub>plan</sub>/2, s=2)" = "forestgreen",
+  "Global - RHS(τ₀=δ<sub>plan</sub>/10, s=2)" = "darkgreen"
 )
 
 ggplot(tte_plot_data_standardized, aes(x = scenario_label, y = RMSE_standardized, 
@@ -227,6 +231,7 @@ ggplot(tte_plot_data_standardized, aes(x = scenario_label, y = RMSE_standardized
     plot.subtitle = element_text(size = 11),
     axis.text.x = element_text(angle = 0, hjust = 0.5, size = 10),
     legend.position = "bottom",
+    legend.text = element_markdown(),
     panel.grid.minor = element_blank()
   ) +
   guides(color = guide_legend(ncol = 2))
@@ -268,7 +273,12 @@ tte_table_formatted <- tte_table_summary %>%
     AbsBias_display = paste0(display(AbsBias_mean, 2), " (", display(AbsBias_min, 2), "-", display(AbsBias_max, 2), ")"),
     Coverage_display = paste0(getPercentage(Coverage_mean, 0), " (", getPercentage(Coverage_min, 0), "-", getPercentage(Coverage_max, 0), ")")
   ) %>%
-  dplyr::select(Estimator, Scenario, RMSE_display, Bias_display, AbsBias_display, Coverage_display)
+  dplyr::select(Estimator, Scenario, RMSE_display, Bias_display, AbsBias_display, Coverage_display, estimator)
+
+tte_table_formatted <- tte_table_formatted %>%
+  mutate(Estimator = ifelse(estimator=="Global_RHS_theta0_delta_plan_half_10_s_2", "Global - RHS(τ₀=δ<sub>plan</sub>/10, s=2)",
+                                    Estimator))%>%
+  dplyr::select(-estimator)
 
 # Create table grouped by METRIC first, then estimators
 tte_pivot_table <- tibble()
@@ -301,6 +311,7 @@ tte_pivot_table <- bind_rows(tte_pivot_table,
          `Scenario 1` = "", `Scenario 2` = "", `Scenario 3` = "", `Scenario 4` = "")
 )
 
+
 for (est in sort(unique(tte_table_formatted$Estimator))) {
   est_data <- tte_table_formatted %>%
     filter(Estimator == est) %>%
@@ -323,6 +334,8 @@ tte_pivot_table <- bind_rows(tte_pivot_table,
          `Scenario 1` = "", `Scenario 2` = "", `Scenario 3` = "", `Scenario 4` = "")
 )
 
+
+
 for (est in sort(unique(tte_table_formatted$Estimator))) {
   est_data <- tte_table_formatted %>%
     filter(Estimator == est) %>%
@@ -341,7 +354,8 @@ for (est in sort(unique(tte_table_formatted$Estimator))) {
 
 kbl(tte_pivot_table,
     caption = "TTE: Performance metrics (mean and range) by estimator and scenario",
-    booktabs = TRUE) %>%
+    booktabs = TRUE,
+    escape = FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE)
 ```
@@ -375,6 +389,7 @@ tte_subgroup_4a_perf <- tte_subgroup_metrics %>%
 kbl(tte_subgroup_4a_perf,
     caption = "TTE Scenario 2: Performance Metrics for Subgroup 4a (Worst Subgroup, AHR=1.00)",
     booktabs = TRUE,
+    escape = FALSE,
     col.names = c("Estimator",  "RMSE", "Absolute Bias", "95% CI Coverage")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE)
@@ -399,10 +414,23 @@ predicted_worst <- tte_all_results %>%
     is_worst_pred = estimate_ahr == max(estimate_ahr, na.rm = TRUE)
   ) %>%
   filter(is_worst_pred) %>%
-  dplyr::select(scenario_no, replication_id, estimator, join_key) %>%
   rename(pred_worst_subgroup = join_key) %>%
   distinct()
 
+predicted_worst <- predicted_worst %>%
+  mutate(
+    error = estimate_log - truth_log,
+    ci_contains_truth = (truth_log >= ci_lower) & (truth_log <= ci_upper)
+  ) %>%
+  group_by(estimator) %>%
+  summarise(
+    n_replications = n(),
+    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
+    bias_log = mean(error, na.rm = TRUE),  # Signed bias per subgroup
+    abs_bias_log = abs(bias_log),  # Take absolute value of signed bias (not mean of abs)
+    coverage = mean(ci_contains_truth, na.rm = TRUE),
+    .groups = 'drop'
+  )
 # Compare predicted vs true worst subgroups
 worst_accuracy <- predicted_worst %>%
   mutate(
@@ -424,7 +452,8 @@ worst_accuracy <- predicted_worst %>%
 
 kbl(worst_accuracy,
     caption = "TTE Scenario 2: Accuracy of Identifying Subgroup 4a as the Worst Subgroup",
-    booktabs = TRUE) %>%
+    booktabs = TRUE,
+    escape = FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE) %>%
   footnote(
@@ -533,19 +562,19 @@ beautify_cont_estimator <- function(estimator_name) {
     estimator_name == "population" ~ "Population",
     estimator_name == "subgroup" ~ "Subgroup",
     # Global HN
-    grepl("Global_HN.*phi_delta_half", estimator_name) ~ "Global - HN(φ=δ_plan/2)",
-    grepl("Global_HN.*phi_sigma_plan", estimator_name) ~ "Global - HN(φ=σ_plan)",
-    grepl("Global_HN.*phi_delta_plan$", estimator_name) ~ "Global - HN(φ=δ_plan)",
+    grepl("Global_HN.*phi_delta_half", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("Global_HN.*phi_sigma_plan", estimator_name) ~ "Global - HN(φ=σ<sub>plan</sub>)",
+    grepl("Global_HN.*phi_delta_plan$", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>)",
     # Global Horseshoe
-        grepl("Global_Horseshoe.*delta_10", estimator_name) ~ "Global - Horseshoe(τ_0 =δ_plan/10, s=2*σ_plan)",
-            grepl("Global_Horseshoe.*delta_100", estimator_name) ~ "Global - Horseshoe(τ_0 =δ_plan/100, s=2*σ_plan)",
-    grepl("Global_Horseshoe.*delta_half", estimator_name) ~ "Global - Horseshoe(τ_0 =δ_plan/2, s=2*σ_plan)",
-    grepl("Global_Horseshoe.*sigma_plan", estimator_name) ~ "Global - Horseshoe(τ_0 =σ_plan, s=2*σ_plan)",
-    grepl("Global_Horseshoe.*delta_plan$", estimator_name) ~ "Global - Horseshoe(τ_0 =δ_plan, s=2*σ_plan)",
+        grepl("Global_Horseshoe.*delta_10", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10, s=2*σ<sub>plan</sub>)",
+            grepl("Global_Horseshoe.*delta_100", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/100, s=2*σ<sub>plan</sub>)",
+    grepl("Global_Horseshoe.*delta_half", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/2, s=2*σ<sub>plan</sub>)",
+    grepl("Global_Horseshoe.*sigma_plan", estimator_name) ~ "Global - Horseshoe(τ₀ =σ<sub>plan</sub>, s=2*σ<sub>plan</sub>)",
+    grepl("Global_Horseshoe.*delta_plan$", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>, s=2*σ<sub>plan</sub>)",
     # OVAT HN
-    grepl("OVAT_HN.*phi_delta_half", estimator_name) ~ "OVAT - HN(φ=δ_plan/2)",
-    grepl("OVAT_HN.*phi_sigma_plan", estimator_name) ~ "OVAT - HN(φ=σ_plan)",
-    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "OVAT - HN(φ=δ_plan)",
+    grepl("OVAT_HN.*phi_delta_half", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("OVAT_HN.*phi_sigma_plan", estimator_name) ~ "OVAT - HN(φ=σ<sub>plan</sub>)",
+    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>)",
     TRUE ~ estimator_name
   )
 }
@@ -570,7 +599,7 @@ cont_baselines <- cont_performance_by_scenario %>%
   dplyr::select(scenario_no, baseline_rmse = RMSE)
 
 cont_plot_data <- cont_plot_data %>%
-  mutate(estimator_display = ifelse(estimator=="Global_Horseshoe_global_delta_100", "Global - Horseshoe(τ_0 =δ_plan/100, s=2*σ_plan)",
+  mutate(estimator_display = ifelse(estimator=="Global_Horseshoe_global_delta_100", "Global - Horseshoe(τ₀ =δ_plan/100, s=2*σ_plan)",
                                     estimator_display))
 
 # Standardize RMSE
@@ -584,14 +613,14 @@ cont_plot_data_standardized <- cont_plot_data %>%
 cont_color_map <- c(
   "Subgroup" = "red",
   "Population" = "orange",
-  "OVAT - HN(φ=δ_plan/2)" = "skyblue",
-  "OVAT - HN(φ=δ_plan)" = "royalblue",
-  "OVAT - HN(φ=σ_plan)" = "navy",
-  "Global - Horseshoe(τ_0 =δ_plan/100, s=2*σ_plan)" = "purple",
-  "Global - Horseshoe(τ_0 =δ_plan/10, s=2*σ_plan)" = "palegreen2",
-  "Global - Horseshoe(τ_0 =δ_plan/2, s=2*σ_plan)" = "palegreen3",
-  "Global - Horseshoe(τ_0 =δ_plan, s=2*σ_plan)" = "forestgreen",
-  "Global - Horseshoe(τ_0 =σ_plan, s=2*σ_plan)" = "darkgreen"
+  "OVAT - HN(φ=δ<sub>plan</sub>/2)" = "skyblue",
+  "OVAT - HN(φ=δ<sub>plan</sub>)" = "royalblue",
+  "OVAT - HN(φ=σ<sub>plan</sub>)" = "navy",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/100, s=2*σ<sub>plan</sub>)" = "purple",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10, s=2*σ<sub>plan</sub>)" = "palegreen2",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/2, s=2*σ<sub>plan</sub>)" = "palegreen3",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>, s=2*σ<sub>plan</sub>)" = "forestgreen",
+  "Global - Horseshoe(τ₀ =σ<sub>plan</sub>, s=2*σ<sub>plan</sub>)" = "darkgreen"
 )
 
 ggplot(cont_plot_data_standardized, aes(x = scenario_no_numeric, y = RMSE_standardized, 
@@ -614,6 +643,7 @@ ggplot(cont_plot_data_standardized, aes(x = scenario_no_numeric, y = RMSE_standa
     plot.subtitle = element_text(size = 11),
     axis.text.x = element_text(angle = 0, hjust = 0.5, size = 10),
     legend.position = "bottom",
+    legend.text = element_markdown(),
     panel.grid.minor = element_blank()
   ) +
   guides(color = guide_legend(ncol = 2))
@@ -762,7 +792,8 @@ for (est in sort(unique(cont_table_formatted$Estimator))) {
 
 kbl(cont_pivot_table,
     caption = "Continuous: Performance metrics (mean and range) by estimator and scenario",
-    booktabs = TRUE) %>%
+    booktabs = TRUE,
+    escape = FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE)
 ```
@@ -799,13 +830,13 @@ scenarios <- sort(unique(cont_forest_data$scenario_no))
 cont_color_map <- c(
   "Subgroup" = "red",
   "Population" = "orange",
-  "OVAT - HN(φ=δ_plan/2)" = "skyblue",
-  "OVAT - HN(φ=δ_plan)" = "royalblue",
-  "OVAT - HN(φ=σ_plan)" = "navy",
-  "Global - Horseshoe(τ_0 =δ_plan/10, s=2*σ_plan)" = "palegreen1",
-  "Global - Horseshoe(τ_0 =δ_plan/2, s=2*σ_plan)" = "palegreen3",
-  "Global - Horseshoe(τ_0 =σ_plan, s=2*σ_plan)" = "forestgreen",
-  "Global - Horseshoe(τ_0 =δ_plan, s=2*σ_plan)" = "darkgreen"
+  "OVAT - HN(φ=δ<sub>plan</sub>/2)" = "skyblue",
+  "OVAT - HN(φ=δ<sub>plan</sub>)" = "royalblue",
+  "OVAT - HN(φ=σ<sub>plan</sub>)" = "navy",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10, s=2*σ<sub>plan</sub>)" = "palegreen1",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/2, s=2*σ<sub>plan</sub>)" = "palegreen3",
+  "Global - Horseshoe(τ₀ =σ<sub>plan</sub>, s=2*σ<sub>plan</sub>)" = "forestgreen",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>, s=2*σ<sub>plan</sub>)" = "darkgreen"
 )
 
 for (scen in scenarios) {
@@ -840,7 +871,7 @@ for (scen in scenarios) {
       axis.text.y = element_text(size = 10),
       axis.text.x = element_text(size = 10),
       legend.position = "right",
-      legend.text = element_text(size = 9),
+      legend.text = element_markdown(size = 9),
       panel.grid.major.y = element_line(color = "gray95", size = 0.3),
       panel.grid.minor.x = element_blank(),
       panel.spacing = unit(1, "lines")
@@ -880,6 +911,7 @@ cont_subgroup_x11cat_a_perf <- cont_subgroup_metrics_full %>%
 kbl(cont_subgroup_x11cat_a_perf,
     caption = "Continuous Scenario 3: Performance Metrics for X11cat level a (Worst Subgroup)",
     booktabs = TRUE,
+    escape = FALSE,
     col.names = c("Estimator", "RMSE", "Absolute Bias", "95% CI Coverage")) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE)
@@ -929,7 +961,8 @@ worst_accuracy_cont <- predicted_worst_cont %>%
 
 kbl(worst_accuracy_cont,
     caption = "Continuous Scenario 3: Accuracy of Identifying X11cat level a as the Worst Subgroup",
-    booktabs = TRUE) %>%
+    booktabs = TRUE,
+    escape = FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE) %>%
   footnote(
@@ -950,7 +983,7 @@ This section presents detailed results for the Global Horseshoe-Normal (HN) mode
 
 ### TTE Figure: Global HN Standardized RMSE
 
-```{r tte_supp_figure_global_hn, fig.width=10, fig.height=6}
+```{r tte_supp_figure_global_hn, fig.width=10, fig.height=6, eval= FALSE}
 # Prepare supplementary data: only Global HN models
 tte_plot_data_supp <- tte_performance_supplementary %>%
   mutate(
@@ -974,8 +1007,8 @@ tte_plot_data_supp_standardized <- tte_plot_data_supp %>%
 # Create plot with manual color scheme
 tte_supp_color_map <- c(
   "Global - HN(φ=1)" = "lightgray",
-  "Global - HN(φ=δ/2)" = "gray50",
-  "Global - HN(φ=δ)" = "darkgray"
+  "Global - HN(φ=δ<sub>plan</sub>/2)" = "gray50",
+  "Global - HN(φ=δ<sub>plan</sub>)" = "darkgray"
 )
 
 ggplot(tte_plot_data_supp_standardized, aes(x = scenario_no_numeric, y = RMSE_standardized, 
@@ -998,13 +1031,14 @@ ggplot(tte_plot_data_supp_standardized, aes(x = scenario_no_numeric, y = RMSE_st
     plot.subtitle = element_text(size = 11),
     axis.text.x = element_text(angle = 0, hjust = 0.5, size = 10),
     legend.position = "bottom",
+    legend.text = element_markdown(),
     panel.grid.minor = element_blank()
   )
 ```
 
 ### TTE Table: Global HN Performance by Scenario
 
-```{r tte_supp_table_global_hn}
+```{r tte_supp_table_global_hn, eval= FALSE}
 # Create summary table for Global HN only
 tte_table_supp_summary <- tte_subgroup_metrics %>%
   filter(grepl("Global_HN", estimator)) %>%
@@ -1043,7 +1077,8 @@ tte_supp_table_data <- tte_table_supp_summary %>%
 
 kbl(tte_supp_table_data,
     caption = "TTE Supplementary: Global HN models - Overall RMSE and mean (range) of bias across all replications and subgroups",
-    booktabs = TRUE) %>%
+    booktabs = TRUE,
+    escape = FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE) %>%
   collapse_rows(columns = 1)
@@ -1055,7 +1090,7 @@ kbl(tte_supp_table_data,
 
 ### Continuous Figure: Global HN Standardized RMSE
 
-```{r cont_supp_figure_global_hn, fig.width=10, fig.height=6}
+```{r cont_supp_figure_global_hn, fig.width=10, fig.height=6, eval= FALSE}
 # Prepare supplementary data: only Global HN models
 cont_plot_data_supp <- cont_performance_supplementary %>%
   mutate(
@@ -1077,9 +1112,9 @@ cont_plot_data_supp_standardized <- cont_plot_data_supp %>%
 
 # Create plot with manual color scheme
 cont_supp_color_map <- c(
-  "Global - HN(φ=δ/2)" = "lightgray",
-  "Global - HN(φ=δ)" = "gray50",
-  "Global - HN(σ=σ_plan)" = "darkgray"
+  "Global - HN(φ=δ<sub>plan</sub>/2)" = "lightgray",
+  "Global - HN(φ=δ<sub>plan</sub>)" = "gray50",
+  "Global - HN(φ=σ<sub>plan</sub>)" = "darkgray"
 )
 
 ggplot(cont_plot_data_supp_standardized, aes(x = scenario_no_numeric, y = RMSE_standardized, 
@@ -1102,13 +1137,14 @@ ggplot(cont_plot_data_supp_standardized, aes(x = scenario_no_numeric, y = RMSE_s
     plot.subtitle = element_text(size = 11),
     axis.text.x = element_text(angle = 0, hjust = 0.5, size = 10),
     legend.position = "bottom",
+    legend.text = element_markdown(),
     panel.grid.minor = element_blank()
   )
 ```
 
 ### Continuous Table: Global HN Performance by Scenario
 
-```{r cont_supp_table_global_hn}
+```{r cont_supp_table_global_hn, eval= FALSE}
 # Create summary table for Global HN only
 cont_table_supp_summary <- cont_subgroup_metrics %>%
   filter(grepl("Global_HN", estimator)) %>%
@@ -1144,7 +1180,8 @@ cont_supp_table_data <- cont_table_supp_summary %>%
 
 kbl(cont_supp_table_data,
     caption = "Continuous Supplementary: Global HN models - Overall RMSE and mean (range) of bias across all replications and subgroups",
-    booktabs = TRUE) %>%
+    booktabs = TRUE,
+    escape = FALSE) %>%
   kable_styling(bootstrap_options = c("striped", "hover", "condensed"), 
                 full_width = FALSE) %>%
   collapse_rows(columns = 1)

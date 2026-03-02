@@ -1,6 +1,6 @@
 # -----------------------------------------------------------------
 # RUN REGULARIZED HORSESHOE MODEL ANALYSIS (bonsaiforest2) FOR A SINGLE ENDPOINT
-# Prior: Regularized Horseshoe with θ₀=δ_plan/2, s=δ_plan
+# Prior: Regularized Horseshoe with θ₀=δ_plan/10, s=δ_plan
 # Scenarios: 1-4
 #
 # This script:
@@ -31,7 +31,7 @@ s <- 2
 message(paste("Defining Regularized Horseshoe prior with theta_0 = delta_plan/2 =", theta_0, "and s = delta_plan =", s, "..."))
 
 PRIOR_SPECIFICATIONS <- list(
-  RHS_theta0_delta_plan_half_s_2 = list(prior = paste0("horseshoe(df = 1, scale_global = ", theta_0, ", scale_slab = ", s, ")"), stanvars = NULL)
+  RHS_theta0_delta_plan_half_10_s_2 = list(prior = paste0("horseshoe(df = 1, scale_global = ", theta_0, ", scale_slab = ", s, ")"), stanvars = NULL)
 )
 # ------------------------
 

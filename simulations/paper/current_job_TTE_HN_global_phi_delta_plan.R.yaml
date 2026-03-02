@@ -1,8 +1,8 @@
 Platform: apollo
 Region: eu
-Description: Simulation job for TTE/RHS_theta0_delta_plan_half_s_2.R
+Description: Simulation job for TTE/HN_global_phi_delta_plan.R
 ComputeType: 96CPU-768GB
-ScriptCommand: Rscript TTE/RHS_theta0_delta_plan_half_s_2.R
+ScriptCommand: Rscript TTE/HN_global_phi_delta_plan.R
 Image: 537212169289.dkr.ecr.eu-central-1.amazonaws.com/rstudio-standard:R4.4.3-15apr2025
 WorkingDirectory: /home/pedreram/bonsaiforest2/simulations/paper
 Timeout: 1d
