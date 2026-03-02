@@ -20,22 +20,9 @@ echo ""
 # --- Configuration: Define the simulation list ---
 data_types=("TTE")
 models_TTE=(
-  "OVAT_1_oneway_HN_phi_1"
-  "OVAT_1_oneway_HN_phi_delta_plan_half"
-  "OVAT_1_oneway_HN_phi_delta_plan"
-  "OVAT_2_oneway_HN_phi_1"
-  "OVAT_2_oneway_HN_phi_delta_plan_half"
-  "OVAT_2_oneway_HN_phi_delta_plan"
-  "OVAT_3_oneway_HN_phi_1"
-  "OVAT_3_oneway_HN_phi_delta_plan_half"
-  "OVAT_3_oneway_HN_phi_delta_plan"
-  "OVAT_4_oneway_HN_phi_1"
-  "OVAT_4_oneway_HN_phi_delta_plan_half"
-  "OVAT_4_oneway_HN_phi_delta_plan"
-  "RHS_theta0_1_s_2"
-  "RHS_theta0_delta_plan_10_s_2"
-  "RHS_theta0_delta_plan_half_s_2"
-  "RHS_theta0_delta_plan_s_2"
+  "HN_global_phi1"
+  "HN_global_phi_delta_plan"
+  "HN_global_phi_delta_plan_half"
 )
 
 # --- Main Logic: Generate list and pipe to xargs ---

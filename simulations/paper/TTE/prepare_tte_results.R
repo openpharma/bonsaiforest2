@@ -24,22 +24,28 @@ cat("Loaded truth data from:", tte_truth_file, "\n")
 # Extract subgroup-level truth (log hazard ratios)
 # truth_effects is a list with scenario1, scenario2, scenario3, scenario4
 # Each element contains named numeric vectors with log-scale effects
-tte_truth_subgroup <- map_dfr(names(truth_effects), function(scenario_name) {
-  scenario_no <- gsub("scenario", "", scenario_name)
-  effects_vector <- truth_effects[[scenario_name]]
-
-  data.frame(
-    scenario_no = scenario_no,
-    subgroup_raw = names(effects_vector),
-    truth_log = as.numeric(effects_vector),
-    stringsAsFactors = FALSE
-  )
-}) %>%
+truth_subgroup <- simul_parameter$true_subgroup_ahr %>%
+  mutate(scenario_no = as.character(row_number())) %>%
+  pivot_longer(
+    cols = -scenario_no,
+    names_to = "subgroup_raw",
+    values_to = "truth_ahr"
+  ) %>%
   mutate(
+    # Clean subgroup names to match results (remove x_, dots, etc.)
     join_key = gsub("x_|\\.", "", subgroup_raw) %>% tolower(),
-    truth_ahr = exp(truth_log)
+    truth_log = log(truth_ahr)
   ) %>%
   dplyr::select(scenario_no, join_key, truth_log, truth_ahr)
+
+# Extract population-level truth
+truth_population <- simul_parameter$true_overall_results %>%
+  mutate(
+    scenario_no = as.character(1:4),
+    truth_pop_ahr = AHR,
+    truth_pop_log = log(AHR)
+  ) %>%
+  dplyr::select(scenario_no, truth_pop_ahr, truth_pop_log)
 
 # Extract population-level truth
 # Load all TTE result files
@@ -107,7 +113,7 @@ cat("Estimators found:", n_distinct(tte_all_results$estimator), "\n\n")
 
 # Merge results with truth
 tte_results_merged <- tte_all_results %>%
-  left_join(tte_truth_subgroup, by = c("scenario_no", "join_key"))
+  left_join(truth_subgroup, by = c("scenario_no", "join_key"))
 
 # Filter to only rows with truth values and keep scenarios 1, 2, 3, 4
 tte_results_merged <- tte_results_merged %>%

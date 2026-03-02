@@ -19,7 +19,7 @@ message(paste("Defining Horseshoe prior: theta0 =", horseshoe_theta0, ", scale_s
 
 PRIOR_SPECIFICATIONS <- list(
   Horseshoe_global_delta_plan = list(
-    prior = brms::set_prior(paste0("horseshoe(", horseshoe_theta0, ", scale_slab = ", horseshoe_scale_slab, ", autoscale=FALSE)"), class = "b"),
+    prior = brms::set_prior(paste0("horseshoe(scale_global =", horseshoe_theta0, ", scale_slab = ", horseshoe_scale_slab, ", autoscale=FALSE)"), class = "b"),
     autoscale = FALSE
   )
 )
