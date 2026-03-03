@@ -36,7 +36,9 @@ cat("\n")
 
 # Load all Continuous result files
 cont_all_files <- list.files(cont_results_path, pattern = "\\.rds$", full.names = TRUE)
-
+# Exclude old horseshoe with delta_plan/2
+cont_all_files <- cont_all_files[cont_all_files != "/home/pedreram/bonsaiforest2/simulations/paper/Continuous/Results/continuous_global_Horseshoe_global_delta_100.rds"]
+cont_all_files <- cont_all_files[cont_all_files != "/home/pedreram/bonsaiforest2/simulations/paper/Continuous/Results/continuous_global_Horseshoe_global_delta_half.rds"]
 cat("Found", length(cont_all_files), "result files\n\n")
 
 # Function to load and standardize Continuous results

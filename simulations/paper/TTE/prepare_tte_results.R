@@ -51,6 +51,8 @@ truth_population <- simul_parameter$true_overall_results %>%
 # Load all TTE result files
 tte_all_files <- list.files(tte_results_path, pattern = "\\.rds$", full.names = TRUE)
 
+# Exclude old horseshoe with delta_plan/2
+tte_all_files <- tte_all_files[tte_all_files != "/home/pedreram/bonsaiforest2/simulations/paper/TTE/Results/tte_RHS_theta0_delta_plan_half_s_2.rds"]
 cat("Found", length(tte_all_files), "result files\n\n")
 
 # Function to load and standardize TTE results
