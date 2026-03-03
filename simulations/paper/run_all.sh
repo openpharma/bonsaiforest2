@@ -18,11 +18,40 @@ echo "Password received. Starting parallel batch (2 jobs at a time)..."
 echo ""
 
 # --- Configuration: Define the simulation list ---
-data_types=("TTE")
+data_types=("TTE" "Continuous")
 models_TTE=(
   "HN_global_phi1"
   "HN_global_phi_delta_plan"
   "HN_global_phi_delta_plan_half"
+  "OVAT_1_oneway_HN_phi_1"
+  "OVAT_1_oneway_HN_phi_delta_plan"
+  "OVAT_1_oneway_HN_phi_delta_plan_half"
+  "OVAT_2_oneway_HN_phi_1"
+  "OVAT_2_oneway_HN_phi_delta_plan"
+  "OVAT_2_oneway_HN_phi_delta_plan_half"
+  "OVAT_3_oneway_HN_phi_1"
+  "OVAT_3_oneway_HN_phi_delta_plan"
+  "OVAT_3_oneway_HN_phi_delta_plan_half"
+  "OVAT_4_oneway_HN_phi_1"
+  "OVAT_4_oneway_HN_phi_delta_plan"
+  "OVAT_4_oneway_HN_phi_delta_plan_half"
+  "RHS_theta0_1_s_2"
+  "RHS_theta0_delta_plan_10_s_2"
+  "RHS_theta0_delta_plan_half_s_2"
+  "RHS_theta0_delta_plan_s_2"
+)
+
+models_Continuous=(
+  "HN_global_phi_delta_half"
+  "HN_global_phi_delta_plan"
+  "HN_global_phi_sigma_plan"
+  "Horseshoe_global_delta_10"
+  "Horseshoe_global_delta_half"
+  "Horseshoe_global_delta_plan"
+  "Horseshoe_global_sigma_plan"
+  "OVAT_oneway_HN_phi_delta_half"
+  "OVAT_oneway_HN_phi_delta_plan"
+  "OVAT_oneway_HN_phi_sigma_plan"
 )
 
 # --- Main Logic: Generate list and pipe to xargs ---
