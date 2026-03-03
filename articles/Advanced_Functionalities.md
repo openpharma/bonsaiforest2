@@ -81,8 +81,8 @@ count_model_fit <- run_brms_analysis(
 #> Chain 1 finished in 3.1 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.0 seconds.
-#> Total execution time: 3.3 seconds.
+#> Mean chain execution time: 2.9 seconds.
+#> Total execution time: 3.2 seconds.
 #> Warning: 3 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
@@ -173,12 +173,12 @@ fit_ex3 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 2.3 seconds.
-#> Chain 2 finished in 2.3 seconds.
+#> Chain 1 finished in 2.2 seconds.
+#> Chain 2 finished in 2.2 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.3 seconds.
-#> Total execution time: 2.4 seconds.
+#> Mean chain execution time: 2.2 seconds.
+#> Total execution time: 2.3 seconds.
 
 # View the priors that were automatically set
 cat("\n=== Priors Used ===\n")
@@ -224,11 +224,11 @@ fit_ex4 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 1.8 seconds.
+#> Chain 2 finished in 1.6 seconds.
 #> Chain 1 finished in 2.2 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.0 seconds.
+#> Mean chain execution time: 1.9 seconds.
 #> Total execution time: 2.3 seconds.
 #> Warning: 19 of 1000 (2.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
@@ -291,12 +291,12 @@ fit_ex5 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.0 seconds.
-#> Chain 2 finished in 3.3 seconds.
+#> Chain 1 finished in 2.9 seconds.
+#> Chain 2 finished in 3.1 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.1 seconds.
-#> Total execution time: 3.4 seconds.
+#> Mean chain execution time: 3.0 seconds.
+#> Total execution time: 3.2 seconds.
 #> Warning: 59 of 1000 (6.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -431,12 +431,12 @@ fit_specific <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.6 seconds.
-#> Chain 2 finished in 2.7 seconds.
+#> Chain 1 finished in 1.5 seconds.
+#> Chain 2 finished in 2.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.1 seconds.
-#> Total execution time: 2.8 seconds.
+#> Mean chain execution time: 2.0 seconds.
+#> Total execution time: 2.7 seconds.
 
 # View the used priors
 cat("\n=== Priors Used ===\n")
@@ -619,7 +619,7 @@ fit_custom_contrast <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.3 seconds.
+#> Chain 1 finished in 1.2 seconds.
 #> Chain 2 finished in 1.3 seconds.
 #> 
 #> Both chains finished successfully.
@@ -770,12 +770,12 @@ fit_continuous_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 2.7 seconds.
-#> Chain 1 finished in 3.2 seconds.
+#> Chain 2 finished in 2.6 seconds.
+#> Chain 1 finished in 3.0 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.0 seconds.
-#> Total execution time: 3.3 seconds.
+#> Mean chain execution time: 2.8 seconds.
+#> Total execution time: 3.1 seconds.
 #> 
 #> Analysis complete.
 ```
@@ -866,12 +866,12 @@ fit_surv_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 6.1 seconds.
-#> Chain 2 finished in 6.9 seconds.
+#> Chain 1 finished in 5.8 seconds.
+#> Chain 2 finished in 6.5 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 6.5 seconds.
-#> Total execution time: 7.1 seconds.
+#> Mean chain execution time: 6.2 seconds.
+#> Total execution time: 6.7 seconds.
 #> Warning: 12 of 1000 (1.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 #> 
