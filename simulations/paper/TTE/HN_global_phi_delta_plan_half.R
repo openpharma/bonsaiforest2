@@ -8,7 +8,7 @@
 # 2. Runs the global shrinkage model analysis using `bonsaiforest2` for
 #    the one endpoint defined in `ENDPOINT_ID`.
 # 3. Uses Half-Normal(φ=δ_plan/2) prior on fixed effects.
-# 4. Processes SCENARIOS 1-3 only.
+# 4. Processes SCENARIOS 1-4 only.
 # 5. Saves the results to the `Results/` folder.
 # -----------------------------------------------------------------
 
@@ -96,10 +96,10 @@ endpoint_params <- switch(ENDPOINT_ID,
 )
 
 # --- 3. LOAD AND PROCESS INPUT DATA ---
-cat(sprintf("--- Starting GLOBAL SHRINKAGE MODEL RUN (%s) - SCENARIOS 1-3 ---\n", ENDPOINT_ID))
-cat("Loading scenario data for scenarios 1-3...\n")
+cat(sprintf("--- Starting GLOBAL SHRINKAGE MODEL RUN (%s) - SCENARIOS 1-4 ---\n", ENDPOINT_ID))
+cat("Loading scenario data for scenarios 1-4...\n")
 
-scenarios_to_run <- as.character(1:3)
+scenarios_to_run <- as.character(1:4)
 scenarios_list <- list()
 
 for (scen in scenarios_to_run) {
@@ -145,7 +145,7 @@ task_grid <- expand.grid(
 
 # --- 5. SET UP LOGGING AND RESULTS FILES ---
 prior_names_str <- paste(names(PRIOR_SPECIFICATIONS), collapse = "_")
-base_file_name <- paste(ENDPOINT_ID, "global", prior_names_str, "scenarios_1_3", sep = "_")
+base_file_name <- paste(ENDPOINT_ID, "global", prior_names_str,  sep = "_")
 
 log_file <- file.path(endpoint_params$folder, RESULTS_DIR, paste0(base_file_name, ".log"))
 if (file.exists(log_file)) file.remove(log_file)
@@ -163,14 +163,14 @@ run_single_task <- function(i) {
   current_task <- task_grid[i, ]
   sim_id <- current_task$sim_id
   df <- flat_named_list[[sim_id]]
-  
+
   start_t <- Sys.time()
   task_desc <- sprintf("Sim %s | Model: %s | Prior: %s", sim_id, current_task$model_type, current_task$prior_name)
-  
+
   cat(sprintf("[%s] START: %s\n", format(start_t, "%H:%M:%S"), task_desc), file = log_file, append = TRUE)
-  
+
   out <- tryCatch({
-    
+
     # Set up cmdstan directory
     job_temp_base <- Sys.getenv("JOB_TEMP_DIR", tempdir())
     safe_sim_id <- gsub("[^[:alnum:]_]", "_", sim_id)
@@ -181,11 +181,11 @@ run_single_task <- function(i) {
       sprintf("cmdstan_%s_%s_%s", safe_prior_name, safe_sim_id, random_suffix)
     )
     dir.create(cmdstan_output_dir, recursive = TRUE, showWarnings = FALSE)
-    
+
     # Build formulas
     prognostic_str <- paste(covariate_set, collapse = " + ")
     predictive_str <- paste(paste0("arm:", covariate_set), collapse = " + ")
-    
+
     # Run model
     fit <- run_brms_analysis(
       data = df,
@@ -199,34 +199,34 @@ run_single_task <- function(i) {
       backend = "cmdstanr",
       output_dir = cmdstan_output_dir
     )
-    
+
     # Get estimates
     output <- summary_subgroup_effects(fit)
     est_df <- output$estimates
-    
+
     # Extract convergence diagnostics
     rhat_vals <- brms::rhat(fit)
     max_rhat <- ifelse(!is.null(rhat_vals), max(rhat_vals, na.rm = TRUE), NA)
     rhat_gt_1_05 <- ifelse(!is.null(rhat_vals), sum(rhat_vals > 1.05, na.rm = TRUE), NA)
-    
+
     # Get divergent transitions
     n_divergent <- sum(fit$sampler_diagnostics[, , "divergent__"])
-    
+
     # Get ESS estimates
     neff_ratio <- brms::neff_ratio(fit)
     mean_neff_ratio <- ifelse(!is.null(neff_ratio), mean(neff_ratio, na.rm = TRUE), NA)
-    
+
     # Add diagnostics to each row
     est_df$max_rhat <- max_rhat
     est_df$n_rhats_gt_1_05 <- rhat_gt_1_05
     est_df$n_divergent <- n_divergent
     est_df$mean_neff_ratio <- mean_neff_ratio
-    
+
     # Clean up
     unlink(cmdstan_output_dir, recursive = TRUE)
-    
+
     est_df
-    
+
   }, error = function(e) {
     msg <- gsub("\\n", " ", e$message)
     cat(sprintf("ERROR %s: %s\n", task_desc, msg), file = log_file, append = TRUE)

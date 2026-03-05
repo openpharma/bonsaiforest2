@@ -57,7 +57,7 @@ load_and_standardize_continuous <- function(file_path) {
   }
 
   # Check if it's a naive estimator (naivepop/subgroup) or bonsaiforest2
-  if (estimator_name %in% c("naivepop", "subgroup")) {
+  if (estimator_name %in% c("naivepop", "subgroup", "naivepop_with_covariates")) {
     # Naive estimators - old format
     # Compute 95% CI from estimate and standard error: CI = estimate ± 1.96 * SE
     if (estimator_name == "naivepop") {
@@ -70,7 +70,18 @@ load_and_standardize_continuous <- function(file_path) {
           ci_lower = trt_effect - 1.96 * trt_se,
           ci_upper = trt_effect + 1.96 * trt_se
         )
-    } else {
+    }  else {
+      if (estimator_name == "naivepop_with_covariates") {
+        df_clean <- df %>%
+          mutate(
+            scenario_id = as.integer(scenario_no),
+            replication_id = as.integer(sim_id),
+            estimator = "population_with_covariates",
+            estimate = trt_effect,
+            ci_lower = trt_effect - 1.96 * trt_se,
+            ci_upper = trt_effect + 1.96 * trt_se
+          )
+      } else{
       df_clean <- df %>%
         mutate(
           scenario_id = as.integer(scenario_no),
@@ -82,6 +93,7 @@ load_and_standardize_continuous <- function(file_path) {
           subgroup_var = subgroup_var,
           level = subgroup_level
         )
+      }
     }
   } else {
     # bonsaiforest2 estimators - new format with Median column and credible intervals
@@ -183,3 +195,4 @@ cat("✓ Saved Continuous merged results to:", cont_output_file, "\n\n")
 # Display sample
 cat("Sample of Continuous results:\n")
 print(head(cont_results_merged, 5))
+
