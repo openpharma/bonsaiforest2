@@ -14,5 +14,7 @@
   : Prepare a Multi-Part brms Formula and Corresponding Data
 - [`run_brms_analysis()`](https://openpharma.github.io/bonsaiforest2/reference/run_brms_analysis.md)
   : Run a Full Bayesian Hierarchical Model Analysis
+- [`shrink_data`](https://openpharma.github.io/bonsaiforest2/reference/shrink_data.md)
+  : Simulated data for shrinkage analysis
 - [`summary_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/summary_subgroup_effects.md)
   : Create a Summary of Marginal Subgroup Treatment Effects

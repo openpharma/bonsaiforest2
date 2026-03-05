@@ -175,7 +175,7 @@ oneway_X2 <- run_brms_analysis(
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.1 seconds.
-#> Total execution time: 3.4 seconds.
+#> Total execution time: 3.3 seconds.
 
 summary_oneway_X2 <- summary_subgroup_effects(brms_fit = oneway_X2)
 ```
@@ -198,12 +198,12 @@ oneway_X3 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
+#> Chain 2 finished in 3.2 seconds.
 #> Chain 1 finished in 3.5 seconds.
-#> Chain 2 finished in 3.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.6 seconds.
-#> Total execution time: 3.7 seconds.
+#> Mean chain execution time: 3.3 seconds.
+#> Total execution time: 3.6 seconds.
 
 summary_oneway_X3 <- summary_subgroup_effects(brms_fit = oneway_X3)
 ```
@@ -226,7 +226,7 @@ oneway_X4 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.3 seconds.
+#> Chain 1 finished in 3.4 seconds.
 #> Chain 2 finished in 3.6 seconds.
 #> 
 #> Both chains finished successfully.
@@ -318,12 +318,12 @@ global_shrinkage_model <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 8.7 seconds.
-#> Chain 1 finished in 9.1 seconds.
+#> Chain 2 finished in 8.6 seconds.
+#> Chain 1 finished in 8.9 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 8.9 seconds.
-#> Total execution time: 9.2 seconds.
+#> Mean chain execution time: 8.7 seconds.
+#> Total execution time: 9.0 seconds.
 ```
 
 ### 4.2 Global Model: Summary of Subgroup Effects
