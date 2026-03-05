@@ -559,6 +559,7 @@ cat("Continuous performance metrics calculated.\n")
 # Beautify estimator names for Continuous
 beautify_cont_estimator <- function(estimator_name) {
   dplyr::case_when(
+    estimator_name == "population_with_covariates" ~ "Population with covariates",
     estimator_name == "population" ~ "Population",
     estimator_name == "subgroup" ~ "Subgroup",
     # Global HN
@@ -566,11 +567,15 @@ beautify_cont_estimator <- function(estimator_name) {
     grepl("Global_HN.*phi_sigma_plan", estimator_name) ~ "Global - HN(φ=σ<sub>plan</sub>)",
     grepl("Global_HN.*phi_delta_plan$", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>)",
     # Global Horseshoe
-        grepl("Global_Horseshoe.*delta_10", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10, s=2*σ<sub>plan</sub>)",
-            grepl("Global_Horseshoe.*delta_100", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/100, s=2*σ<sub>plan</sub>)",
-    grepl("Global_Horseshoe.*delta_half", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/2, s=2*σ<sub>plan</sub>)",
-    grepl("Global_Horseshoe.*sigma_plan", estimator_name) ~ "Global - Horseshoe(τ₀ =σ<sub>plan</sub>, s=2*σ<sub>plan</sub>)",
-    grepl("Global_Horseshoe.*delta_plan$", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>, s=2*σ<sub>plan</sub>)",
+        grepl("Global_Horseshoe.*delta_10", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10)",
+            grepl("Global_Horseshoe.*delta_100", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/100)",
+    grepl("Global_Horseshoe.*delta_half", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/2)",
+    grepl("Global_Horseshoe.*sigma_plan", estimator_name) ~ "Global - Horseshoe(τ₀ =σ<sub>plan</sub>)",
+    grepl("Global_Horseshoe.*delta_plan$", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>)",
+            # OVAT HN Cova Adjusted
+    grepl("OVAT_HN.*phi_delta_halfCov", estimator_name) ~ "OVATCOV - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("OVAT_HN.*phi_sigma_planCov$", estimator_name) ~ "OVATCOV - HN(φ=σ<sub>plan</sub>)",
+    grepl("OVAT_HN.*phi_delta_planCov$", estimator_name) ~ "OVATCOV - HN(φ=δ<sub>plan</sub>)",
     # OVAT HN
     grepl("OVAT_HN.*phi_delta_half", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>/2)",
     grepl("OVAT_HN.*phi_sigma_plan", estimator_name) ~ "OVAT - HN(φ=σ<sub>plan</sub>)",
@@ -598,9 +603,6 @@ cont_baselines <- cont_performance_by_scenario %>%
   filter(estimator == "subgroup") %>%
   dplyr::select(scenario_no, baseline_rmse = RMSE)
 
-cont_plot_data <- cont_plot_data %>%
-  mutate(estimator_display = ifelse(estimator=="Global_Horseshoe_global_delta_100", "Global - Horseshoe(τ₀ =δ_plan/100, s=2*σ_plan)",
-                                    estimator_display))
 
 # Standardize RMSE
 cont_plot_data_standardized <- cont_plot_data %>%
@@ -613,14 +615,16 @@ cont_plot_data_standardized <- cont_plot_data %>%
 cont_color_map <- c(
   "Subgroup" = "red",
   "Population" = "orange",
+  "Population with covariates" = "yellow",
   "OVAT - HN(φ=δ<sub>plan</sub>/2)" = "skyblue",
   "OVAT - HN(φ=δ<sub>plan</sub>)" = "royalblue",
   "OVAT - HN(φ=σ<sub>plan</sub>)" = "navy",
-  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/100, s=2*σ<sub>plan</sub>)" = "purple",
-  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10, s=2*σ<sub>plan</sub>)" = "palegreen2",
-  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/2, s=2*σ<sub>plan</sub>)" = "palegreen3",
-  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>, s=2*σ<sub>plan</sub>)" = "forestgreen",
-  "Global - Horseshoe(τ₀ =σ<sub>plan</sub>, s=2*σ<sub>plan</sub>)" = "darkgreen"
+  "OVATCOV - HN(φ=δ<sub>plan</sub>/2)" = "violet",
+  "OVATCOV - HN(φ=δ<sub>plan</sub>)" = "purple",
+  "OVATCOV - HN(φ=σ<sub>plan</sub>)" = "purple4",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10)" = "palegreen3",
+  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>)" = "forestgreen",
+  "Global - Horseshoe(τ₀ =σ<sub>plan</sub>)" = "darkgreen"
 )
 
 ggplot(cont_plot_data_standardized, aes(x = scenario_no_numeric, y = RMSE_standardized, 
@@ -646,7 +650,7 @@ ggplot(cont_plot_data_standardized, aes(x = scenario_no_numeric, y = RMSE_standa
     legend.text = element_markdown(),
     panel.grid.minor = element_blank()
   ) +
-  guides(color = guide_legend(ncol = 2))
+  guides(color = guide_legend(ncol = 4))
 ```
 
 ---
