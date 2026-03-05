@@ -11,7 +11,7 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/openpharma/bonsaiforest2/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/openpharma/bonsaiforest2/blob/v0.1.0-beta/DESCRIPTION)
 
 Pedrera Gomez M, Gravestock I, Wolbers M (2026). *bonsaiforest2:
 Flexible Bayesian Shrinkage Based Forest Plots*. R package version
