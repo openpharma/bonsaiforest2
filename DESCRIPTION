@@ -56,3 +56,5 @@ Suggests:
 Config/testthat/edition: 3
 VignetteBuilder: knitr
 Additional_repositories: https://stan-dev.r-universe.dev
+Depends: 
+    R (>= 3.5)
