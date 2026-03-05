@@ -53,7 +53,7 @@ endpoint_params <- list(
 results_dir_path <- file.path(endpoint_params$folder, RESULTS_DIR)
 dir.create(results_dir_path, recursive = TRUE, showWarnings = FALSE)
 
-base_file_name <- paste(ENDPOINT_ID, "naivepop", sep = "_")
+base_file_name <- paste(ENDPOINT_ID, "naivepop_with_covariates", sep = "_")
 results_file <- file.path(results_dir_path, paste0(base_file_name, ".rds"))
 log_file <- file.path(results_dir_path, paste0(base_file_name, ".log"))
 
@@ -92,7 +92,8 @@ run_naive_population_analysis <- function(scenario_list, scenario_no) {
     nest() %>%
     mutate(
       # Fit unadjusted model: Y ~ trt (to match TTE approach)
-      fit = map(data, ~lm(Y ~ trt, data = .x)),
+      fit = map(data, ~lm(Y ~ trt + X1 + X2 + X4
+                          + X8 + X11cat + X14cat + X17cat, data = .x)),
       tidy_result = map(fit, ~broom::tidy(.x) %>%
                         filter(term == "trt") %>%
                         dplyr::select(term, estimate, std.error, statistic, p.value)),
