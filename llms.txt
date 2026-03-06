@@ -16,11 +16,17 @@ subgroup effect estimates in exploratory and confirmatory analyses.
 
 ## Installation
 
-**UPDATE TO USUAL INSTALLATION** You can install the development version
-of `bonsaiforest2` from its GitLab repository:
+You can install the latest stable release of `bonsaiforest2` from
+[GitHub](https://github.com/openpharma/bonsaiforest2):
 
 ``` r
-# install.packages("remotes") 
+# install.packages("remotes")
+remotes::install_github("openpharma/bonsaiforest2@v0.1.0-beta")
+```
+
+Or install the development version from the `main` branch:
+
+``` r
 remotes::install_github("openpharma/bonsaiforest2")
 ```
 
@@ -28,90 +34,52 @@ remotes::install_github("openpharma/bonsaiforest2")
 
 This example demonstrates Bayesian shrinkage estimation of treatment
 effects across subgroups using a **fixed effects model** with a
-Regularized Horseshoe prior. We simulate data with real treatment effect
-heterogeneity across five subgrouping variables.
+Regularized Horseshoe prior, applied to the `shrink_data` package
+dataset with three subgrouping variables.
 
 ``` r
 library(bonsaiforest2)
 
-# 1. Simulate continuous outcome trial data with treatment heterogeneity
-set.seed(123)
-n <- 500
-dat <- data.frame(
-  y    = rnorm(n, mean = 50, sd = 15),
-  trt  = rep(0:1, length.out = n),
-  x1   = factor(sample(c("A", "B"), n, replace = TRUE)),
-  x2   = factor(sample(c("A", "B", "C"), n, replace = TRUE)),
-  x3   = factor(sample(c("A", "B"), n, replace = TRUE)),
-  x4   = factor(sample(c("A", "B"), n, replace = TRUE)),
-  x5   = factor(sample(c("A", "B"), n, replace = TRUE))
-)
-
-# Add baseline effect and heterogeneous treatment effects by subgroup
-trt_effect <- dat$trt * (
-  0.35 +                                           # Base treatment effect
-  0.35 * (as.numeric(dat$x1 == "B") - 0.35)       # Heterogeneity by x1
-)
-dat$y <- trt_effect + rnorm(n, 0, 1.2)
+# 1. Load the shrink_data package dataset
+data(shrink_data)
 
 # 2. Fit fixed effects model with heterogeneous shrinkage
 fit_fixed <- run_brms_analysis(
-  data = dat,
+  data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ x1 + x2 + x3 + x4 + x5,
+  unshrunk_terms_formula = ~ x1 + x2 + x3,
   shrunk_prognostic_formula = NULL,
-  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3 + trt:x4 + trt:x5,
-  intercept_prior = "normal(50, 15)",
+  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
+  intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 5)",
   shrunk_prognostic_prior = NULL,
   shrunk_predictive_prior = "horseshoe(1)",
   chains = 2, iter = 1000, warmup = 500,
   backend = "cmdstanr", refresh = 0
 )
-#> Running MCMC with 2 sequential chains...
-#> 
-#> Chain 1 finished in 2.1 seconds.
-#> Chain 2 finished in 2.0 seconds.
-#> 
-#> Both chains finished successfully.
-#> Mean chain execution time: 2.0 seconds.
-#> Total execution time: 4.3 seconds.
+```
 
+``` r
 # 3. Extract and visualize marginal treatment effects by subgroup
 subgroup_effects <- summary_subgroup_effects(fit_fixed)
-print(subgroup_effects)
-#> $estimates
-#> # A tibble: 11 × 4
-#>    Subgroup Median CI_Lower CI_Upper
-#>    <chr>     <dbl>    <dbl>    <dbl>
-#>  1 x1: A     0.212  -0.113     0.501
-#>  2 x1: B     0.554   0.249     0.908
-#>  3 x2: A     0.412   0.161     0.739
-#>  4 x2: B     0.325  -0.0227    0.581
-#>  5 x2: C     0.398   0.140     0.701
-#>  6 x3: A     0.376   0.120     0.616
-#>  7 x3: B     0.369   0.127     0.609
-#>  8 x4: A     0.382   0.163     0.632
-#>  9 x4: B     0.360   0.0824    0.619
-#> 10 x5: A     0.401   0.168     0.703
-#> 11 x5: B     0.344   0.0918    0.585
-#> 
-#> $response_type
-#> [1] "continuous"
-#> 
-#> $ci_level
-#> [1] 0.95
-#> 
-#> $trt_var
-#> [1] "trt"
-#> 
-#> attr(,"class")
-#> [1] "subgroup_summary"
+print(subgroup_effects$estimates)
+#> # A tibble: 9 × 4
+#>   Subgroup Median  CI_Lower CI_Upper
+#>   <chr>     <dbl>     <dbl>    <dbl>
+#> 1 x1: a     0.489  0.247       0.724
+#> 2 x1: b     0.113 -0.257       0.458
+#> 3 x2: a     0.388  0.0938      0.643
+#> 4 x2: b     0.411  0.182       0.688
+#> 5 x2: c     0.270  0.00723     0.508
+#> 6 x3: a     0.343  0.0939      0.593
+#> 7 x3: b     0.404  0.165       0.740
+#> 8 x3: c     0.381  0.132       0.691
+#> 9 x3: d     0.315 -0.000216    0.565
 plot(subgroup_effects)
 ```
 
-![](reference/figures/README-example-continuous-1.png)
+![](reference/figures/README-example-summary-1.png)
 
 # Package index
 

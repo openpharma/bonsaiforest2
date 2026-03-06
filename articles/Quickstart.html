@@ -92,58 +92,33 @@
 <h2 id="the-data">
 <span class="header-section-number">2</span> The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
 </h2>
-<p>We will use a simulated example dataset with a continuous response variable. The relevant outcome is <code>y</code>.</p>
-<p>We consider a model where we want to find the treatment effect (<code>trt</code>) on <code>y</code>. The model will adjust for <code>baseline</code> as a <strong>prognostic</strong> variable (predictor of the outcome) and explore <strong>multiple subgroup variables</strong> as <strong>predictive</strong> variables (potential treatment effect modifiers):</p>
+<p>We will use the <code>shrink_data</code> package dataset with a continuous response variable. The relevant outcome is <code>y</code>.</p>
+<p>We consider a model where we want to find the treatment effect (<code>trt</code>) on <code>y</code>. We explore <strong>three subgroup variables</strong> as <strong>predictive</strong> variables (potential treatment effect modifiers):</p>
 <ul>
 <li>
-<code>X1</code>: Subgroup 1 (categories: A, B, C)</li>
+<code>x1</code>: Subgroup 1 (categories: a, b)</li>
 <li>
-<code>X2</code>: Subgroup 2 (categories: A, B)</li>
+<code>x2</code>: Subgroup 2 (categories: a, b, c)</li>
 <li>
-<code>X3</code>: Subgroup 3 (categories: A, B, C)</li>
-<li>
-<code>X4</code>: Subgroup 4 (categories: A, B)</li>
-<li>
-<code>X5</code>: Subgroup 5 (categories: A, B)</li>
+<code>x3</code>: Subgroup 3 (categories: a, b, c, d)</li>
 </ul>
-<p>First, let’s load the libraries and create the data.</p>
+<p>First, let’s load the libraries and the data.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load the main package</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/paul-buerkner/brms" class="external-link">brms</a></span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Create the example data with multiple subgroup variables and treatment effects</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
-<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">500</span></span>
+<code class="sourceCode R"><span><span class="co"># Load the shrink_data package dataset</span></span>
+<span><span class="va">shrink_data</span> <span class="op">&lt;-</span> <span class="fu">bonsaiforest2</span><span class="fu">::</span><span class="va"><a href="../reference/shrink_data.html">shrink_data</a></span></span>
 <span></span>
-<span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
-<span>  id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="va">n</span>,</span>
-<span>  trt <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">0</span><span class="op">:</span><span class="fl">1</span>, length.out <span class="op">=</span> <span class="va">n</span><span class="op">)</span>,  <span class="co"># Numeric treatment 0/1</span></span>
-<span>  baseline <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, mean <span class="op">=</span> <span class="fl">100</span>, sd <span class="op">=</span> <span class="fl">15</span><span class="op">)</span>,</span>
-<span>  X1 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  X2 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  X3 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span>, <span class="st">"C"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  X4 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  X5 <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sample.html" class="external-link">sample</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span>, <span class="va">n</span>, replace <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
-<span></span>
-<span><span class="co"># Generate outcome with baseline effect and heterogeneous treatment effects</span></span>
-<span><span class="va">data</span><span class="op">$</span><span class="va">y</span> <span class="op">&lt;-</span> <span class="fl">50</span> <span class="op">+</span> </span>
-<span>  <span class="fl">0.2</span> <span class="op">*</span> <span class="va">data</span><span class="op">$</span><span class="va">baseline</span> <span class="op">+</span> </span>
-<span>  <span class="va">data</span><span class="op">$</span><span class="va">trt</span> <span class="op">*</span> <span class="op">(</span><span class="op">-</span><span class="fl">5</span> <span class="op">+</span>                                    <span class="co"># Base treatment effect</span></span>
-<span>    <span class="fl">2</span> <span class="op">*</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">data</span><span class="op">$</span><span class="va">X1</span> <span class="op">==</span> <span class="st">"A"</span><span class="op">)</span> <span class="op">-</span> <span class="fl">0.33</span><span class="op">)</span> <span class="op">+</span>        <span class="co"># Heterogeneity by X1</span></span>
-<span>    <span class="fl">1.5</span> <span class="op">*</span> <span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/numeric.html" class="external-link">as.numeric</a></span><span class="op">(</span><span class="va">data</span><span class="op">$</span><span class="va">X3</span> <span class="op">==</span> <span class="st">"B"</span><span class="op">)</span> <span class="op">-</span> <span class="fl">0.33</span><span class="op">)</span>        <span class="co"># Heterogeneity by X3</span></span>
-<span>  <span class="op">)</span> <span class="op">+</span> </span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="va">n</span>, <span class="fl">0</span>, <span class="fl">10</span><span class="op">)</span></span>
-<span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">data</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="co">#&gt;   id trt  baseline X1 X2 X3 X4 X5        y</span></span>
-<span><span class="co">#&gt; 1  1   0  91.59287  A  B  C  B  A 63.61448</span></span>
-<span><span class="co">#&gt; 2  2   1  96.54734  B  B  C  B  B 70.01582</span></span>
-<span><span class="co">#&gt; 3  3   0 123.38062  C  A  B  A  B 51.31665</span></span>
-<span><span class="co">#&gt; 4  4   1 101.05763  B  B  C  A  B 75.00897</span></span>
-<span><span class="co">#&gt; 5  5   0 101.93932  C  A  C  B  A 54.71636</span></span>
-<span><span class="co">#&gt; 6  6   1 125.72597  A  B  C  B  B 71.20951</span></span></code></pre></div>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">shrink_data</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   id trt x1 x2 x3        y response tt_event event_yn fup_duration count</span></span>
+<span><span class="co">#&gt; 1  1   0  a  b  b 5.864030        0 22.94233        1           24     1</span></span>
+<span><span class="co">#&gt; 2  2   1  b  c  d 4.464349        0 49.13731        0           24     0</span></span>
+<span><span class="co">#&gt; 3  3   1  a  b  d 6.379085        1 59.90381        0           24     2</span></span>
+<span><span class="co">#&gt; 4  4   0  b  b  d 5.002507        0 21.25450        1           24     1</span></span>
+<span><span class="co">#&gt; 5  5   1  a  b  c 5.652024        0 59.80762        0           24     1</span></span>
+<span><span class="co">#&gt; 6  6   1  b  b  a 5.427096        0 22.81750        1           24     0</span></span></code></pre></div>
 </div>
 <div class="section level2" number="3">
 <h2 id="one-way-models">
@@ -152,42 +127,39 @@
 <p>This section demonstrates how to fit separate models, each examining one subgroup variable at a time. In one-way models, we specify treatment effects as random slopes using pipe-pipe notation (e.g., <code>~ (0 + trt || subgroup)</code>), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects.</p>
 <div class="section level3" number="3.1">
 <h3 id="one-way-model-x1-only">
-<span class="header-section-number">3.1</span> One-way Model: X1 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x1-only"></a>
+<span class="header-section-number">3.1</span> One-way Model: x1 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x1-only"></a>
 </h3>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Fit model with only X1 as subgroup variable using one-way approach</span></span>
-<span><span class="co"># Random effects notation (0 + trt || X1) estimates varying treatment slopes by X1</span></span>
-<span><span class="va">oneway_X1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">data</span>,</span>
+<code class="sourceCode R"><span><span class="co"># Fit model with only x1 as subgroup variable using one-way approach</span></span>
+<span><span class="co"># Random effects notation (0 + trt || x1) estimates varying treatment slopes by x1</span></span>
+<span><span class="va">oneway_x1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
 <span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">X1</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">x1</span><span class="op">)</span>,</span>
 <span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
 <span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.1 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.9 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2 finished in 3.4 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 3.3 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 3.1 seconds.</span></span>
 <span><span class="co">#&gt; Total execution time: 3.6 seconds.</span></span>
 <span></span>
-<span><span class="va">summary_oneway_X1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_X1</span><span class="op">)</span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">summary_oneway_X1</span><span class="op">)</span></span>
+<span><span class="va">summary_oneway_x1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x1</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">summary_oneway_x1</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $estimates</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 3 × 4</span></span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> X1: A     -<span style="color: #BB0000;">3.39</span>    -<span style="color: #BB0000;">5.31</span>    -<span style="color: #BB0000;">1.20</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> X1: B     -<span style="color: #BB0000;">3.80</span>    -<span style="color: #BB0000;">5.79</span>    -<span style="color: #BB0000;">1.72</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> X1: C     -<span style="color: #BB0000;">4.91</span>    -<span style="color: #BB0000;">7.29</span>    -<span style="color: #BB0000;">2.84</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> x1: a     0.686    0.465   0.895 </span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> x1: b    -<span style="color: #BB0000;">0.295</span>   -<span style="color: #BB0000;">0.557</span>  -<span style="color: #BB0000;">0.051</span><span style="color: #BB0000; text-decoration: underline;">8</span></span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>
@@ -203,133 +175,69 @@
 </div>
 <div class="section level3" number="3.2">
 <h3 id="one-way-model-x2-only">
-<span class="header-section-number">3.2</span> One-way Model: X2 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x2-only"></a>
+<span class="header-section-number">3.2</span> One-way Model: x2 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x2-only"></a>
 </h3>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">oneway_X2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">data</span>,</span>
+<code class="sourceCode R"><span><span class="va">oneway_x2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
 <span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">X2</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">x2</span><span class="op">)</span>,</span>
 <span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
 <span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 2 finished in 3.0 seconds.</span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.3 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 1.3 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 1.4 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 3.1 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 3.3 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 1.3 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 1.5 seconds.</span></span>
 <span></span>
-<span><span class="va">summary_oneway_X2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_X2</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">summary_oneway_x2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x2</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3" number="3.3">
 <h3 id="one-way-model-x3-only">
-<span class="header-section-number">3.3</span> One-way Model: X3 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x3-only"></a>
+<span class="header-section-number">3.3</span> One-way Model: x3 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x3-only"></a>
 </h3>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">oneway_X3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">data</span>,</span>
+<code class="sourceCode R"><span><span class="va">oneway_x3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
+<span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
 <span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">X3</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">x3</span><span class="op">)</span>,</span>
 <span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
 <span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 2 finished in 3.2 seconds.</span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 1.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 1.5 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 3.3 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 3.6 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 1.5 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 1.6 seconds.</span></span>
 <span></span>
-<span><span class="va">summary_oneway_X3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_X3</span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">summary_oneway_x3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x3</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3" number="3.4">
-<h3 id="one-way-model-x4-only">
-<span class="header-section-number">3.4</span> One-way Model: X4 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x4-only"></a>
-</h3>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">oneway_X4</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">data</span>,</span>
-<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
-<span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
-<span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">X4</span><span class="op">)</span>,</span>
-<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.4 seconds.</span></span>
-<span><span class="co">#&gt; Chain 2 finished in 3.6 seconds.</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 3.5 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 3.7 seconds.</span></span>
-<span></span>
-<span><span class="va">summary_oneway_X4</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_X4</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3" number="3.5">
-<h3 id="one-way-model-x5-only">
-<span class="header-section-number">3.5</span> One-way Model: X5 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x5-only"></a>
-</h3>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">oneway_X5</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">data</span>,</span>
-<span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
-<span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
-<span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">X5</span><span class="op">)</span>,</span>
-<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
-<span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
-<span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
-<span><span class="op">)</span></span>
-<span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 2 finished in 3.5 seconds.</span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.7 seconds.</span></span>
-<span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 3.6 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 3.8 seconds.</span></span>
-<span></span>
-<span><span class="va">summary_oneway_X5</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_X5</span><span class="op">)</span></span></code></pre></div>
-</div>
-<div class="section level3" number="3.6">
 <h3 id="one-way-models-visualizing-all-models">
-<span class="header-section-number">3.6</span> One-way Models: Visualizing All Models<a class="anchor" aria-label="anchor" href="#one-way-models-visualizing-all-models"></a>
+<span class="header-section-number">3.4</span> One-way Models: Visualizing All Models<a class="anchor" aria-label="anchor" href="#one-way-models-visualizing-all-models"></a>
 </h3>
 <p>You can combine and visualize results from multiple models using <code><a href="../reference/combine_summaries.html">combine_summaries()</a></code>:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Combine all one-way models</span></span>
 <span><span class="va">combined_oneway</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/combine_summaries.html">combine_summaries</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
-<span>  <span class="st">"X1"</span> <span class="op">=</span> <span class="va">summary_oneway_X1</span>,</span>
-<span>  <span class="st">"X2"</span> <span class="op">=</span> <span class="va">summary_oneway_X2</span>,</span>
-<span>  <span class="st">"X3"</span> <span class="op">=</span> <span class="va">summary_oneway_X3</span>,</span>
-<span>  <span class="st">"X4"</span> <span class="op">=</span> <span class="va">summary_oneway_X4</span>,</span>
-<span>  <span class="st">"X5"</span> <span class="op">=</span> <span class="va">summary_oneway_X5</span></span>
+<span>  <span class="st">"x1"</span> <span class="op">=</span> <span class="va">summary_oneway_x1</span>,</span>
+<span>  <span class="st">"x2"</span> <span class="op">=</span> <span class="va">summary_oneway_x2</span>,</span>
+<span>  <span class="st">"x3"</span> <span class="op">=</span> <span class="va">summary_oneway_x3</span></span>
 <span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">combined_oneway</span>, title <span class="op">=</span> <span class="st">"One-way Models: All Subgroup Variables"</span><span class="op">)</span></span>
@@ -348,20 +256,17 @@
 <h3 id="global-model-all-subgroups">
 <span class="header-section-number">4.1</span> Global Model: All Subgroups<a class="anchor" aria-label="anchor" href="#global-model-all-subgroups"></a>
 </h3>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Fit a single unified model with ALL subgroup variables simultaneously using global approach</span></span>
-<span><span class="co"># - Unshrunk terms: baseline with reference coding</span></span>
 <span><span class="co"># - Shrunk prognostic effects: subgroup main effects with strong regularization using one-hot encoding</span></span>
 <span><span class="co"># - Shrunk predictive effects: treatment interactions with strong regularization using one-hot encoding</span></span>
 <span><span class="va">global_shrinkage_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">data</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">baseline</span>,</span>
-<span>  shrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">X1</span> <span class="op">+</span> <span class="va">X2</span> <span class="op">+</span> <span class="va">X3</span> <span class="op">+</span> <span class="va">X4</span> <span class="op">+</span> <span class="va">X5</span>,</span>
-<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X1</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X2</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X3</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X4</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">X5</span>,</span>
+<span>  shrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>,</span>
+<span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x1</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x2</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x3</span>,</span>
 <span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
 <span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
 <span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 0.5)"</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
@@ -369,23 +274,23 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 2 finished in 8.6 seconds.</span></span>
-<span><span class="co">#&gt; Chain 1 finished in 8.9 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 10.1 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 10.8 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 8.7 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 9.0 seconds.</span></span></code></pre></div>
+<span><span class="co">#&gt; Mean chain execution time: 10.4 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 10.9 seconds.</span></span></code></pre></div>
 </div>
 <div class="section level3" number="4.2">
 <h3 id="global-model-summary-of-subgroup-effects">
 <span class="header-section-number">4.2</span> Global Model: Summary of Subgroup Effects<a class="anchor" aria-label="anchor" href="#global-model-summary-of-subgroup-effects"></a>
 </h3>
 <p>Use <code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> to generate marginal treatment effects for each subgroup. The function automatically extracts all treatment interactions from the fitted model:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">global_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">global_shrinkage_model</span><span class="op">)</span></span>
 <span><span class="co">#&gt; --- Calculating specific subgroup effects... ---</span></span>
 <span><span class="co">#&gt; Step 1: Identifying subgroups and creating counterfactuals...</span></span>
-<span><span class="co">#&gt; ...detected subgroup variable(s): X1, X2, X3, X4, X5</span></span>
+<span><span class="co">#&gt; ...detected subgroup variable(s): x1, x2, x3</span></span>
 <span><span class="co">#&gt; Step 2: Generating posterior predictions...</span></span>
 <span><span class="co">#&gt; Step 3: Calculating marginal effects...</span></span>
 <span><span class="co">#&gt; Done.</span></span>
@@ -393,21 +298,18 @@
 <span><span class="co"># Print the summary of subgroup-specific treatment effects</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">global_summary</span><span class="op">)</span></span>
 <span><span class="co">#&gt; $estimates</span></span>
-<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 12 × 4</span></span></span>
-<span><span class="co">#&gt;    Subgroup Median CI_Lower CI_Upper</span></span>
-<span><span class="co">#&gt;    <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 1</span> X1: A     -<span style="color: #BB0000;">3.66</span>    -<span style="color: #BB0000;">5.75</span>    -<span style="color: #BB0000;">1.47</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 2</span> X1: B     -<span style="color: #BB0000;">3.84</span>    -<span style="color: #BB0000;">5.86</span>    -<span style="color: #BB0000;">1.77</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 3</span> X1: C     -<span style="color: #BB0000;">4.96</span>    -<span style="color: #BB0000;">7.50</span>    -<span style="color: #BB0000;">2.90</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 4</span> X2: A     -<span style="color: #BB0000;">4.21</span>    -<span style="color: #BB0000;">6.22</span>    -<span style="color: #BB0000;">2.32</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 5</span> X2: B     -<span style="color: #BB0000;">4.09</span>    -<span style="color: #BB0000;">6.12</span>    -<span style="color: #BB0000;">2.20</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 6</span> X3: A     -<span style="color: #BB0000;">4.71</span>    -<span style="color: #BB0000;">7.22</span>    -<span style="color: #BB0000;">2.52</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 7</span> X3: B     -<span style="color: #BB0000;">3.91</span>    -<span style="color: #BB0000;">6.01</span>    -<span style="color: #BB0000;">1.67</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 8</span> X3: C     -<span style="color: #BB0000;">3.92</span>    -<span style="color: #BB0000;">5.94</span>    -<span style="color: #BB0000;">1.83</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;"> 9</span> X4: A     -<span style="color: #BB0000;">4.19</span>    -<span style="color: #BB0000;">6.09</span>    -<span style="color: #BB0000;">2.31</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">10</span> X4: B     -<span style="color: #BB0000;">4.10</span>    -<span style="color: #BB0000;">6.16</span>    -<span style="color: #BB0000;">2.26</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">11</span> X5: A     -<span style="color: #BB0000;">4.18</span>    -<span style="color: #BB0000;">6.20</span>    -<span style="color: #BB0000;">2.35</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">12</span> X5: B     -<span style="color: #BB0000;">4.14</span>    -<span style="color: #BB0000;">6.04</span>    -<span style="color: #BB0000;">2.26</span></span></span>
+<span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 9 × 4</span></span></span>
+<span><span class="co">#&gt;   Subgroup Median CI_Lower CI_Upper</span></span>
+<span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> x1: a    0.512    0.273     0.754</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> x1: b    0.061<span style="text-decoration: underline;">5</span>  -<span style="color: #BB0000;">0.289</span>     0.403</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> x2: a    0.393    0.126     0.632</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> x2: b    0.411    0.188     0.659</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> x2: c    0.272    0.026<span style="text-decoration: underline;">1</span>    0.497</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span> x3: a    0.316    0.031<span style="text-decoration: underline;">6</span>    0.541</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">7</span> x3: b    0.434    0.190     0.804</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">8</span> x3: c    0.373    0.124     0.667</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">9</span> x3: d    0.321    0.041<span style="text-decoration: underline;">5</span>    0.541</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>
@@ -426,7 +328,7 @@
 <span class="header-section-number">4.3</span> Global Model: Visualization<a class="anchor" aria-label="anchor" href="#global-model-visualization"></a>
 </h3>
 <p>Use the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function to create a forest plot from the summary object:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">global_summary</span>, title <span class="op">=</span> <span class="st">"Global Model: All Subgroup Variables"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
@@ -443,7 +345,7 @@
 <h3 id="example-comparing-one-way-vs-global-models">
 <span class="header-section-number">5.1</span> Example: Comparing One-way vs Global Models<a class="anchor" aria-label="anchor" href="#example-comparing-one-way-vs-global-models"></a>
 </h3>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Combine summaries for comparison</span></span>
 <span><span class="va">combined</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/combine_summaries.html">combine_summaries</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
 <span>  <span class="st">"One-way"</span> <span class="op">=</span> <span class="va">combined_oneway</span>,</span>
