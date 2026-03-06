@@ -47,17 +47,15 @@ This example makes use of Bayesian modeling, which requires the installation of 
 
 # The Data
 
-We will use a simulated example dataset with a continuous response variable. The relevant outcome is `y`.
+We will use the `shrink_data` package dataset with a continuous response variable. The relevant outcome is `y`.
 
-We consider a model where we want to find the treatment effect (`trt`) on `y`. The model will adjust for `baseline` as a **prognostic** variable (predictor of the outcome) and explore **multiple subgroup variables** as **predictive** variables (potential treatment effect modifiers):
+We consider a model where we want to find the treatment effect (`trt`) on `y`. We explore **three subgroup variables** as **predictive** variables (potential treatment effect modifiers):
 
--   `X1`: Subgroup 1 (categories: A, B, C)
--   `X2`: Subgroup 2 (categories: A, B)
--   `X3`: Subgroup 3 (categories: A, B, C)
--   `X4`: Subgroup 4 (categories: A, B)
--   `X5`: Subgroup 5 (categories: A, B)
+-   `x1`: Subgroup 1 (categories: a, b)
+-   `x2`: Subgroup 2 (categories: a, b, c)
+-   `x3`: Subgroup 3 (categories: a, b, c, d)
 
-First, let's load the libraries and create the data.
+First, let's load the libraries and the data.
 
 ```{r load-packages, message=FALSE, warning=FALSE}
 # Load the main package
@@ -67,138 +65,71 @@ library(brms)
 ```
 
 ```{r ex-data}
-# Create the example data with multiple subgroup variables and treatment effects
-set.seed(123)
-n <- 500
+# Load the shrink_data package dataset
+shrink_data <- bonsaiforest2::shrink_data
 
-data <- data.frame(
-  id = 1:n,
-  trt = rep(0:1, length.out = n),  # Numeric treatment 0/1
-  baseline = rnorm(n, mean = 100, sd = 15),
-  X1 = factor(sample(c("A", "B", "C"), n, replace = TRUE)),
-  X2 = factor(sample(c("A", "B"), n, replace = TRUE)),
-  X3 = factor(sample(c("A", "B", "C"), n, replace = TRUE)),
-  X4 = factor(sample(c("A", "B"), n, replace = TRUE)),
-  X5 = factor(sample(c("A", "B"), n, replace = TRUE))
-)
-
-# Generate outcome with baseline effect and heterogeneous treatment effects
-data$y <- 50 + 
-  0.2 * data$baseline + 
-  data$trt * (-5 +                                    # Base treatment effect
-    2 * (as.numeric(data$X1 == "A") - 0.33) +        # Heterogeneity by X1
-    1.5 * (as.numeric(data$X3 == "B") - 0.33)        # Heterogeneity by X3
-  ) + 
-  rnorm(n, 0, 10)
-
-print(head(data))
+print(head(shrink_data))
 ```
 
 # One-way Models
 
 This section demonstrates how to fit separate models, each examining one subgroup variable at a time. In one-way models, we specify treatment effects as random slopes using pipe-pipe notation (e.g., `~ (0 + trt || subgroup)`), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects.
 
-## One-way Model: X1 Only
+## One-way Model: x1 Only
 
-```{r oneway-X1, message=FALSE, warning=FALSE}
-# Fit model with only X1 as subgroup variable using one-way approach
-# Random effects notation (0 + trt || X1) estimates varying treatment slopes by X1
-oneway_X1 <- run_brms_analysis(
-  data = data,
+```{r oneway-x1, message=FALSE, warning=FALSE}
+# Fit model with only x1 as subgroup variable using one-way approach
+# Random effects notation (0 + trt || x1) estimates varying treatment slopes by x1
+oneway_x1 <- run_brms_analysis(
+  data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ baseline,
   shrunk_prognostic_formula = NULL,
-  shrunk_predictive_formula = ~ (0 + trt || X1),
+  shrunk_predictive_formula = ~ (0 + trt || x1),
   intercept_prior = "normal(0, 10)",
-  unshrunk_prior = "normal(0, 2.5)",
   shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 
-summary_oneway_X1 <- summary_subgroup_effects(brms_fit = oneway_X1)
-print(summary_oneway_X1)
+summary_oneway_x1 <- summary_subgroup_effects(brms_fit = oneway_x1)
+print(summary_oneway_x1)
 ```
 
-## One-way Model: X2 Only
+## One-way Model: x2 Only
 
-```{r oneway-X2, message=FALSE, warning=FALSE}
-oneway_X2 <- run_brms_analysis(
-  data = data,
+```{r oneway-x2, message=FALSE, warning=FALSE}
+oneway_x2 <- run_brms_analysis(
+  data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ baseline,
   shrunk_prognostic_formula = NULL,
-  shrunk_predictive_formula = ~ (0 + trt || X2),
+  shrunk_predictive_formula = ~ (0 + trt || x2),
   intercept_prior = "normal(0, 10)",
-  unshrunk_prior = "normal(0, 2.5)",
   shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 
-summary_oneway_X2 <- summary_subgroup_effects(brms_fit = oneway_X2)
+summary_oneway_x2 <- summary_subgroup_effects(brms_fit = oneway_x2)
 ```
 
-## One-way Model: X3 Only
+## One-way Model: x3 Only
 
-```{r oneway-X3, message=FALSE, warning=FALSE}
-oneway_X3 <- run_brms_analysis(
-  data = data,
+```{r oneway-x3, message=FALSE, warning=FALSE}
+oneway_x3 <- run_brms_analysis(
+  data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ baseline,
   shrunk_prognostic_formula = NULL,
-  shrunk_predictive_formula = ~ (0 + trt || X3),
+  shrunk_predictive_formula = ~ (0 + trt || x3),
   intercept_prior = "normal(0, 10)",
-  unshrunk_prior = "normal(0, 2.5)",
   shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 
-summary_oneway_X3 <- summary_subgroup_effects(brms_fit = oneway_X3)
-```
-
-## One-way Model: X4 Only
-
-```{r oneway-X4, message=FALSE, warning=FALSE}
-oneway_X4 <- run_brms_analysis(
-  data = data,
-  response_type = "continuous",
-  response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ baseline,
-  shrunk_prognostic_formula = NULL,
-  shrunk_predictive_formula = ~ (0 + trt || X4),
-  intercept_prior = "normal(0, 10)",
-  unshrunk_prior = "normal(0, 2.5)",
-  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
-  chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
-)
-
-summary_oneway_X4 <- summary_subgroup_effects(brms_fit = oneway_X4)
-```
-
-## One-way Model: X5 Only
-
-```{r oneway-X5, message=FALSE, warning=FALSE}
-oneway_X5 <- run_brms_analysis(
-  data = data,
-  response_type = "continuous",
-  response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ baseline,
-  shrunk_prognostic_formula = NULL,
-  shrunk_predictive_formula = ~ (0 + trt || X5),
-  intercept_prior = "normal(0, 10)",
-  unshrunk_prior = "normal(0, 2.5)",
-  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
-  chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
-)
-
-summary_oneway_X5 <- summary_subgroup_effects(brms_fit = oneway_X5)
+summary_oneway_x3 <- summary_subgroup_effects(brms_fit = oneway_x3)
 ```
 
 ## One-way Models: Visualizing All Models
@@ -208,11 +139,9 @@ You can combine and visualize results from multiple models using `combine_summar
 ```{r compare-all-oneway, fig.width=9, fig.height=8}
 # Combine all one-way models
 combined_oneway <- combine_summaries(list(
-  "X1" = summary_oneway_X1,
-  "X2" = summary_oneway_X2,
-  "X3" = summary_oneway_X3,
-  "X4" = summary_oneway_X4,
-  "X5" = summary_oneway_X5
+  "x1" = summary_oneway_x1,
+  "x2" = summary_oneway_x2,
+  "x3" = summary_oneway_x3
 ))
 
 plot(combined_oneway, title = "One-way Models: All Subgroup Variables")
@@ -226,18 +155,15 @@ This section demonstrates how to fit a single model that includes all subgroup v
 
 ```{r global-fit, message=FALSE, warning=FALSE}
 # Fit a single unified model with ALL subgroup variables simultaneously using global approach
-# - Unshrunk terms: baseline with reference coding
 # - Shrunk prognostic effects: subgroup main effects with strong regularization using one-hot encoding
 # - Shrunk predictive effects: treatment interactions with strong regularization using one-hot encoding
 global_shrinkage_model <- run_brms_analysis(
-  data = data,
+  data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ baseline,
-  shrunk_prognostic_formula = ~ 0 + X1 + X2 + X3 + X4 + X5,
-  shrunk_predictive_formula = ~ 0 + trt:X1 + trt:X2 + trt:X3 + trt:X4 + trt:X5,
+  shrunk_prognostic_formula = ~ 0 + x1 + x2 + x3,
+  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   intercept_prior = "normal(0, 10)",
-  unshrunk_prior = "normal(0, 2.5)",
   shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
   chains = 2, iter = 2000, warmup = 1000, cores = 2,

@@ -32,51 +32,33 @@ This vignette demonstrates advanced functionalities for Bayesian shrinkage estim
 
 For count data (like disease exacerbations or event rates), the observed count often depends on the **exposure time** or **follow-up time**. Using an **offset** variable is the standard statistical method to properly account for this time variation by modeling the event **rate** (count per unit time) instead of the raw count.
 
-In `bonsaiforest2`, you can include the offset directly in the `response_formula` using the standard `brms` syntax: `y + offset(log_exposure_time) ~ trt`.
+In `bonsaiforest2`, you can include the offset directly in the `response_formula` using the standard `brms` syntax: `count + offset(log_fup_duration) ~ trt`.
 
 ## Example 1: Count Outcome with Offset (Disease Exacerbations)
 
-This scenario models exacerbation counts using a Negative Binomial distribution and explicitly accounts for the patient's exposure time.
+This scenario models exacerbation counts using a Negative Binomial distribution and explicitly accounts for the patient's follow-up duration.
 
-*Scenario*: Modeling count outcomes with exposure-time adjustment. Adjust for `baseline` (unshrunk prognostic effect) and multiple exploratory `biomarkers` (shrunk prognostic effects). Overall treatment effect on the rate scale.
+*Scenario*: Modeling count outcomes with exposure-time adjustment using the `shrink_data` dataset. Adjust for `x1` (unshrunk prognostic effect) and `x2`, `x3` (shrunk prognostic effects). Overall treatment effect on the rate scale.
 
 ```{r}
-# Data Simulation 
-set.seed(789)
+# Load data and prepare offset variable
 library(bonsaiforest2)
-set.seed(789)
-n <- 200
+shrink_data <- bonsaiforest2::shrink_data
 
-# Create biomarker data with simple naming
-biomarker_data <- as.data.frame(matrix(rnorm(n * 8), ncol = 8))
-names(biomarker_data) <- paste0("B", 1:8)
-
-# Generate count data with treatment effect heterogeneity
-count_data <- data.frame(
-  y = rnbinom(n, size = 1.5, mu = 3),
-  trt = rep(0:1, length.out = n),
-  baseline = rnorm(n, 10, 2),
-  log_exposure_time = log(runif(n, 0.5, 1.5))
-)
-
-# Add biomarkers and account for heterogeneous treatment effects
-count_data <- cbind(count_data, biomarker_data)
-count_data$y <- rnbinom(n, size = 1.5, mu = exp(0.5 + 0.1 * count_data$baseline + 
-                        count_data$trt * (0.3 + 0.2 * (count_data$B1 > 0))))
-
-# Create formula string for all biomarkers
-shrunk_prog_str <- paste("~ 0 +", paste(names(biomarker_data), collapse = " + "))
+# Add log follow-up duration as the offset (accounts for varying exposure time)
+shrink_data$log_fup_duration <- log(shrink_data$fup_duration)
+count_data <- shrink_data
 ```
 
 ```{r}
 # Model Fitting with Offset
 count_model_fit <- run_brms_analysis(
   data = count_data,
-  # Include offset(log_exposure_time) directly in the response formula
-  response_formula = y + offset(log_exposure_time) ~ trt,
+  # Include offset(log_fup_duration) directly in the response formula
+  response_formula = count + offset(log_fup_duration) ~ trt,
   response_type = "count",
-  unshrunk_terms_formula = ~ baseline,
-  shrunk_prognostic_formula = as.formula(shrunk_prog_str),
+  unshrunk_terms_formula = ~ x1,
+  shrunk_prognostic_formula = ~ 0 + x2 + x3,
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
   shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
@@ -102,40 +84,27 @@ Priors are specified using separate parameters for each component.
 
 ## Practical Examples of Prior Setting
 
-The following examples demonstrate how to customize priors using the new API. We use a synthetic survival dataset to show different prior specification strategies, from simple defaults to advanced hierarchical structures.
+The following examples demonstrate how to customize priors using the new API. We use the `shrink_data` package dataset with a time-to-event outcome to show different prior specification strategies, from simple defaults to advanced hierarchical structures.
 
-### Dataset Generation and Model Preparation
-
-This dataset mimics a clinical trial with treatment effects that vary by subgroups.
+### Dataset Preparation
 
 ```{r}
 # Load library
 library(bonsaiforest2)
 
-# 1. Create Sample Data with treatment heterogeneity
-set.seed(123)
-n <- 200
+# 1. Load the shrink_data package dataset
+shrink_data <- bonsaiforest2::shrink_data
+sim_data <- shrink_data
 
-sim_data <- data.frame(
-  time = round(runif(n, 1, 100)),
-  status = sample(0:1, n, replace = TRUE),
-  trt = rep(0:1, length.out = n),
-  age = rnorm(n, 50, 10),
-  X1 = factor(sample(c("A", "B"), n, replace = TRUE)),
-  X2 = factor(sample(c("A", "B", "C"), n, replace = TRUE))
-)
-
-# Ensure variables are factors
+# Ensure trt is a factor with expected levels
 sim_data$trt <- factor(sim_data$trt, levels = c(0, 1))
-sim_data$X1 <- as.factor(sim_data$X1)
-sim_data$X2 <- as.factor(sim_data$X2)
 
 # 2. Prepare the model formula
 prepared_model <- prepare_formula_model(
   data = sim_data,
-  response_formula = Surv(time, status) ~ trt,
-  shrunk_predictive_formula = ~ 0 + trt:X1,
-  unshrunk_terms_formula = ~ age,
+  response_formula = Surv(tt_event, event_yn) ~ trt,
+  shrunk_predictive_formula = ~ 0 + trt:x1,
+  unshrunk_terms_formula = ~ x2,
   response_type = "survival"
 )
 ```
@@ -219,7 +188,7 @@ print(fit_ex5[["stanvars"]])
 
 You can set different priors for specific coefficients by passing a `brmsprior` object (created with `c()`).
 
-*Scenario*: Set a general prior for all unshrunk terms, but use a tighter prior specifically for treatment-biomarker interactions.
+*Scenario*: Set a general prior for all unshrunk terms, but use a tighter prior specifically for treatment-subgroup interactions.
 
 *Key Technique*: Use `prepare_formula_model()` to discover the exact coefficient names that will appear in the model.
 
@@ -227,9 +196,9 @@ You can set different priors for specific coefficients by passing a `brmsprior` 
 # 1. Run prepare_formula_model
 prepared_model <- prepare_formula_model(
   data = sim_data,
-  response_formula = Surv(time, status) ~ trt,
-  shrunk_predictive_formula = ~ 0 + trt:X1,
-  unshrunk_terms_formula = ~ age + trt*X2,
+  response_formula = Surv(tt_event, event_yn) ~ trt,
+  shrunk_predictive_formula = ~ 0 + trt:x1,
+  unshrunk_terms_formula = ~ x2 + trt*x3,
   response_type = "survival"
 )
 
@@ -242,15 +211,15 @@ print(prepared_model$stan_variable_names$X_unshrunktermeffect)
 
 cat("=== Prior Strategy ===\n")
 cat("General unshrunk prior: normal(0, 5)\n")
-cat("Specific for trt:X2 interactions: normal(0, 1)\n\n")
+cat("Specific for trt:x3 interactions: normal(0, 1)\n\n")
 
 # Create combined prior object
 # IMPORTANT: Use EXACT coefficient names from the prepared data
-# These names appear after contrast encoding in prepare_formula_model
 unshrunk_priors_combined <- c(
   brms::set_prior("normal(0, 5)", class = "b"),  # General
-  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:X2B"),
-  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:X2C")
+  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:x3b"),
+  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:x3c"),
+  brms::set_prior("normal(0, 1)", class = "b", coef = "trt:x3d")
 )
 
 # Fit the model
@@ -301,8 +270,9 @@ hierarchical_stanvars <- tau_parameter + tau_prior
 # Note: We identified these coefficient names using prepare_formula_model above
 unshrunk_priors_hier <- c(
   brms::set_prior("normal(0, 5)", class = "b"),  # General
-  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:X2B"),
-  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:X2C")
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:x3b"),
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:x3c"),
+  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:x3d")
 )
 ```
 
@@ -337,32 +307,24 @@ By default, `bonsaiforest2` uses one-hot encoding (all factor levels, no referen
 *Key Technique*: Set contrasts using `contrasts()` before calling `prepare_formula_model()`. The library will preserve your choice.
 
 ```{r}
-# Create sample data with multiple subgroups
-set.seed(456)
-n <- 250
-sample_data_contrast <- data.frame(
-  id = 1:n,
-  trt = rep(0:1, length.out = n),
-  y = rnorm(n, 50, 10),
-  baseline = rnorm(n, 65, 10),
-  X1 = factor(sample(c("A", "B", "C"), n, replace = TRUE))
-)
+# Use the shrink_data dataset
+shrink_data <- bonsaiforest2::shrink_data
+sample_data_contrast <- shrink_data
 
-# Set Helmert contrasts for the X1 variable
-contrasts(sample_data_contrast$X1) <- contr.helmert(3)
-cat("Contrast matrix for X1:\n")
-print(contrasts(sample_data_contrast$X1))
+# Set Helmert contrasts for the x2 variable (3 levels: a, b, c)
+contrasts(sample_data_contrast$x2) <- contr.helmert(3)
+cat("Contrast matrix for x2:\n")
+print(contrasts(sample_data_contrast$x2))
 
 # Prepare model 
 prepared_custom_contrast <- prepare_formula_model(
   data = sample_data_contrast,
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ baseline,
-  shrunk_predictive_formula = ~ 0 + trt:X1, 
+  shrunk_predictive_formula = ~ 0 + trt:x2, 
   response_type = "continuous"
 )
 
-# Observe costum contrast in the data
+# Observe custom contrast in the data
 str(prepared_custom_contrast$data)
 
 # Fit the model
@@ -393,20 +355,18 @@ set.seed(789)
 new_patients <- data.frame(
   id = 1:20,
   trt = rep(0:1, length.out = 20),
-  baseline = rnorm(20, 65, 10),
-  X1 = factor(rep(c("A", "B", "C"), length.out = 20))
+  x2 = factor(rep(c("a", "b", "c"), length.out = 20), levels = c("a", "b", "c"))
 )
 
 # IMPORTANT: Set the same contrasts as in Example 7
 # The prediction data must use the same encoding as the training data
-contrasts(new_patients$X1) <- contr.helmert(3)
+contrasts(new_patients$x2) <- contr.helmert(3)
 
 # Prepare new data
 prepared_custom_contrast <- prepare_formula_model(
   data = new_patients,
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ baseline,
-  shrunk_predictive_formula = ~ 0 + trt:X1, 
+  shrunk_predictive_formula = ~ 0 + trt:x2, 
   response_type = "continuous"
 )
 
@@ -428,23 +388,14 @@ Use the `stratification_formula` argument to define the grouping factor(s).
 *Scenario*: We model outcomes where the observation error **standard deviation** $\sigma$ differs by site. Stratification uses `brms` distributional formulas to estimate separate residual variance parameters for each site, allowing for heterogeneity in measurement noise or outcome variability across sites.
 
 ```{r}
+shrink_data <- bonsaiforest2::shrink_data
 set.seed(42)
-n <- 250
-sigma_by_site <- c(A = 6, B = 12, C = 18)
-sample_data_strat_cont <- data.frame(
-    id = 1:n,
-    site = factor(sample(c("A", "B", "C"), n, replace = TRUE))
+# Add a site variable based on x3 subgroup levels
+sample_data_strat_cont <- shrink_data
+sample_data_strat_cont$site <- factor(
+  ifelse(shrink_data$x3 %in% c("a", "b"), "A",
+    ifelse(shrink_data$x3 == "c", "B", "C"))
 )
-sample_data_strat_cont$trt <- rep(0:1, length.out = n)
-sample_data_strat_cont$baseline <- rnorm(n, mean = 100, sd = 8)
-sample_data_strat_cont$X1 <- factor(sample(c("A", "B"), n, replace = TRUE))
-
-# Generate outcome with treatment heterogeneity and site-specific noise
-noise <- rnorm(n, mean = 0, sd = sigma_by_site[sample_data_strat_cont$site])
-sample_data_strat_cont$y <- 50 + 
-                            sample_data_strat_cont$trt * (-8 + 2 * (as.numeric(sample_data_strat_cont$X1) - 1)) +
-                            0.2 * (sample_data_strat_cont$baseline - 100) +
-                            noise
 ```
 
 ```{r}
@@ -454,11 +405,9 @@ fit_continuous_stratified <- run_brms_analysis(
   data = sample_data_strat_cont,
   response_formula = y ~ trt,
   response_type = "continuous",
-  unshrunk_terms_formula = ~ baseline,
-  shrunk_predictive_formula = ~ 0 + trt:X1,
+  shrunk_predictive_formula = ~ 0 + trt:x1,
   stratification_formula = ~ site,
   intercept_prior = "normal(0, 5)",
-  unshrunk_prior = "normal(0, 2.5)",
   shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
@@ -480,43 +429,23 @@ plot(strat_continuous_summary, title = "Stratified Continuous: Subgroup Effects"
 *Scenario*: We model a time-to-event outcome with stratified baseline hazard by country using a piecewise exponential model. Stratification via `stratification_formula = ~ country` allows the baseline hazard to differ by country, accommodating regional differences in baseline risk or standard of care.
 
 ```{r}
+shrink_data <- bonsaiforest2::shrink_data
 set.seed(123)
-n <- 250
-lambda_by_country <- c(A = 0.01, B = 0.03)
-surv_data_strat <- data.frame(
-    id = 1:n,
-    country = factor(sample(c("A", "B"), n, replace = TRUE)),
-    trt = rep(0:1, length.out = n),
-    age = rnorm(n, 65, 10),
-    X1 = factor(sample(c("A", "B"), n, replace = TRUE))
-)
-
-# Linear predictor with treatment heterogeneity
-lp <- (as.numeric(surv_data_strat$trt) - 1) * -0.6 + 
-      (surv_data_strat$age - 65) * 0.03 +
-      (as.numeric(surv_data_strat$trt) - 1) * (as.numeric(surv_data_strat$X1) - 1) * -0.5
-
-# Generate event times
-u <- runif(n)
-lambda_vec <- lambda_by_country[surv_data_strat$country]
-gamma <- 1.5 # Weibull shape parameter
-true_event_time <- (-log(u) / (lambda_vec * exp(lp)))^(1/gamma)
-censoring_time <- 60 # Administrative censoring time
-surv_data_strat$event_status <- ifelse(true_event_time <= censoring_time, 1, 0)
-surv_data_strat$event_time <- pmin(true_event_time, censoring_time)
+# Add a country variable derived from x1 levels
+surv_data_strat <- shrink_data
+surv_data_strat$country <- factor(ifelse(shrink_data$x1 == "a", "A", "B"))
+surv_data_strat$trt <- factor(surv_data_strat$trt, levels = c(0, 1))
 ```
 
 ```{r}
 # Model Fitting with Stratified Baseline Hazard
 fit_surv_stratified <- run_brms_analysis(
   data = surv_data_strat,
-  response_formula = Surv(event_time, event_status) ~ trt,
+  response_formula = Surv(tt_event, event_yn) ~ trt,
   response_type = "survival",
-  unshrunk_terms_formula = ~ age,
-  shrunk_predictive_formula = ~ 0 + trt:X1,
+  shrunk_predictive_formula = ~ 0 + trt:x2,
   stratification_formula = ~ country,
   intercept_prior = "normal(0, 5)",
-  unshrunk_prior = "normal(0, 2.5)",
   shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"

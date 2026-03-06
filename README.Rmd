@@ -19,60 +19,51 @@ The `bonsaiforest2` package is used for Bayesian shrinkage estimation of subgrou
 
 ## Installation
 
-**UPDATE TO USUAL INSTALLATION** You can install the development version of `bonsaiforest2` from its GitLab repository:
+You can install the latest stable release of `bonsaiforest2` from [GitHub](https://github.com/openpharma/bonsaiforest2):
 
 ```{r, eval=FALSE}
-# install.packages("remotes") 
+# install.packages("remotes")
+remotes::install_github("openpharma/bonsaiforest2@v0.1.0-beta")
+```
+
+Or install the development version from the `main` branch:
+
+```{r, eval=FALSE}
 remotes::install_github("openpharma/bonsaiforest2")
 ```
 
 
 ## Quick Start Example
 
-This example demonstrates Bayesian shrinkage estimation of treatment effects across subgroups using a **fixed effects model** with a Regularized Horseshoe prior. We simulate data with real treatment effect heterogeneity across five subgrouping variables.
+This example demonstrates Bayesian shrinkage estimation of treatment effects across subgroups using a **fixed effects model** with a Regularized Horseshoe prior, applied to the `shrink_data` package dataset with three subgrouping variables.
 
-```{r example-continuous, message=FALSE, warning=FALSE}
+```{r example-continuous, message=FALSE, warning=FALSE, results='hide'}
 library(bonsaiforest2)
 
-# 1. Simulate continuous outcome trial data with treatment heterogeneity
-set.seed(123)
-n <- 500
-dat <- data.frame(
-  y    = rnorm(n, mean = 50, sd = 15),
-  trt  = rep(0:1, length.out = n),
-  x1   = factor(sample(c("A", "B"), n, replace = TRUE)),
-  x2   = factor(sample(c("A", "B", "C"), n, replace = TRUE)),
-  x3   = factor(sample(c("A", "B"), n, replace = TRUE)),
-  x4   = factor(sample(c("A", "B"), n, replace = TRUE)),
-  x5   = factor(sample(c("A", "B"), n, replace = TRUE))
-)
-
-# Add baseline effect and heterogeneous treatment effects by subgroup
-trt_effect <- dat$trt * (
-  0.35 +                                           # Base treatment effect
-  0.35 * (as.numeric(dat$x1 == "B") - 0.35)       # Heterogeneity by x1
-)
-dat$y <- trt_effect + rnorm(n, 0, 1.2)
+# 1. Load the shrink_data package dataset
+shrink_data <- bonsaiforest2::shrink_data
 
 # 2. Fit fixed effects model with heterogeneous shrinkage
 fit_fixed <- run_brms_analysis(
-  data = dat,
+  data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ x1 + x2 + x3 + x4 + x5,
+  unshrunk_terms_formula = ~ x1 + x2 + x3,
   shrunk_prognostic_formula = NULL,
-  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3 + trt:x4 + trt:x5,
-  intercept_prior = "normal(50, 15)",
+  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
+  intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 5)",
   shrunk_prognostic_prior = NULL,
   shrunk_predictive_prior = "horseshoe(1)",
   chains = 2, iter = 1000, warmup = 500,
   backend = "cmdstanr", refresh = 0
 )
+```
 
+```{r example-summary, message=FALSE, warning=FALSE}
 # 3. Extract and visualize marginal treatment effects by subgroup
 subgroup_effects <- summary_subgroup_effects(fit_fixed)
-print(subgroup_effects)
+print(subgroup_effects$estimates)
 plot(subgroup_effects)
 ```
 
