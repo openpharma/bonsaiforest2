@@ -2,3 +2,11 @@ url: https://openpharma.github.io/bonsaiforest2/
 template:
   bootstrap: 5
   math-rendering: katex
+
+articles:
+  - title: Articles
+    navbar: ~
+    contents:
+      - Quickstart
+      - Advanced_Functionalities
+      - Statistical_Specifications
