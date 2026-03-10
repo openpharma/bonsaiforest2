@@ -142,12 +142,12 @@ fit_ex3 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.5 seconds.
-#> Chain 2 finished in 4.4 seconds.
+#> Chain 1 finished in 3.6 seconds.
+#> Chain 2 finished in 4.5 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.9 seconds.
-#> Total execution time: 4.5 seconds.
+#> Mean chain execution time: 4.0 seconds.
+#> Total execution time: 4.6 seconds.
 #> Warning: 1 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -199,7 +199,7 @@ fit_ex4 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.1 seconds.
+#> Chain 1 finished in 3.2 seconds.
 #> Chain 2 finished in 3.2 seconds.
 #> 
 #> Both chains finished successfully.
@@ -271,10 +271,10 @@ fit_ex5 <- fit_brms_model(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 1 finished in 4.8 seconds.
-#> Chain 2 finished in 5.2 seconds.
+#> Chain 2 finished in 5.3 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 5.0 seconds.
+#> Mean chain execution time: 5.1 seconds.
 #> Total execution time: 5.3 seconds.
 
 # View the used priors
@@ -413,12 +413,12 @@ fit_specific <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 4.4 seconds.
-#> Chain 2 finished in 4.9 seconds.
+#> Chain 1 finished in 4.5 seconds.
+#> Chain 2 finished in 4.7 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.7 seconds.
-#> Total execution time: 4.9 seconds.
+#> Mean chain execution time: 4.6 seconds.
+#> Total execution time: 4.8 seconds.
 #> Warning: 2 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -608,7 +608,7 @@ fit_custom_contrast <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 1.2 seconds.
+#> Chain 2 finished in 1.1 seconds.
 #> Chain 1 finished in 1.3 seconds.
 #> 
 #> Both chains finished successfully.
@@ -830,12 +830,12 @@ fit_surv_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.0 seconds.
-#> Chain 1 finished in 4.7 seconds.
+#> Chain 2 finished in 4.1 seconds.
+#> Chain 1 finished in 4.8 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.4 seconds.
-#> Total execution time: 4.8 seconds.
+#> Mean chain execution time: 4.5 seconds.
+#> Total execution time: 4.9 seconds.
 #> 
 #> Analysis complete.
 ```
