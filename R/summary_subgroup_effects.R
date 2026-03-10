@@ -32,12 +32,13 @@
 #' @importFrom checkmate assert_choice assert check_string check_character test_character
 #' @importFrom dplyr bind_rows
 #' @export
-summary_subgroup_effects <- function(brms_fit,
-                                     trt_var = NULL,
-                                     response_type = NULL,
-                                     subgroup_vars = "auto",
-                                     conf = 0.95) {
-
+summary_subgroup_effects <- function(
+  brms_fit,
+  trt_var = NULL,
+  response_type = NULL,
+  subgroup_vars = "auto",
+  conf = 0.95
+) {
   # --- 1. Argument Validation ---
   # Validate inputs to ensure compatibility with brms model structure
   checkmate::assert_class(brms_fit, "brmsfit")
@@ -46,7 +47,9 @@ summary_subgroup_effects <- function(brms_fit,
   if (is.null(trt_var)) {
     trt_var <- attr(brms_fit, "trt_var")
     if (is.null(trt_var)) {
-      stop("trt_var must be specified or stored in the model attributes (via fit_brms_model()).")
+      stop(
+        "trt_var must be specified or stored in the model attributes (via fit_brms_model())."
+      )
     }
   }
   checkmate::assert_string(trt_var, min.chars = 1)
@@ -56,21 +59,32 @@ summary_subgroup_effects <- function(brms_fit,
   if (is.null(response_type)) {
     response_type <- attr(brms_fit, "response_type")
     if (is.null(response_type)) {
-      stop("response_type must be specified or stored in the model attributes (via fit_brms_model()).")
+      stop(
+        "response_type must be specified or stored in the model attributes (via fit_brms_model())."
+      )
     }
   }
-  response_type <- checkmate::assert_choice(response_type,
-                                            choices = c("binary", "count", "continuous", "survival")
+  response_type <- checkmate::assert_choice(
+    response_type,
+    choices = c("binary", "count", "continuous", "survival")
   )
 
   # Validate subgroup specification: must be either "auto" or explicit character vector
   checkmate::assert(
     checkmate::check_string(subgroup_vars, pattern = "^auto$"),
-    checkmate::check_character(subgroup_vars, null.ok = FALSE, min.len = 1, unique = TRUE)
+    checkmate::check_character(
+      subgroup_vars,
+      null.ok = FALSE,
+      min.len = 1,
+      unique = TRUE
+    )
   )
 
   # Check that variables exist in data if not "auto"
-  if (checkmate::test_character(subgroup_vars, min.len = 1) && !identical(subgroup_vars, "auto")) {
+  if (
+    checkmate::test_character(subgroup_vars, min.len = 1) &&
+      !identical(subgroup_vars, "auto")
+  ) {
     checkmate::assert_subset(subgroup_vars, names(brms_fit$data))
   }
 
@@ -80,7 +94,7 @@ summary_subgroup_effects <- function(brms_fit,
   # --- 2. Calculate subgroup effects ---
   # estimate_subgroup_effects will detect treatment interactions from all formula components:
   # - unshrunktermeffect: all unshrunk terms (if "auto" is used)
-  # - shprogeffect: shrunk prognostic effects (if "auto" is used)  
+  # - shprogeffect: shrunk prognostic effects (if "auto" is used)
   # - shpredeffect: shrunk predictive effects (if "auto" is used)
   # Or use the explicitly provided subgroup_vars
 
@@ -122,7 +136,7 @@ summary_subgroup_effects <- function(brms_fit,
 #' \dontrun{
 #' summary1 <- summary_subgroup_effects(brms_fit = model1)
 #' summary2 <- summary_subgroup_effects(brms_fit = model2)
-#' 
+#'
 #' combined <- combine_summaries(list(
 #'   "One-way model" = summary1,
 #'   "Global" = summary2
@@ -134,33 +148,39 @@ summary_subgroup_effects <- function(brms_fit,
 #' @export
 combine_summaries <- function(summary_list) {
   checkmate::assert_list(summary_list, min.len = 1)
-  
+
   # Validate all elements are subgroup_summary objects
   for (i in seq_along(summary_list)) {
-    checkmate::assert_class(summary_list[[i]], "subgroup_summary", 
-                           .var.name = paste0("summary_list[[", i, "]]"))
+    checkmate::assert_class(
+      summary_list[[i]],
+      "subgroup_summary",
+      .var.name = paste0("summary_list[[", i, "]]")
+    )
   }
-  
+
   # Ensure list is named
   if (is.null(names(summary_list))) {
     names(summary_list) <- paste0("Model", seq_along(summary_list))
   }
-  
+
   # Combine all estimates with model labels
-  combined_estimates <- bind_rows(lapply(names(summary_list), function(model_name) {
-    summary_list[[model_name]]$estimates %>%
-      mutate(Model = model_name)
-  }))
-  
+  combined_estimates <- bind_rows(lapply(
+    names(summary_list),
+    function(model_name) {
+      summary_list[[model_name]]$estimates %>%
+        mutate(Model = model_name)
+    }
+  ))
+
   # Create combined summary object (use first element as template)
   combined_summary <- list(
     estimates = combined_estimates,
     response_type = summary_list[[1]]$response_type,
     ci_level = summary_list[[1]]$ci_level,
     trt_var = summary_list[[1]]$trt_var,
-    is_comparison = TRUE  # Flag to indicate this is a comparison plot
+    is_comparison = TRUE # Flag to indicate this is a comparison plot
   )
-  
+
   class(combined_summary) <- "subgroup_summary"
   return(combined_summary)
 }
@@ -180,10 +200,10 @@ combine_summaries <- function(summary_list) {
 #'
 #' @details
 #' This function creates forest plots for subgroup treatment effects. It supports two modes:
-#' 
-#' **Single Model Plot**: When `x` is a single `subgroup_summary` object, creates a 
+#'
+#' **Single Model Plot**: When `x` is a single `subgroup_summary` object, creates a
 #' traditional forest plot with estimates and confidence intervals displayed as text.
-#' 
+#'
 #' **Multiple Model Comparison**: When `x` is a named list of `subgroup_summary` objects,
 #' creates a comparative plot where different models are distinguished by colors and shapes.
 #' This is useful for comparing one-way models vs global models, different prior specifications, or
@@ -194,7 +214,7 @@ combine_summaries <- function(summary_list) {
 #' # Single model plot
 #' summary1 <- summary_subgroup_effects(brms_fit = model1)
 #' plot(summary1, title = "Subgroup Effects")
-#' 
+#'
 #' # Multiple model comparison
 #' summary2 <- summary_subgroup_effects(brms_fit = model2)
 #' comparison <- list(
@@ -213,13 +233,12 @@ combine_summaries <- function(summary_list) {
 #' @importFrom checkmate assert_class assert_data_frame assert_string assert_list
 #' @exportS3Method graphics::plot
 plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
-
   # --- 1. Input Validation & Detection of Multiple Models ---
   checkmate::assert_class(x, "subgroup_summary")
   checkmate::assert_string(x_lab, null.ok = TRUE)
   checkmate::assert_string(title, null.ok = TRUE)
   checkmate::assert_data_frame(x$estimates, min.rows = 1)
-  
+
   # Check if this is a comparison plot (has Model column)
   is_comparison <- "Model" %in% names(x$estimates)
   response_type <- x$response_type
@@ -227,63 +246,104 @@ plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
   # --- 2. Data Preparation ---
   message("Preparing data for plotting...")
 
-  null_effect_line <- switch(response_type, continuous = 0, binary = 1, count = 1, survival = 1, 0)
+  null_effect_line <- switch(
+    response_type,
+    continuous = 0,
+    binary = 1,
+    count = 1,
+    survival = 1,
+    0
+  )
   if (is.null(x_lab)) {
-    x_lab <- switch(response_type, continuous = "Difference in Mean Outcome", binary = "Odds Ratio", count = "Rate Ratio", survival = "Average Hazard Ratio (AHR)", "Treatment Effect")
+    x_lab <- switch(
+      response_type,
+      continuous = "Difference in Mean Outcome",
+      binary = "Odds Ratio",
+      count = "Rate Ratio",
+      survival = "Average Hazard Ratio (AHR)",
+      "Treatment Effect"
+    )
   }
 
   # Prepare plot data
   plot_data <- x$estimates %>%
     mutate(
-      estimate_label = sprintf("%.2f (%.2f to %.2f)", .data$Median, .data$CI_Lower, .data$CI_Upper),
+      estimate_label = sprintf(
+        "%.2f (%.2f to %.2f)",
+        .data$Median,
+        .data$CI_Lower,
+        .data$CI_Upper
+      ),
       sort_group = stringr::str_extract(.data$Subgroup, "^[^:]+")
     )
-  
+
   # Add Model as factor if this is a comparison plot
   if (is_comparison) {
     plot_data <- plot_data %>%
-      arrange(.data$sort_group, .data$Subgroup, .data$Model) %>%  # Sort by subgroup, then model
+      arrange(.data$sort_group, .data$Subgroup, .data$Model) %>% # Sort by subgroup, then model
       mutate(
         Model = factor(.data$Model, levels = unique(.data$Model)),
-        y_axis_label = factor(.data$Subgroup, levels = rev(unique(.data$Subgroup)))
+        y_axis_label = factor(
+          .data$Subgroup,
+          levels = rev(unique(.data$Subgroup))
+        )
       )
   } else {
     plot_data <- plot_data %>%
       arrange(.data$sort_group, .data$Subgroup) %>%
-      mutate(y_axis_label = factor(.data$Subgroup, levels = rev(unique(.data$Subgroup))))
+      mutate(
+        y_axis_label = factor(
+          .data$Subgroup,
+          levels = rev(unique(.data$Subgroup))
+        )
+      )
   }
 
   # --- 3. Determine Plot Limits & Table Positions ---
   min_ci <- min(plot_data$CI_Lower, na.rm = TRUE)
   max_ci <- max(plot_data$CI_Upper, na.rm = TRUE)
   x_range <- max_ci - min_ci
-  
+
   # Adjust position for estimate column based on whether we have multiple models
   if (is_comparison) {
-    pos_estimate <- max_ci + (x_range * 0.25)  # More space for legend
+    pos_estimate <- max_ci + (x_range * 0.25) # More space for legend
   } else {
     pos_estimate <- max_ci + (x_range * 0.15)
   }
 
   # --- 4. Build the ggplot ---
   message("Generating plot...")
-  
+
   if (is_comparison) {
     # Multiple models: use colors and shapes to distinguish
     n_models <- length(unique(plot_data$Model))
     shapes <- c(22, 21, 24, 23, 25)[1:n_models]
-    colors <- c("#F8766D", "#00BA38", "#619CFF", "#C77CFF", "#FF9999")[1:n_models]
-    
+    colors <- c("#F8766D", "#00BA38", "#619CFF", "#C77CFF", "#FF9999")[
+      1:n_models
+    ]
+
     dodge_width <- 0.5
-    
-    p <- ggplot(plot_data, aes(y = .data$y_axis_label, x = .data$Median, 
-                                color = .data$Model, shape = .data$Model)) +
-      geom_vline(xintercept = null_effect_line, linetype = "dashed", color = "grey50") +
-      geom_errorbar(aes(xmin = .data$CI_Lower, xmax = .data$CI_Upper), 
-                    width = 0.2, 
-                    position = position_dodge(width = dodge_width)) +
-      geom_point(size = 3, 
-                 position = position_dodge(width = dodge_width)) +
+
+    p <- ggplot(
+      plot_data,
+      aes(
+        y = .data$y_axis_label,
+        x = .data$Median,
+        color = .data$Model,
+        shape = .data$Model
+      )
+    ) +
+      geom_vline(
+        xintercept = null_effect_line,
+        linetype = "dashed",
+        color = "grey50"
+      ) +
+      geom_errorbar(
+        aes(xmin = .data$CI_Lower, xmax = .data$CI_Upper),
+        width = 0.2,
+        position = position_dodge(width = dodge_width)
+      ) +
+      geom_point(size = 3, position = position_dodge(width = dodge_width)) +
       scale_shape_manual(values = shapes) +
       scale_color_manual(values = colors) +
       labs(title = title, x = x_lab, y = "", color = "Model", shape = "Model") +
@@ -297,17 +357,36 @@ plot.subgroup_summary <- function(x, x_lab = NULL, title = NULL, ...) {
         plot.margin = margin(1, 2, 1, 1, "lines")
       ) +
       coord_cartesian(clip = "off")
-    
   } else {
     # Single model: original plot style
     p <- ggplot(plot_data, aes(y = .data$y_axis_label, x = .data$Median)) +
-      geom_vline(xintercept = null_effect_line, linetype = "dashed", color = "grey50") +
-      geom_errorbar(aes(xmin = .data$CI_Lower, xmax = .data$CI_Upper), 
-                    width = 0.2, color = "black", orientation = "y") +
+      geom_vline(
+        xintercept = null_effect_line,
+        linetype = "dashed",
+        color = "grey50"
+      ) +
+      geom_errorbar(
+        aes(xmin = .data$CI_Lower, xmax = .data$CI_Upper),
+        width = 0.2,
+        color = "black",
+        orientation = "y"
+      ) +
       geom_point(shape = 22, size = 3, fill = "black", color = "black") +
-      geom_text(aes(label = .data$estimate_label), x = pos_estimate, hjust = 0, size = 3.5) +
-      annotate("text", x = pos_estimate, y = nrow(plot_data) + 0.8, 
-               label = "Estimate (95% CI)", hjust = 0, fontface = "bold", size = 3.5) +
+      geom_text(
+        aes(label = .data$estimate_label),
+        x = pos_estimate,
+        hjust = 0,
+        size = 3.5
+      ) +
+      annotate(
+        "text",
+        x = pos_estimate,
+        y = nrow(plot_data) + 0.8,
+        label = "Estimate (95% CI)",
+        hjust = 0,
+        fontface = "bold",
+        size = 3.5
+      ) +
       labs(title = title, x = x_lab, y = "") +
       theme_classic(base_size = 12) +
       theme(

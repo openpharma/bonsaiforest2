@@ -116,20 +116,21 @@
 #'   print(full_fit_oneway)
 #'   }
 #' }
-run_brms_analysis <- function(data,
-                              response_formula,
-                              response_type = c("binary", "count", "continuous", "survival"),
-                              unshrunk_terms_formula = NULL,
-                              shrunk_prognostic_formula = NULL,
-                              shrunk_predictive_formula = NULL,
-                              stratification_formula = NULL,
-                              intercept_prior = NULL,
-                              unshrunk_prior = NULL,
-                              shrunk_prognostic_prior = NULL,
-                              shrunk_predictive_prior = NULL,
-                              stanvars = NULL,
-                              ...) {
-
+run_brms_analysis <- function(
+  data,
+  response_formula,
+  response_type = c("binary", "count", "continuous", "survival"),
+  unshrunk_terms_formula = NULL,
+  shrunk_prognostic_formula = NULL,
+  shrunk_predictive_formula = NULL,
+  stratification_formula = NULL,
+  intercept_prior = NULL,
+  unshrunk_prior = NULL,
+  shrunk_prognostic_prior = NULL,
+  shrunk_predictive_prior = NULL,
+  stanvars = NULL,
+  ...
+) {
   # --- 1. Prepare the Formula and Data ---
   # Builds the brmsformula with up to three components:
   # - unshrunktermeffect: all unshrunk terms (main effects and interactions without regularization)
@@ -167,4 +168,3 @@ run_brms_analysis <- function(data,
   message("\nAnalysis complete.")
   return(model_fit)
 }
-

@@ -46,14 +46,15 @@
 #' @importFrom tibble tibble
 #' @importFrom utils head
 #' @export
-estimate_subgroup_effects <- function(brms_fit,
-                                      trt_var = NULL,
-                                      data = NULL,
-                                      subgroup_vars = "auto",
-                                      response_type = NULL,
-                                      ndraws = NULL,
-                                      conf = 0.95) {
-
+estimate_subgroup_effects <- function(
+  brms_fit,
+  trt_var = NULL,
+  data = NULL,
+  subgroup_vars = "auto",
+  response_type = NULL,
+  ndraws = NULL,
+  conf = 0.95
+) {
   # --- 1. Validate inputs and determine which subgroups to analyze ---
   checkmate::assert_class(brms_fit, "brmsfit")
 
@@ -61,7 +62,9 @@ estimate_subgroup_effects <- function(brms_fit,
   if (is.null(trt_var)) {
     trt_var <- attr(brms_fit, "trt_var")
     if (is.null(trt_var)) {
-      stop("trt_var must be specified or stored in the model attributes (via fit_brms_model()).")
+      stop(
+        "trt_var must be specified or stored in the model attributes (via fit_brms_model())."
+      )
     }
   }
   checkmate::assert_string(trt_var, min.chars = 1)
@@ -83,12 +86,16 @@ estimate_subgroup_effects <- function(brms_fit,
   if (is.null(response_type)) {
     response_type <- attr(brms_fit, "response_type")
     if (is.null(response_type)) {
-      stop("response_type must be specified or stored in the model attributes (via fit_brms_model()).")
+      stop(
+        "response_type must be specified or stored in the model attributes (via fit_brms_model())."
+      )
     }
   }
   # Check response type
-  response_type <- checkmate::assert_choice(response_type,
-                                            choices = c("continuous", "binary", "count", "survival"))
+  response_type <- checkmate::assert_choice(
+    response_type,
+    choices = c("continuous", "binary", "count", "survival")
+  )
   checkmate::assert_count(ndraws, null.ok = TRUE, positive = TRUE)
   checkmate::assert_number(conf, lower = 0, upper = 1)
 
@@ -132,7 +139,7 @@ estimate_subgroup_effects <- function(brms_fit,
   message("Step 3: Calculating marginal effects...")
   results <- .calculate_and_summarize_effects(
     posterior_preds = posterior_preds,
-    original_data = prep$data,  # Same data used for subgroup membership
+    original_data = prep$data, # Same data used for subgroup membership
     subgroup_vars = prep$subgroup_vars,
     display_names = prep$display_names,
     is_overall = prep$is_overall,
@@ -160,11 +167,20 @@ estimate_subgroup_effects <- function(brms_fit,
 #' Detects both fixed interactions (colon syntax) and random effects grouping
 #' factors (pipe syntax) from all formula components.
 #' @noRd
-.prepare_subgroup_vars <- function(brms_fit, model_data, trt_var, subgroup_vars) {
-
+.prepare_subgroup_vars <- function(
+  brms_fit,
+  model_data,
+  trt_var,
+  subgroup_vars
+) {
   checkmate::assert(
     checkmate::check_string(subgroup_vars, pattern = "^auto$"),
-    checkmate::check_character(subgroup_vars, null.ok = TRUE, min.len = 1, unique = TRUE)
+    checkmate::check_character(
+      subgroup_vars,
+      null.ok = TRUE,
+      min.len = 1,
+      unique = TRUE
+    )
   )
 
   is_overall <- FALSE
@@ -183,17 +199,27 @@ estimate_subgroup_effects <- function(brms_fit,
     # - shpredeffect: shrunk predictive effects (treatment interactions)
     fixef_matrix <- brms::fixef(brms_fit)
     all_coefs <- rownames(fixef_matrix)
-    
+
     # Look for any coefficient containing "trt:" pattern
     # This will find ALL treatment interactions regardless of formula component
     interaction_pattern <- paste0(trt_var, ":")
-    interaction_coefs <- grep(interaction_pattern, all_coefs, value = TRUE, fixed = TRUE)
-    
-    # Also check for reverse order: "var:trt" 
+    interaction_coefs <- grep(
+      interaction_pattern,
+      all_coefs,
+      value = TRUE,
+      fixed = TRUE
+    )
+
+    # Also check for reverse order: "var:trt"
     reverse_pattern <- paste0(":", trt_var)
-    reverse_coefs <- grep(reverse_pattern, all_coefs, value = TRUE, fixed = TRUE)
+    reverse_coefs <- grep(
+      reverse_pattern,
+      all_coefs,
+      value = TRUE,
+      fixed = TRUE
+    )
     interaction_coefs <- unique(c(interaction_coefs, reverse_coefs))
-    
+
     if (length(interaction_coefs) > 0) {
       # Extract the variable names from the interaction terms
       # Patterns to handle (all formula components):
@@ -201,16 +227,16 @@ estimate_subgroup_effects <- function(brms_fit,
       # - "shpredeffect_trt:sexF" or "shpredeffect_sex:trt"
       # - "shprogeffect_trt:regionEast" (less common but possible)
       # General form: "componentname_trt:var" or "componentname_var:trt"
-      
+
       for (coef in interaction_coefs) {
         # Remove the effect prefix (e.g., "unprogeffect_", "shpredeffect_")
         # Pattern: effectname_trt:var or effectname_var:trt
         coef_without_prefix <- sub("^[^_]+_", "", coef)
-        
+
         # Now we have either "trt:varnameLevel" or "varnameLevel:trt"
         # Split by colon to get the two parts
         parts <- strsplit(coef_without_prefix, ":", fixed = TRUE)[[1]]
-        
+
         if (length(parts) == 2) {
           # Determine which part is NOT trt
           if (parts[1] == trt_var) {
@@ -221,14 +247,17 @@ estimate_subgroup_effects <- function(brms_fit,
             # Neither part is trt, skip
             next
           }
-          
+
           # Check which factor variable in the data this corresponds to
           # by seeing if any factor variable name is a prefix of varname_with_level
           # Sort by length descending to match longer names first (e.g., x_10 before x_1)
           factor_vars <- names(model_data)[sapply(model_data, is.factor)]
           factor_vars <- factor_vars[factor_vars != trt_var]
-          factor_vars_sorted <- factor_vars[order(nchar(factor_vars), decreasing = TRUE)]
-          
+          factor_vars_sorted <- factor_vars[order(
+            nchar(factor_vars),
+            decreasing = TRUE
+          )]
+
           for (var_name in factor_vars_sorted) {
             # Check if varname_with_level starts with var_name
             # e.g., "biomarkerLow" starts with "biomarker", "x_10a" starts with "x_10"
@@ -240,18 +269,21 @@ estimate_subgroup_effects <- function(brms_fit,
         }
       }
     }
-    
+
     # Also check for legacy dummy column approach (backward compatibility)
     # This was used in older versions before the consolidated architecture
     dummy_pattern <- paste0("^", trt_var, "_")
     interaction_cols <- grep(dummy_pattern, names(model_data), value = TRUE)
-    
+
     if (length(interaction_cols) > 0) {
       for (var_name in names(model_data)) {
         if (is.factor(model_data[[var_name]]) && var_name != trt_var) {
           # Check if dummies match this variable
           var_levels <- levels(model_data[[var_name]])
-          expected_dummies <- make.names(paste0(trt_var, "_", var_name, var_levels), unique = FALSE)
+          expected_dummies <- make.names(
+            paste0(trt_var, "_", var_name, var_levels),
+            unique = FALSE
+          )
           if (any(expected_dummies %in% interaction_cols)) {
             detected_vars <- c(detected_vars, var_name)
           }
@@ -271,7 +303,7 @@ estimate_subgroup_effects <- function(brms_fit,
         character(0)
       }
     )
-    
+
     if (length(all_params) > 0) {
       # Look for random effects parameters with treatment
       # Pattern: r_GROUPVAR__TERM[LEVEL,TRT]
@@ -280,9 +312,8 @@ estimate_subgroup_effects <- function(brms_fit,
       # Use __ (double underscore) as the delimiter between grouping var and term
       re_pattern <- sprintf("^r_(.+)__[^\\[]+\\[[^,]+,%s\\]", trt_var)
       re_params <- grep(re_pattern, all_params, value = TRUE)
-      
+
       if (length(re_params) > 0) {
-        
         # Extract grouping variable names
         for (param in re_params) {
           # Extract the grouping variable name from r_GROUPVAR__...
@@ -290,7 +321,10 @@ estimate_subgroup_effects <- function(brms_fit,
           grouping_var <- sub("^r_(.+)__.*", "\\1", param)
           # Verify this variable exists in the model data
           if (grouping_var %in% names(model_data)) {
-            if (is.factor(model_data[[grouping_var]]) || is.character(model_data[[grouping_var]])) {
+            if (
+              is.factor(model_data[[grouping_var]]) ||
+                is.character(model_data[[grouping_var]])
+            ) {
               detected_vars <- c(detected_vars, grouping_var)
             }
           }
@@ -301,13 +335,20 @@ estimate_subgroup_effects <- function(brms_fit,
     detected_vars <- unique(detected_vars)
 
     if (length(detected_vars) == 0) {
-      message("...no treatment interaction terms detected. Calculating overall treatment effect.")
-      message("   (averaging over all covariates regardless of formula component)")
+      message(
+        "...no treatment interaction terms detected. Calculating overall treatment effect."
+      )
+      message(
+        "   (averaging over all covariates regardless of formula component)"
+      )
       is_overall <- TRUE
       subgroup_vars <- "Overall"
     } else {
       subgroup_vars <- detected_vars
-      message(paste("...detected subgroup variable(s):", paste(subgroup_vars, collapse = ", ")))
+      message(paste(
+        "...detected subgroup variable(s):",
+        paste(subgroup_vars, collapse = ", ")
+      ))
     }
   } else {
     checkmate::assert_subset(subgroup_vars, names(model_data))
@@ -323,7 +364,7 @@ estimate_subgroup_effects <- function(brms_fit,
     sapply(subgroup_vars, .strip_onehot_suffix),
     subgroup_vars
   )
-  
+
   return(list(
     subgroup_vars = subgroup_vars,
     display_names = display_names,
@@ -343,34 +384,39 @@ estimate_subgroup_effects <- function(brms_fit,
 
   # Check if treatment is numeric or factor
   is_numeric_trt <- is.numeric(model_data[[trt_var]])
-  
+
   if (is_numeric_trt) {
     # Treatment is numeric (0/1)
     # Validate that treatment is binary 0/1
     trt_vals <- unique(model_data[[trt_var]])
     if (!all(trt_vals %in% c(0, 1))) {
-      stop("Treatment variable '", trt_var, "' must be binary (0/1) when numeric.")
+      stop(
+        "Treatment variable '",
+        trt_var,
+        "' must be binary (0/1) when numeric."
+      )
     }
-    
+
     control_val <- 0
     treatment_val <- 1
-    
   } else {
     # Treatment is factor (for backward compatibility with older workflows)
-    if (!is.factor(model_data[[trt_var]])) model_data[[trt_var]] <- as.factor(model_data[[trt_var]])
+    if (!is.factor(model_data[[trt_var]])) {
+      model_data[[trt_var]] <- as.factor(model_data[[trt_var]])
+    }
     trt_levels <- levels(model_data[[trt_var]])
     trt_contrasts <- contrasts(model_data[[trt_var]])
-    
+
     ref_level <- trt_levels[1]
     alt_level <- trt_levels[2]
   }
 
   # 2. Create Control Data
   data_control <- model_data
-  
+
   # 3. Create Treatment Data
   data_treatment <- model_data
-  
+
   if (is_numeric_trt) {
     # For numeric treatment, interactions are handled automatically by R/brms
     # When we have trt:sex where trt is 0/1 and sex is a factor with contrasts,
@@ -378,22 +424,33 @@ estimate_subgroup_effects <- function(brms_fit,
     # We just need to set trt to 0 or 1, and keep all other variables as-is
     data_control[[trt_var]] <- rep(control_val, nrow(model_data))
     data_treatment[[trt_var]] <- rep(treatment_val, nrow(model_data))
-    
   } else {
     # Factor treatment with explicit interaction dummy columns
-    data_control[[trt_var]] <- factor(rep(ref_level, nrow(model_data)), levels = trt_levels)
+    data_control[[trt_var]] <- factor(
+      rep(ref_level, nrow(model_data)),
+      levels = trt_levels
+    )
     contrasts(data_control[[trt_var]]) <- trt_contrasts
-    
-    data_treatment[[trt_var]] <- factor(rep(alt_level, nrow(model_data)), levels = trt_levels)
+
+    data_treatment[[trt_var]] <- factor(
+      rep(alt_level, nrow(model_data)),
+      levels = trt_levels
+    )
     contrasts(data_treatment[[trt_var]]) <- trt_contrasts
-    
+
     # 1. Identify Fixed Interaction Dummies (Colon syntax with factor treatment)
     interaction_dummy_pattern <- paste0("^", trt_var, "_")
-    interaction_cols <- grep(interaction_dummy_pattern, names(model_data), value = TRUE)
-    
+    interaction_cols <- grep(
+      interaction_dummy_pattern,
+      names(model_data),
+      value = TRUE
+    )
+
     # For Colon syntax: Zero out dummies in control
-    for (col in interaction_cols) data_control[[col]] <- 0
-    
+    for (col in interaction_cols) {
+      data_control[[col]] <- 0
+    }
+
     # For Colon syntax: Recreate dummies based on subgroup membership in treatment
     for (col in interaction_cols) {
       matched <- FALSE
@@ -401,9 +458,14 @@ estimate_subgroup_effects <- function(brms_fit,
         if (is.factor(model_data[[var_name]]) && var_name != trt_var) {
           var_levels <- levels(model_data[[var_name]])
           for (level in var_levels) {
-            expected_dummy_name <- make.names(paste0(trt_var, "_", var_name, level), unique = FALSE)
+            expected_dummy_name <- make.names(
+              paste0(trt_var, "_", var_name, level),
+              unique = FALSE
+            )
             if (col == expected_dummy_name) {
-              data_treatment[[col]] <- as.numeric(model_data[[var_name]] == level)
+              data_treatment[[col]] <- as.numeric(
+                model_data[[var_name]] == level
+              )
               matched <- TRUE
               break
             }
@@ -423,8 +485,15 @@ estimate_subgroup_effects <- function(brms_fit,
 #' Intelligently switches `re_formula` based on whether the treatment
 #' effect is modeled as fixed effects (colon syntax) or random effects (pipe syntax).
 #' @noRd
-.get_posterior_predictions <- function(brms_fit, data_control, data_treatment, response_type, original_data, ndraws = NULL, trt_var) {
-
+.get_posterior_predictions <- function(
+  brms_fit,
+  data_control,
+  data_treatment,
+  response_type,
+  original_data,
+  ndraws = NULL,
+  trt_var
+) {
   checkmate::assert_class(brms_fit, "brmsfit")
 
   # Determine prediction strategy based on model structure:
@@ -432,21 +501,21 @@ estimate_subgroup_effects <- function(brms_fit,
   # - Random effects model (pipe syntax): re_formula = NULL (include group-level effects)
   # This distinction ensures appropriate marginalization across model architectures
   has_random_trt <- FALSE
-  
+
   # Check Stan parameter names for random effects with treatment
   # Pattern: r_GROUPVAR__TERM[LEVEL,TRT]
   all_params <- tryCatch(
     brms::variables(brms_fit),
     error = function(e) character(0)
   )
-  
+
   if (length(all_params) > 0) {
     # Look for random effects parameters with treatment slopes
     # Pattern: r_GROUPVAR__TERM[LEVEL,TRT] where GROUPVAR can contain underscores
     # Use .+ instead of [^_]+ to match variable names with underscores (like age_group)
     re_pattern <- sprintf("^r_.+__[^\\[]+\\[[^,]+,%s\\]", trt_var)
     re_params <- grep(re_pattern, all_params, value = TRUE)
-    
+
     if (length(re_params) > 0) {
       has_random_trt <- TRUE
     }
@@ -467,16 +536,27 @@ estimate_subgroup_effects <- function(brms_fit,
     # This approach leverages brms' internal spline representation for computational efficiency
 
     linpred_combined <- if (is.null(ndraws)) {
-      brms::posterior_linpred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula,
-                             allow_new_levels = FALSE)
+      brms::posterior_linpred(
+        brms_fit,
+        newdata = data_combined,
+        re_formula = prediction_re_formula,
+        allow_new_levels = FALSE
+      )
     } else {
-      brms::posterior_linpred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, 
-                             ndraws = ndraws, allow_new_levels = FALSE)
+      brms::posterior_linpred(
+        brms_fit,
+        newdata = data_combined,
+        re_formula = prediction_re_formula,
+        ndraws = ndraws,
+        allow_new_levels = FALSE
+      )
     }
 
     n_control <- nrow(data_control)
     linpred_control <- linpred_combined[, 1:n_control]
-    linpred_treatment <- linpred_combined[, (n_control + 1):ncol(linpred_combined)]
+    linpred_treatment <- linpred_combined[,
+      (n_control + 1):ncol(linpred_combined)
+    ]
 
     # 2. Reconstruct Baseline Hazard
     # (Reuse the robust logic from your previous code)
@@ -489,14 +569,22 @@ estimate_subgroup_effects <- function(brms_fit,
       strat_var = h0_res$strat_var,
       original_data = original_data
     ))
-
   } else {
     pred_combined <- if (is.null(ndraws)) {
-      brms::posterior_epred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, 
-                           allow_new_levels = FALSE)
+      brms::posterior_epred(
+        brms_fit,
+        newdata = data_combined,
+        re_formula = prediction_re_formula,
+        allow_new_levels = FALSE
+      )
     } else {
-      brms::posterior_epred(brms_fit, newdata = data_combined, re_formula = prediction_re_formula, 
-                           ndraws = ndraws, allow_new_levels = FALSE)
+      brms::posterior_epred(
+        brms_fit,
+        newdata = data_combined,
+        re_formula = prediction_re_formula,
+        ndraws = ndraws,
+        allow_new_levels = FALSE
+      )
     }
 
     n_control <- nrow(data_control)
@@ -516,65 +604,108 @@ estimate_subgroup_effects <- function(brms_fit,
 #' and reconstructs the hazard using B-spline basis functions.
 #' @noRd
 .extract_baseline_hazard <- function(brms_fit, original_data, ndraws) {
-    # Parse formula for bhaz
-    lhs_formula_str_vec <- deparse(brms_fit$formula$formula[[2]])
-    bhaz_term <- paste(lhs_formula_str_vec, collapse = " ")
+  # Parse formula for bhaz
+  lhs_formula_str_vec <- deparse(brms_fit$formula$formula[[2]])
+  bhaz_term <- paste(lhs_formula_str_vec, collapse = " ")
 
-    resp_match <- stringr::str_match(bhaz_term, "(\\w+)\\s*\\|\\s*cens\\(1\\s*-\\s*(\\w+)\\)")
-    if (is.na(resp_match[1,1])) stop("Could not parse 'time | cens(1 - status)' structure.")
+  resp_match <- stringr::str_match(
+    bhaz_term,
+    "(\\w+)\\s*\\|\\s*cens\\(1\\s*-\\s*(\\w+)\\)"
+  )
+  if (is.na(resp_match[1, 1])) {
+    stop("Could not parse 'time | cens(1 - status)' structure.")
+  }
 
-    time_var <- resp_match[1, 2]
-    status_var <- resp_match[1, 3]
+  time_var <- resp_match[1, 2]
+  status_var <- resp_match[1, 3]
 
-    strat_match <- stringr::str_match(bhaz_term, "gr\\s*=\\s*(\\w+)")
-    strat_var <- if (!is.na(strat_match[1, 2])) strat_match[1, 2] else NULL
+  strat_match <- stringr::str_match(bhaz_term, "gr\\s*=\\s*(\\w+)")
+  strat_var <- if (!is.na(strat_match[1, 2])) strat_match[1, 2] else NULL
 
-    bknots_str <- stringr::str_extract(bhaz_term, "Boundary\\.knots = c\\(.*?\\)")
-    knot_str <- stringr::str_extract(bhaz_term, "(?<!Boundary\\.)knots = c\\(.*?\\)")
+  bknots_str <- stringr::str_extract(bhaz_term, "Boundary\\.knots = c\\(.*?\\)")
+  knot_str <- stringr::str_extract(
+    bhaz_term,
+    "(?<!Boundary\\.)knots = c\\(.*?\\)"
+  )
 
-    knots <- eval(parse(text = gsub("knots = ", "", knot_str)))
-    bknots <- eval(parse(text = gsub("Boundary.knots = ", "", bknots_str)))
+  knots <- eval(parse(text = gsub("knots = ", "", knot_str)))
+  bknots <- eval(parse(text = gsub("Boundary.knots = ", "", bknots_str)))
 
-    times_to_predict <- sort(unique(original_data[[time_var]][original_data[[status_var]] == 1]))
+  times_to_predict <- sort(unique(original_data[[time_var]][
+    original_data[[status_var]] == 1
+  ]))
 
-    sbhaz_draws_df <- if (is.null(ndraws)) {
-      posterior::as_draws_df(brms_fit, variable = "^sbhaz", regex = TRUE)
-    } else {
-      posterior::as_draws_df(brms_fit, variable = "^sbhaz", regex = TRUE, ndraws = ndraws)
-    }
+  sbhaz_draws_df <- if (is.null(ndraws)) {
+    posterior::as_draws_df(brms_fit, variable = "^sbhaz", regex = TRUE)
+  } else {
+    posterior::as_draws_df(
+      brms_fit,
+      variable = "^sbhaz",
+      regex = TRUE,
+      ndraws = ndraws
+    )
+  }
 
-    all_sbhaz_names <- names(sbhaz_draws_df)[grep("^sbhaz", names(sbhaz_draws_df))]
-    i_spline_basis <- splines2::iSpline(times_to_predict, knots = knots, Boundary.knots = bknots, intercept = FALSE)
+  all_sbhaz_names <- names(sbhaz_draws_df)[grep(
+    "^sbhaz",
+    names(sbhaz_draws_df)
+  )]
+  i_spline_basis <- splines2::iSpline(
+    times_to_predict,
+    knots = knots,
+    Boundary.knots = bknots,
+    intercept = FALSE
+  )
 
-    H0_posterior_list <- list()
+  H0_posterior_list <- list()
 
-    if (is.null(strat_var)) {
-      sbhaz_matrix <- as.matrix(sbhaz_draws_df[, all_sbhaz_names], drop_attrs = TRUE)
-      H0_posterior_list[["_default_"]] <- as.matrix(i_spline_basis %*% t(sbhaz_matrix))
-    } else {
-      strat_levels <- levels(factor(original_data[[strat_var]]))
-      for (level in strat_levels) {
-        param_pattern <- paste0("^sbhaz\\[", level, ",")
-        level_sbhaz_cols <- grep(param_pattern, all_sbhaz_names, value = TRUE)
-        # Sort cols numerically
-        numeric_indices <- as.numeric(stringr::str_extract(level_sbhaz_cols, "(?<=,)\\d+(?=\\$$)"))
-        sorted_cols <- level_sbhaz_cols[order(numeric_indices)]
+  if (is.null(strat_var)) {
+    sbhaz_matrix <- as.matrix(
+      sbhaz_draws_df[, all_sbhaz_names],
+      drop_attrs = TRUE
+    )
+    H0_posterior_list[["_default_"]] <- as.matrix(
+      i_spline_basis %*% t(sbhaz_matrix)
+    )
+  } else {
+    strat_levels <- levels(factor(original_data[[strat_var]]))
+    for (level in strat_levels) {
+      param_pattern <- paste0("^sbhaz\\[", level, ",")
+      level_sbhaz_cols <- grep(param_pattern, all_sbhaz_names, value = TRUE)
+      # Sort cols numerically
+      numeric_indices <- as.numeric(stringr::str_extract(
+        level_sbhaz_cols,
+        "(?<=,)\\d+(?=\\$$)"
+      ))
+      sorted_cols <- level_sbhaz_cols[order(numeric_indices)]
 
-        if(length(sorted_cols) > 0) {
-            sbhaz_matrix_level <- as.matrix(sbhaz_draws_df[, sorted_cols], drop_attrs = TRUE)
-            H0_posterior_list[[level]] <- as.matrix(i_spline_basis %*% t(sbhaz_matrix_level))
-        }
+      if (length(sorted_cols) > 0) {
+        sbhaz_matrix_level <- as.matrix(
+          sbhaz_draws_df[, sorted_cols],
+          drop_attrs = TRUE
+        )
+        H0_posterior_list[[level]] <- as.matrix(
+          i_spline_basis %*% t(sbhaz_matrix_level)
+        )
       }
     }
+  }
 
-    return(list(H0_posterior = H0_posterior_list, strat_var = strat_var))
+  return(list(H0_posterior = H0_posterior_list, strat_var = strat_var))
 }
 
 
 #' Calculate and Summarize Marginal Effects
 #' @noRd
-.calculate_and_summarize_effects <- function(posterior_preds, original_data, subgroup_vars, display_names, is_overall, response_type, conf = 0.95) {
-
+.calculate_and_summarize_effects <- function(
+  posterior_preds,
+  original_data,
+  subgroup_vars,
+  display_names,
+  is_overall,
+  response_type,
+  conf = 0.95
+) {
   all_results_list <- list()
   all_draws_list <- list()
 
@@ -585,7 +716,10 @@ estimate_subgroup_effects <- function(brms_fit,
       factor_var <- as.factor(original_data[[var]])
       # Use the actual levels from the data - brms preserves special characters
       # in factor levels even if they contain <, >, -, etc.
-      subgroup_factors[[var]] <- list(factor = factor_var, levels = levels(factor_var))
+      subgroup_factors[[var]] <- list(
+        factor = factor_var,
+        levels = levels(factor_var)
+      )
     }
   }
 
@@ -618,31 +752,50 @@ estimate_subgroup_effects <- function(brms_fit,
         marginal_outcome_control <- if (length(subgroup_indices) == 1) {
           posterior_preds$pred_control[, subgroup_indices]
         } else {
-          rowMeans(posterior_preds$pred_control[, subgroup_indices, drop = FALSE])
+          rowMeans(posterior_preds$pred_control[,
+            subgroup_indices,
+            drop = FALSE
+          ])
         }
 
         marginal_outcome_treatment <- if (length(subgroup_indices) == 1) {
           posterior_preds$pred_treatment[, subgroup_indices]
         } else {
-          rowMeans(posterior_preds$pred_treatment[, subgroup_indices, drop = FALSE])
+          rowMeans(posterior_preds$pred_treatment[,
+            subgroup_indices,
+            drop = FALSE
+          ])
         }
 
         effect_draws <- switch(
           response_type,
           continuous = marginal_outcome_treatment - marginal_outcome_control,
-          binary = qlogis(marginal_outcome_treatment) - qlogis(marginal_outcome_control),
+          binary = qlogis(marginal_outcome_treatment) -
+            qlogis(marginal_outcome_control),
           count = marginal_outcome_treatment / marginal_outcome_control
         )
       }
 
       # Use display name (without _onehot suffix) for user-facing output
-      display_var_name <- if (is_overall) "Overall" else display_names[current_subgroup_var]
-      subgroup_name <- if (is_overall) "Overall" else paste0(display_var_name, ": ", level)
+      display_var_name <- if (is_overall) {
+        "Overall"
+      } else {
+        display_names[current_subgroup_var]
+      }
+      subgroup_name <- if (is_overall) {
+        "Overall"
+      } else {
+        paste0(display_var_name, ": ", level)
+      }
       all_draws_list[[subgroup_name]] <- effect_draws
 
       point_estimate <- median(effect_draws, na.rm = TRUE)
       alpha <- 1 - conf
-      ci <- quantile(effect_draws, probs = c(alpha / 2, 1 - alpha / 2), na.rm = TRUE)
+      ci <- quantile(
+        effect_draws,
+        probs = c(alpha / 2, 1 - alpha / 2),
+        na.rm = TRUE
+      )
 
       level_results_list[[level]] <- tibble::tibble(
         Subgroup = subgroup_name,
@@ -651,7 +804,9 @@ estimate_subgroup_effects <- function(brms_fit,
         CI_Upper = ci[2]
       )
     }
-    all_results_list[[current_subgroup_var]] <- dplyr::bind_rows(level_results_list)
+    all_results_list[[current_subgroup_var]] <- dplyr::bind_rows(
+      level_results_list
+    )
   }
 
   final_results <- dplyr::bind_rows(all_results_list)
@@ -666,7 +821,14 @@ estimate_subgroup_effects <- function(brms_fit,
 #' Computes the average hazard ratio across all time points by integrating
 #' the marginal survival curves for control and treatment arms.
 #' @noRd
-.calculate_survival_ahr_draws <- function(linpred_control, linpred_treatment, H0_posterior_list, indices, strat_var, original_data) {
+.calculate_survival_ahr_draws <- function(
+  linpred_control,
+  linpred_treatment,
+  H0_posterior_list,
+  indices,
+  strat_var,
+  original_data
+) {
   # --- Assertions ---
   checkmate::assert_matrix(linpred_control)
   checkmate::assert_matrix(linpred_treatment)
@@ -677,7 +839,9 @@ estimate_subgroup_effects <- function(brms_fit,
 
   # Check dimensions
   if (nrow(linpred_control) != nrow(linpred_treatment)) {
-    stop("linpred_control and linpred_treatment must have the same number of rows (draws).")
+    stop(
+      "linpred_control and linpred_treatment must have the same number of rows (draws)."
+    )
   }
 
   # OPTIMIZATION: Process in chunks to reduce memory usage for large datasets
@@ -695,15 +859,24 @@ estimate_subgroup_effects <- function(brms_fit,
     # Get survival curves for this chunk
     S_control_chunk <- .get_marginal_survival_vectorized(
       linpred_control[chunk_indices, , drop = FALSE],
-      H0_posterior_list, indices, strat_var, original_data
+      H0_posterior_list,
+      indices,
+      strat_var,
+      original_data
     )
     S_treatment_chunk <- .get_marginal_survival_vectorized(
       linpred_treatment[chunk_indices, , drop = FALSE],
-      H0_posterior_list, indices, strat_var, original_data
+      H0_posterior_list,
+      indices,
+      strat_var,
+      original_data
     )
 
     # Calculate AHR for this chunk using vectorized operations
-    ahr_draws[chunk_indices] <- .calculate_ahr_vectorized(S_control_chunk, S_treatment_chunk)
+    ahr_draws[chunk_indices] <- .calculate_ahr_vectorized(
+      S_control_chunk,
+      S_treatment_chunk
+    )
   }
 
   return(ahr_draws)
@@ -715,18 +888,24 @@ estimate_subgroup_effects <- function(brms_fit,
 #' survival predictions for a given subgroup. Uses vectorized operations
 #' to avoid loops and improve performance.
 #' @noRd
-.get_marginal_survival_vectorized <- function(linpred_posterior, H0_post_list, sub_indices, strat_variable, full_data) {
+.get_marginal_survival_vectorized <- function(
+  linpred_posterior,
+  H0_post_list,
+  sub_indices,
+  strat_variable,
+  full_data
+) {
   subgroup_linpred <- linpred_posterior[, sub_indices, drop = FALSE]
   n_draws <- nrow(subgroup_linpred)
   n_individuals <- ncol(subgroup_linpred)
-  
+
   # Pre-compute exp(eta) once for all draws
   exp_linpred <- exp(subgroup_linpred)
 
   if (is.null(strat_variable)) {
     H0_post <- H0_post_list[["_default_"]]
     n_times <- nrow(H0_post)
-    
+
     # Vectorized approach: compute all draws at once using lapply
     # Then rbind the results
     S_list <- lapply(seq_len(n_draws), function(i) {
@@ -735,7 +914,7 @@ estimate_subgroup_effects <- function(brms_fit,
       S_indiv <- exp(-tcrossprod(H0_post[, i], exp_linpred[i, ]))
       rowMeans(S_indiv)
     })
-    
+
     S_marginal <- do.call(rbind, S_list)
     return(S_marginal)
   }
@@ -744,7 +923,7 @@ estimate_subgroup_effects <- function(brms_fit,
   subgroup_strata <- full_data[[strat_variable]][sub_indices]
   unique_strata <- unique(subgroup_strata)
   n_times <- nrow(H0_post_list[[unique_strata[1]]])
-  
+
   # Vectorized approach for stratified case
   S_list <- lapply(seq_len(n_draws), function(i) {
     S_indiv <- matrix(NA, nrow = n_times, ncol = n_individuals)
@@ -756,7 +935,7 @@ estimate_subgroup_effects <- function(brms_fit,
     }
     rowMeans(S_indiv, na.rm = TRUE)
   })
-  
+
   S_marginal <- do.call(rbind, S_list)
   return(S_marginal)
 }
@@ -775,14 +954,16 @@ estimate_subgroup_effects <- function(brms_fit,
     dst <- -diff(c(1, st))
 
     # Pad
-    if(length(dsc) < length(sc)) dsc <- c(dsc, 0)
-    if(length(dst) < length(st)) dst <- c(dst, 0)
+    if (length(dsc) < length(sc)) {
+      dsc <- c(dsc, 0)
+    }
+    if (length(dst) < length(st)) {
+      dst <- c(dst, 0)
+    }
 
-    num <- sum(sc * dst, na.rm=TRUE)
-    den <- sum(st * dsc, na.rm=TRUE)
-    ahr_draws[i] <- if (den == 0) NA else num/den
+    num <- sum(sc * dst, na.rm = TRUE)
+    den <- sum(st * dsc, na.rm = TRUE)
+    ahr_draws[i] <- if (den == 0) NA else num / den
   }
   return(ahr_draws)
 }
-
-
