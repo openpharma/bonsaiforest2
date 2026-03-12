@@ -413,12 +413,12 @@ fit_specific <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 4.6 seconds.
-#> Chain 2 finished in 4.9 seconds.
+#> Chain 1 finished in 4.5 seconds.
+#> Chain 2 finished in 4.8 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.8 seconds.
-#> Total execution time: 5.0 seconds.
+#> Mean chain execution time: 4.7 seconds.
+#> Total execution time: 4.9 seconds.
 #> Warning: 2 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -750,7 +750,7 @@ fit_continuous_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.1 seconds.
+#> Chain 2 finished in 4.2 seconds.
 #> Chain 1 finished in 4.4 seconds.
 #> 
 #> Both chains finished successfully.
@@ -830,8 +830,8 @@ fit_surv_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.0 seconds.
-#> Chain 1 finished in 4.7 seconds.
+#> Chain 2 finished in 4.1 seconds.
+#> Chain 1 finished in 4.8 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 4.4 seconds.
