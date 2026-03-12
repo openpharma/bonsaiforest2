@@ -14,11 +14,10 @@ typically called in sequence:
 
 The package enables the implementation of both **global models**
 ([Wolbers et al. 2025](#ref-wolbers2025using)), that estimate all
-prognostic and predictive effects in a single unified model using colon
-notation (e.g., `~ 0 + trt:subgroup`), and **one-way models** ([Wang et
-al. 2024](#ref-wang2024bayesian)), that estimate treatment slopes
-varying by subgroup using random effects notation (e.g.,
-`~ (0 + trt || subgroup)`).
+prognostic and predictive effects in a single unified model, and
+**one-way models** ([Wang et al. 2024](#ref-wang2024bayesian)), that
+estimate treatment fitting a different model for each subgrouping
+variable.
 
 This vignette demonstrates how to use the package to fit and compare
 these different modeling formulas. You’ll learn how to:
@@ -76,6 +75,8 @@ subgroup variable at a time. In one-way models, we specify treatment
 effects as random slopes using pipe-pipe notation (e.g.,
 `~ (0 + trt || subgroup)`), which allows treatment effects to vary by
 subgroup with automatic hierarchical regularization via random effects.
+Note that for each model we also include always the subgrouping variable
+we want to test the treatment effects for also as prognostic.
 
 ### 3.1 One-way Model: x1 Only
 
@@ -86,6 +87,7 @@ oneway_x1 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ x1,
   shrunk_prognostic_formula = NULL,
   shrunk_predictive_formula = ~ (0 + trt || x1),
   intercept_prior = "normal(0, 10)",
@@ -95,12 +97,12 @@ oneway_x1 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 2.9 seconds.
-#> Chain 2 finished in 3.4 seconds.
+#> Chain 1 finished in 2.4 seconds.
+#> Chain 2 finished in 2.9 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.1 seconds.
-#> Total execution time: 3.6 seconds.
+#> Mean chain execution time: 2.6 seconds.
+#> Total execution time: 3.1 seconds.
 
 summary_oneway_x1 <- summary_subgroup_effects(brms_fit = oneway_x1)
 print(summary_oneway_x1)
@@ -108,8 +110,8 @@ print(summary_oneway_x1)
 #> # A tibble: 2 × 4
 #>   Subgroup Median CI_Lower CI_Upper
 #>   <chr>     <dbl>    <dbl>    <dbl>
-#> 1 x1: a     0.686    0.465   0.895 
-#> 2 x1: b    -0.295   -0.557  -0.0518
+#> 1 x1: a    0.527     0.300    0.744
+#> 2 x1: b    0.0168   -0.289    0.344
 #> 
 #> $response_type
 #> [1] "continuous"
@@ -132,6 +134,7 @@ oneway_x2 <- run_brms_analysis(
   response_type = "continuous",
   response_formula = y ~ trt,
   shrunk_prognostic_formula = NULL,
+    unshrunk_terms_formula = ~ x2,
   shrunk_predictive_formula = ~ (0 + trt || x2),
   intercept_prior = "normal(0, 10)",
   shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
@@ -140,12 +143,12 @@ oneway_x2 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.3 seconds.
-#> Chain 2 finished in 1.3 seconds.
+#> Chain 1 finished in 1.7 seconds.
+#> Chain 2 finished in 1.9 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 1.3 seconds.
-#> Total execution time: 1.4 seconds.
+#> Mean chain execution time: 1.8 seconds.
+#> Total execution time: 2.0 seconds.
 
 summary_oneway_x2 <- summary_subgroup_effects(brms_fit = oneway_x2)
 ```
@@ -157,6 +160,7 @@ oneway_x3 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ x3,
   shrunk_prognostic_formula = NULL,
   shrunk_predictive_formula = ~ (0 + trt || x3),
   intercept_prior = "normal(0, 10)",
@@ -166,12 +170,12 @@ oneway_x3 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.5 seconds.
-#> Chain 2 finished in 1.5 seconds.
+#> Chain 1 finished in 1.4 seconds.
+#> Chain 2 finished in 1.7 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 1.5 seconds.
-#> Total execution time: 1.6 seconds.
+#> Mean chain execution time: 1.6 seconds.
+#> Total execution time: 1.8 seconds.
 
 summary_oneway_x3 <- summary_subgroup_effects(brms_fit = oneway_x3)
 ```
@@ -209,28 +213,27 @@ regularization (Horseshoe prior) applied to the interaction terms.
 
 ``` r
 # Fit a single unified model with ALL subgroup variables simultaneously using global approach
-# - Shrunk prognostic effects: subgroup main effects with strong regularization using one-hot encoding
+# - Unshrunk prognostic effects: subgroup main effects without shrinkage
 # - Shrunk predictive effects: treatment interactions with strong regularization using one-hot encoding
 global_shrinkage_model <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  shrunk_prognostic_formula = ~ 0 + x1 + x2 + x3,
+  unshrunk_terms_formula  = ~ 0 + x1 + x2 + x3,
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   intercept_prior = "normal(0, 10)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 10.0 seconds.
-#> Chain 2 finished in 11.0 seconds.
+#> Chain 1 finished in 3.4 seconds.
+#> Chain 2 finished in 3.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 10.5 seconds.
-#> Total execution time: 11.1 seconds.
+#> Mean chain execution time: 3.5 seconds.
+#> Total execution time: 3.7 seconds.
 ```
 
 ### 4.2 Global Model: Summary of Subgroup Effects
@@ -244,7 +247,7 @@ automatically extracts all treatment interactions from the fitted model:
 global_summary <- summary_subgroup_effects(brms_fit = global_shrinkage_model)
 #> --- Calculating specific subgroup effects... ---
 #> Step 1: Identifying subgroups and creating counterfactuals...
-#> ...detected subgroup variable(s): x1, x2, x3
+#> ...detected subgroup variable(s): x1_onehot, x2_onehot, x3_onehot
 #> Step 2: Generating posterior predictions...
 #> Step 3: Calculating marginal effects...
 #> Done.
@@ -255,15 +258,15 @@ print(global_summary)
 #> # A tibble: 9 × 4
 #>   Subgroup Median CI_Lower CI_Upper
 #>   <chr>     <dbl>    <dbl>    <dbl>
-#> 1 x1: a    0.512    0.273     0.754
-#> 2 x1: b    0.0615  -0.289     0.403
-#> 3 x2: a    0.393    0.126     0.632
-#> 4 x2: b    0.411    0.188     0.659
-#> 5 x2: c    0.272    0.0261    0.497
-#> 6 x3: a    0.316    0.0316    0.541
-#> 7 x3: b    0.434    0.190     0.804
-#> 8 x3: c    0.373    0.124     0.667
-#> 9 x3: d    0.321    0.0415    0.541
+#> 1 x1: a     0.469  0.247      0.724
+#> 2 x1: b     0.127 -0.248      0.449
+#> 3 x2: a     0.380  0.116      0.627
+#> 4 x2: b     0.410  0.167      0.696
+#> 5 x2: c     0.279 -0.00298    0.514
+#> 6 x3: a     0.335  0.0534     0.576
+#> 7 x3: b     0.405  0.160      0.690
+#> 8 x3: c     0.376  0.129      0.710
+#> 9 x3: d     0.314  0.0310     0.558
 #> 
 #> $response_type
 #> [1] "continuous"

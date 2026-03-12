@@ -2,8 +2,8 @@
 
 This vignette demonstrates advanced functionalities for Bayesian
 shrinkage estimation, including specifying an **offset for count data**,
-customizing **prior distributions**, and using **stratification** to
-handle heterogeneity in nuisance parameters.
+customizing **prior distributions**, and using **stratification** in
+nuisance parameters.
 
 ## 1 Handling Exposure in Count Outcomes with Offsets
 
@@ -271,10 +271,10 @@ fit_ex5 <- fit_brms_model(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 1 finished in 4.8 seconds.
-#> Chain 2 finished in 5.3 seconds.
+#> Chain 2 finished in 5.2 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 5.1 seconds.
+#> Mean chain execution time: 5.0 seconds.
 #> Total execution time: 5.3 seconds.
 
 # View the used priors
@@ -413,12 +413,12 @@ fit_specific <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 4.5 seconds.
-#> Chain 2 finished in 4.7 seconds.
+#> Chain 1 finished in 4.6 seconds.
+#> Chain 2 finished in 4.9 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.6 seconds.
-#> Total execution time: 4.8 seconds.
+#> Mean chain execution time: 4.8 seconds.
+#> Total execution time: 5.0 seconds.
 #> Warning: 2 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -830,12 +830,12 @@ fit_surv_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.1 seconds.
-#> Chain 1 finished in 4.8 seconds.
+#> Chain 2 finished in 4.0 seconds.
+#> Chain 1 finished in 4.7 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.5 seconds.
-#> Total execution time: 4.9 seconds.
+#> Mean chain execution time: 4.4 seconds.
+#> Total execution time: 4.8 seconds.
 #> 
 #> Analysis complete.
 ```

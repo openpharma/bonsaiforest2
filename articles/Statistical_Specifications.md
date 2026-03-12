@@ -2,6 +2,15 @@
 
 ## 1 Scope of this document
 
+> **Pre-publication reference:** The statistical methodology implemented
+> in this package is described in:
+>
+> Wolbers M\*, Pedrera Gómez M\*, Ocampo A, Gravestock I (2026).
+> *Unified implementation and comparison of Bayesian shrinkage methods
+> for treatment effect estimation in subgroups.* Data Science and
+> Analytics, Roche, Basel, Switzerland. \*These authors contributed
+> equally to this work.
+
 This document describes the statistical methods implemented in the
 `bonsaiforest2` R package for Bayesian subgroup analysis of continuous,
 binary, count, and time-to-event outcomes in randomized clinical trials

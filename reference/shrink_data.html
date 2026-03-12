@@ -73,7 +73,7 @@ subgroup shrinkage methods across multiple outcome types.</p>
 <dd><p>Binary response (0 or 1)</p></dd>
 
 <dt>tt_event</dt>
-<dd><p>Time-to-event outcome</p></dd>
+<dd><p>Time-to-event outcome (months)</p></dd>
 
 <dt>event_yn</dt>
 <dd><p>Event indicator (0 = censored, 1 = event)</p></dd>
@@ -86,6 +86,57 @@ subgroup shrinkage methods across multiple outcome types.</p>
 
 
 </dl></div>
+    <div class="section level2">
+    <h2 id="generation-process">Generation process<a class="anchor" aria-label="anchor" href="#generation-process"></a></h2>
+
+
+
+<p>The dataset was generated with <code>set.seed(16)</code> using the following steps:</p>
+<p><strong>Covariates</strong></p>
+<p>Treatment (<code>trt</code>) is assigned using permuted blocks of size 4, yielding
+a balanced binary indicator (0/1) across the 500 subjects. Three latent
+standard-normal variables (<code>z1</code>, <code>z2</code>, <code>z3</code>) are drawn
+independently, then <code>z2</code> is replaced by
+<code>0.4 * z1 + sqrt(1 - 0.4^2) * z2</code> to induce a correlation of 0.4
+between <code>z1</code> and <code>z2</code>. The three subgroup covariates are obtained
+by discretising these latent variables:</p><ul><li><p><code>x1</code>: cut of <code>z1</code> at 0.5 → binary levels <code>a</code> (≈69\<!-- %) -->
+and <code>b</code> (≈31\<!-- %). --></p></li>
+<li><p><code>x2</code>: cut of <code>z2</code> at −0.5 and 0.5 → three levels
+<code>a</code>, <code>b</code>, <code>c</code>. Because <code>z2</code> is correlated with
+<code>z1</code>, <code>x2</code> is also moderately correlated with <code>x1</code>.</p></li>
+<li><p><code>x3</code>: cut of <code>z3</code> at −0.66, 0, and 0.66 → four
+approximately equal-sized levels <code>a</code>, <code>b</code>, <code>c</code>, <code>d</code>.</p></li>
+</ul><p><strong>Continuous outcome (<code>y</code>) and binary response (<code>response</code>)</strong></p>
+<p>$$y = 5 + 0.5 \cdot \mathbf{1}[x_1 = a] + 0.5 \cdot \mathbf{1}[x_3 = b]
+  + 0.1 \cdot \mathbf{1}[\text{trt} = 1]
+  + 0.4 \cdot \mathbf{1}[x_1 = a, \text{trt} = 1] + \varepsilon,
+  \quad \varepsilon \sim N(0, 1)$$</p>
+<p>This gives a population-level treatment effect of 0.1, which is amplified to
+0.5 within the <code>x1 = a</code> subgroup (treatment-by-<code>x1</code> interaction
+of 0.4). <code>x3 = b</code> acts as a prognostic covariate only. The binary
+outcome <code>response</code> is the indicator <code>y &gt; 6</code>.</p>
+<p><strong>Time-to-event outcome (<code>tt_event</code>, <code>event_yn</code>)</strong></p>
+<p>Event times are drawn from an exponential distribution with rate
+$$\lambda = \exp\!\big(-3.5
+  + \log(0.5)\cdot\mathbf{1}[x_1=a]
+  + \log(1.5)\cdot\mathbf{1}[x_3=b]
+  + \log(0.9)\cdot\mathbf{1}[\text{trt}=1]
+  + \log(0.5)\cdot\mathbf{1}[x_1=a,\,\text{trt}=1]\big)$$</p>
+<p>so the hazard ratios for treatment are 0.9 in the <code>x1 = b</code> subgroup
+and <code>0.9 × 0.5 = 0.45</code> in the <code>x1 = a</code> subgroup. Censoring
+combines administrative censoring (uniform accrual over 24 months, 60-month
+study duration) and loss to follow-up (exponential with an annual rate of
+3\<!-- %). The observed time \code{tt_event = min(event time, censoring time)}. --></p>
+<p><strong>Poisson count outcome (<code>count</code>, <code>fup_duration</code>)</strong></p>
+<p>Individual follow-up is capped at 24 months or loss to follow-up, whichever
+comes first. Counts are drawn from a Poisson distribution with mean equal to
+the individual rate times follow-up duration, where the rate is
+$$\mu = \exp\!\big(-3 + \log(0.8)\cdot\mathbf{1}[x_1=a]
+  + \log(0.6)\cdot\mathbf{1}[\text{trt}=1]\big)$$</p>
+<p>There is no treatment-by-subgroup interaction in this outcome; the rate
+ratio for treatment is 0.6 across all subgroups.</p>
+<p>The complete generation code is in <code>data-raw/shrink_data.R</code>.</p>
+    </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>
