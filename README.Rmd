@@ -15,7 +15,7 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-The `bonsaiforest2` package is used for Bayesian shrinkage estimation of subgroup treatment effects in randomized clinical trials. It supports both one-way models (random effects) and fixed effects modeling approaches for estimating treatment-by-subgroup interactions, with built-in support for continuous, binary, time-to-event (Cox), and count outcomes. The package allows the usage of state-of-the-art shrinkage priors including Regularized Horseshoe and R2D2, combined with standardization (G-computation) to provide interpretable marginal treatment effects. By leveraging `brms` and `Stan`, `bonsaiforest2` provides a practical tool for obtaining more stable and reliable subgroup effect estimates in exploratory and confirmatory analyses.
+The `bonsaiforest2` package is used for Bayesian shrinkage estimation of subgroup treatment effects in randomized clinical trials. It supports both one-way models and global modeling approaches for estimating treatment-by-subgroup interactions, with built-in support for continuous, binary, time-to-event (Cox), and count outcomes. The package allows the usage of shrinkage priors including Regularized Horseshoe and R2D2, combined with standardization (G-computation) to provide interpretable marginal treatment effects. By leveraging `brms` and `Stan`, `bonsaiforest2` provides a practical tool for obtaining more stable and reliable subgroup effect estimates in subgroup analyses.
 
 ## Installation
 
@@ -35,7 +35,7 @@ remotes::install_github("openpharma/bonsaiforest2")
 
 ## Quick Start Example
 
-This example demonstrates Bayesian shrinkage estimation of treatment effects across subgroups using a **fixed effects model** with a Regularized Horseshoe prior, applied to the `shrink_data` package dataset with three subgrouping variables.
+This example demonstrates Bayesian shrinkage estimation of treatment effects across subgroups using a **global model** with a Regularized Horseshoe prior, applied to the `shrink_data` package dataset with three subgrouping variables.
 
 ```{r example-continuous, message=FALSE, warning=FALSE, results='hide'}
 library(bonsaiforest2)

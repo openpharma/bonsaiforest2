@@ -29,6 +29,12 @@ knitr::opts_chunk$set(
 
 # Scope of this document
 
+> **Pre-publication reference:** The statistical methodology implemented in this package is described in:
+>
+> Wolbers M\*, Pedrera Gómez M\*, Ocampo A, Gravestock I (2026). *Unified implementation and comparison of Bayesian shrinkage methods for treatment effect estimation in subgroups.* Data Science and Analytics, Roche, Basel, Switzerland. \*These authors contributed equally to this work.
+
+
+
 This document describes the statistical methods implemented in the `bonsaiforest2` R package for Bayesian subgroup analysis of continuous, binary, count, and time-to-event outcomes in randomized clinical trials (RCTs).
 
 The package enable the implementation of both a **global modeling approach** [@wolbers2025using], that estimates all prognostic and predictive effects in a single model, and a **One-variable-at a time** [@wang2024bayesian], that estimates the predictive effects using a different model for each subgrouping variable.
@@ -226,10 +232,13 @@ knitr::kable(
 -   $U$ is the $N \times V$ design matrix for the extra variables we want to take into account in the fitting of the model. This will also be **unpenalized.**
 -   $\boldsymbol{\beta_3}$ is the $V \times 1$ vector of extra prognostic effects coefficients
 
-|   | **Shrinkage** | **Not Shrinkage** |
-|:---|:---|:---|
++-----------------------+----------------------------------------+----------------------------------------+
+|                       | **Shrinkage**                          | **Not Shrinkage**                      |
++:======================+:=======================================+:=======================================+
 | **Prognostic Effect** | $\mathbf{X_p}\boldsymbol{\beta_{1,p}}$ | $\mathbf{X_n}\boldsymbol{\beta_{1,n}}$ |
++-----------------------+----------------------------------------+----------------------------------------+
 | **Predictive Effect** | $\mathbf{Z_p}\boldsymbol{\beta_{2,p}}$ | $\mathbf{Z_n}\boldsymbol{\beta_{2,n}}$ |
++-----------------------+----------------------------------------+----------------------------------------+
 
 ***Linear form:***
 
@@ -332,12 +341,17 @@ While the intercept ($\beta_0$) is not subject to shrinkage (it is a fixed effec
 
 The package supports four primary endpoint types by specifying the appropriate likelihood and link function for $g(\boldsymbol{\mu}) = \boldsymbol{\eta}$.
 
-| Endpoint | Distribution / Model | Link Function | Notes |
-|:---|:---|:---|:---|
-| **Continuous** | Normal: $y_i \sim N(\mu_i, \sigma^2)$ | Identity: $\mu_i = \eta_i$ | $\sigma$ can be stratified (e.g., `sigma ~ 0 + clinic_site`). |
-| **Binary** | Bernoulli: $y_i \sim \text{Bernoulli}(p_i)$ | Logit: $\text{logit}(p_i) = \eta_i$ |  |
-| **Count** | Negative Binomial: $y_i \sim \text{NegBin}(\mu_i, \phi)$ | Log: $\log(\mu_i) = \eta_i$ | $\phi$ (overdispersion) can be stratified. Supports `offset()`. |
-| **Time-to-event** | Cox Proportional Hazards: $h_i(t) = h_0(t)\exp(\eta_i)$ | Log (on the hazard) | Intercept is absorbed by the baseline hazard $h_0(t)$. $h_0(t)$ can be stratified. |
++-------------------+----------------------------------------------------------+-------------------------------------+------------------------------------------------------------------------------------+
+| Endpoint          | Distribution / Model                                     | Link Function                       | Notes                                                                              |
++:==================+:=========================================================+:====================================+:===================================================================================+
+| **Continuous**    | Normal: $y_i \sim N(\mu_i, \sigma^2)$                    | Identity: $\mu_i = \eta_i$          | $\sigma$ can be stratified (e.g., `sigma ~ 0 + clinic_site`).                      |
++-------------------+----------------------------------------------------------+-------------------------------------+------------------------------------------------------------------------------------+
+| **Binary**        | Bernoulli: $y_i \sim \text{Bernoulli}(p_i)$              | Logit: $\text{logit}(p_i) = \eta_i$ |                                                                                    |
++-------------------+----------------------------------------------------------+-------------------------------------+------------------------------------------------------------------------------------+
+| **Count**         | Negative Binomial: $y_i \sim \text{NegBin}(\mu_i, \phi)$ | Log: $\log(\mu_i) = \eta_i$         | $\phi$ (overdispersion) can be stratified. Supports `offset()`.                    |
++-------------------+----------------------------------------------------------+-------------------------------------+------------------------------------------------------------------------------------+
+| **Time-to-event** | Cox Proportional Hazards: $h_i(t) = h_0(t)\exp(\eta_i)$  | Log (on the hazard)                 | Intercept is absorbed by the baseline hazard $h_0(t)$. $h_0(t)$ can be stratified. |
++-------------------+----------------------------------------------------------+-------------------------------------+------------------------------------------------------------------------------------+
 
 ## Prior Specifications {#sec-priors}
 
@@ -400,13 +414,19 @@ he Horseshoe prior is set using the function call:
 horseshoe(df = 1, scale_global = 1, df_global = 1, scale_slab = 2, df_slab = 4, par_ratio = NULL, autoscale = TRUE, main = FALSE)
 ```
 
-| Horseshoe Argument | Theoretical Equivalent | Role and Implication |
-|:---|:---|:---|
-| $\mathbf{scale\_global}$ | $\tau_0$ | Scale of the $\text{Student-}t$ prior on the global shrinkage parameter $\tau$ Lower values $\implies$ **more aggressive global shrinkage**. |
-| $\mathbf{par\_ratio}$ | $\frac{p_{eff}}{L - p_{eff}}$ | **Alternative to** $\mathbf{scale\_global}$. Specifies the ratio of expected non-zero to zero coefficients, automatically calculating $\tau_0$. |
-| $\mathbf{df}$ | DOF for $\lambda_l$ | Degrees of freedom of $\text{Student-}t$ prior on local shrinkage parameters ($\lambda_l$). Default $\mathbf{df=1}$ gives the standard half-Cauchy. |
-| $\mathbf{scale\_slab}$ | $s$ | Scale of the regularization slab. Default $\mathbf{scale\_slab=2}$ prevents large coefficients from being over-shrunk. |
-| $\mathbf{autoscale}$ | Scaling by $\sigma$ | Logical. If $\mathbf{TRUE}$ (default), the prior is **automatically scaled** using the residual standard deviation ($\sigma$). |
++--------------------------+-------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
+| Horseshoe Argument       | Theoretical Equivalent        | Role and Implication                                                                                                                                |
++:=========================+:==============================+:====================================================================================================================================================+
+| $\mathbf{scale\_global}$ | $\tau_0$                      | Scale of the $\text{Student-}t$ prior on the global shrinkage parameter $\tau$ Lower values $\implies$ **more aggressive global shrinkage**.        |
++--------------------------+-------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
+| $\mathbf{par\_ratio}$    | $\frac{p_{eff}}{L - p_{eff}}$ | **Alternative to** $\mathbf{scale\_global}$. Specifies the ratio of expected non-zero to zero coefficients, automatically calculating $\tau_0$.     |
++--------------------------+-------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
+| $\mathbf{df}$            | DOF for $\lambda_l$           | Degrees of freedom of $\text{Student-}t$ prior on local shrinkage parameters ($\lambda_l$). Default $\mathbf{df=1}$ gives the standard half-Cauchy. |
++--------------------------+-------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
+| $\mathbf{scale\_slab}$   | $s$                           | Scale of the regularization slab. Default $\mathbf{scale\_slab=2}$ prevents large coefficients from being over-shrunk.                              |
++--------------------------+-------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
+| $\mathbf{autoscale}$     | Scaling by $\sigma$           | Logical. If $\mathbf{TRUE}$ (default), the prior is **automatically scaled** using the residual standard deviation ($\sigma$).                      |
++--------------------------+-------------------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
 
 -   **Relationship to Justification:** The $\mathbf{brms}$ function offers two primary ways to set the global shrinkage level, which controls the overall sparsity of the model:
 
@@ -425,11 +445,15 @@ horseshoe(df = 1, scale_global = 1, df_global = 1, scale_slab = 2, df_slab = 4, 
         -   **Calculation:** $\mathbf{par\_ratio} = \frac{p_{eff}}{L - p_{eff}}$, where $p_{eff}$ is the expected number of non-zero coefficients and $L$ is the total number of coefficients.
         -   **Use when:** You have a strong prior belief about the number of relevant effects. This is generally preferred for adaptive shrinkage as it scales $\tau_0$ appropriately.
 
-| $\mathbf{par\_ratio}$ Value | Expected $p_{eff}$ (Sparsity) | Interpretation of Shrinkage |
-|:--:|:---|:---|
-| **Small (e.g., 0.05)** | Very Few Non-Zero Coefficients | **High Shrinkage:** $\tau_0$ is small, aggressively shrinking coefficients towards zero. |
-| **Moderate (e.g., 0.2)** | A Moderate Fraction is Non-Zero | **Moderate Shrinkage:** A less aggressive $\tau_0$, allowing more coefficients to remain unshrunk. |
-| $\mathbf{par\_ratio}$ Ignored | $\mathbf{scale\_global}$ used | Uses a fixed $\tau_0$ that doesn't explicitly depend on expected sparsity. |
++-------------------------------+---------------------------------+----------------------------------------------------------------------------------------------------+
+| $\mathbf{par\_ratio}$ Value   | Expected $p_{eff}$ (Sparsity)   | Interpretation of Shrinkage                                                                        |
++:=============================:+:================================+:===================================================================================================+
+| **Small (e.g., 0.05)**        | Very Few Non-Zero Coefficients  | **High Shrinkage:** $\tau_0$ is small, aggressively shrinking coefficients towards zero.           |
++-------------------------------+---------------------------------+----------------------------------------------------------------------------------------------------+
+| **Moderate (e.g., 0.2)**      | A Moderate Fraction is Non-Zero | **Moderate Shrinkage:** A less aggressive $\tau_0$, allowing more coefficients to remain unshrunk. |
++-------------------------------+---------------------------------+----------------------------------------------------------------------------------------------------+
+| $\mathbf{par\_ratio}$ Ignored | $\mathbf{scale\_global}$ used   | Uses a fixed $\tau_0$ that doesn't explicitly depend on expected sparsity.                         |
++-------------------------------+---------------------------------+----------------------------------------------------------------------------------------------------+
 
 > **Recommendation:** While $\mathbf{scale\_global=1}$ is the quick default, specifying $\mathbf{par\_ratio}$ based on expert knowledge of expected sparsity is the **most theoretically sound and adaptive** method for setting the global shrinkage scale.
 
@@ -468,12 +492,17 @@ The R2D2 prior is set using the function call:
 R2D2(mean_R2 = 0.5, prec_R2 = 2, cons_D2 = 0.5, autoscale = TRUE, main = FALSE)
 ```
 
-| R2D2 Argument | Theoretical Equivalent | Role and Implication |
-|:---|:---|:---|
-| $\mathbf{mean\_R2}$ | $\mathbb{E}[R^2]$ | Sets the **prior expected value** for the model's fixed effect $R^2$. |
-| $\mathbf{prec\_R2}$ | $a+b$ (Concentration) | Controls the **precision** of the Beta prior on $R^2$. Lower values mean a flatter prior. |
-| $\mathbf{cons\_D2}$ | $a_{\pi}$ | The **concentration parameter** for the $\text{Dirichlet}$ distribution on the variance components (local shrinkage). **Lower values imply higher shrinkage/sparsity.** |
-| $\mathbf{autoscale}$ | Scaling by $\sigma$ | Logical. If $\mathbf{TRUE}$ (default), the prior is **automatically scaled** using the residual standard deviation ($\sigma$). This ensures the prior is scale-invariant. |
++----------------------+------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| R2D2 Argument        | Theoretical Equivalent | Role and Implication                                                                                                                                                      |
++:=====================+:=======================+:==========================================================================================================================================================================+
+| $\mathbf{mean\_R2}$  | $\mathbb{E}[R^2]$      | Sets the **prior expected value** for the model's fixed effect $R^2$.                                                                                                     |
++----------------------+------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| $\mathbf{prec\_R2}$  | $a+b$ (Concentration)  | Controls the **precision** of the Beta prior on $R^2$. Lower values mean a flatter prior.                                                                                 |
++----------------------+------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| $\mathbf{cons\_D2}$  | $a_{\pi}$              | The **concentration parameter** for the $\text{Dirichlet}$ distribution on the variance components (local shrinkage). **Lower values imply higher shrinkage/sparsity.**   |
++----------------------+------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+| $\mathbf{autoscale}$ | Scaling by $\sigma$    | Logical. If $\mathbf{TRUE}$ (default), the prior is **automatically scaled** using the residual standard deviation ($\sigma$). This ensures the prior is scale-invariant. |
++----------------------+------------------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 -   **Relationship to Justification:** The [`brms`](https://paulbuerkner.com/brms/) function parameters are directly related to the justified hierarchical parameters:
 
