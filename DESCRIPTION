@@ -1,6 +1,6 @@
 Package: bonsaiforest2
 Type: Package
-Title: Flexible Bayesian Shrinkage Based Forest Plots
+Title: Flexible Bayesian Shrinkage Models for Subgroup Analysis
 Version: 0.1.0
 Authors@R: c(
     person(
