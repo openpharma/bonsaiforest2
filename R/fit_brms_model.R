@@ -132,18 +132,23 @@
 #'   print(fit)
 #'   }
 #' }
-fit_brms_model <- function(prepared_model,
-                           intercept_prior = NULL,
-                           unshrunk_prior = NULL,
-                           shrunk_prognostic_prior = NULL,
-                           shrunk_predictive_prior = NULL,
-                           stanvars = NULL,
-                           ...) {
-
+fit_brms_model <- function(
+  prepared_model,
+  intercept_prior = NULL,
+  unshrunk_prior = NULL,
+  shrunk_prognostic_prior = NULL,
+  shrunk_predictive_prior = NULL,
+  stanvars = NULL,
+  ...
+) {
   # --- 1. Argument Validation ---
 
   # 1a. Validate the container and its structure
-  checkmate::assert_list(prepared_model, names = "named", .var.name = "prepared_model")
+  checkmate::assert_list(
+    prepared_model,
+    names = "named",
+    .var.name = "prepared_model"
+  )
   checkmate::assert_names(
     names(prepared_model),
     must.include = c("formula", "data", "response_type"),
@@ -178,9 +183,9 @@ fit_brms_model <- function(prepared_model,
   model_family <- switch(
     response_type,
     continuous = gaussian(),
-    binary     = bernoulli(link = "logit"),
-    count      = negbinomial(),
-    survival   = cox()
+    binary = bernoulli(link = "logit"),
+    count = negbinomial(),
+    survival = cox()
   )
   if (is.null(model_family)) {
     stop("Invalid 'response_type' specified.", call. = FALSE)
@@ -192,10 +197,10 @@ fit_brms_model <- function(prepared_model,
   # For shrunk terms (fixed effects): use horseshoe(1) for strong regularization
   # For random effects (sd class): use normal(0, 1) - handled separately in the prior loop
   # For unshrunk terms and intercept: use NULL to allow brms defaults
-  default_intercept <- NULL         # Use brms default
-  default_unshrunk <- NULL          # Use brms default
-  default_shrunk_prog <- "horseshoe(1)"  # Regularizing prior for shrunk prognostic
-  default_shrunk_pred <- "horseshoe(1)"  # Regularizing prior for shrunk predictive (fixed effects)
+  default_intercept <- NULL # Use brms default
+  default_unshrunk <- NULL # Use brms default
+  default_shrunk_prog <- "horseshoe(1)" # Regularizing prior for shrunk prognostic
+  default_shrunk_pred <- "horseshoe(1)" # Regularizing prior for shrunk predictive (fixed effects)
 
   # Define prior configuration for three-component model architecture:
   # - unshrunktermeffect: All unshrunk terms (main effects and interactions without regularization)
@@ -204,62 +209,84 @@ fit_brms_model <- function(prepared_model,
   # This architecture enables differential prior specification across model components
   prior_config <- list(
     # Intercept for unshrunk terms
-    list(nlpar = "unshrunktermeffect", class = "b", coef = "Intercept",
-         user_prior = intercept_prior,
-         default = default_intercept,
-         label = "intercept"),
+    list(
+      nlpar = "unshrunktermeffect",
+      class = "b",
+      coef = "Intercept",
+      user_prior = intercept_prior,
+      default = default_intercept,
+      label = "intercept"
+    ),
 
     # Unshrunk terms (all non-intercept coefficients in unshrunktermeffect)
     # This includes both prognostic and predictive terms that are not regularized
-    list(nlpar = "unshrunktermeffect", class = "b", coef = NULL,
-         user_prior = unshrunk_prior,
-         default = default_unshrunk,
-         label = "unshrunk terms"),
+    list(
+      nlpar = "unshrunktermeffect",
+      class = "b",
+      coef = NULL,
+      user_prior = unshrunk_prior,
+      default = default_unshrunk,
+      label = "unshrunk terms"
+    ),
 
     # Shrunk Prognostic - No intercept (user specifies formulas with ~ 0 + ...)
     # Applied to prognostic biomarkers/covariates with strong regularization
     # Prognostic effects are main effects only (no treatment interactions)
-    list(nlpar = "shprogeffect", class = "b", coef = NULL,
-         user_prior = shrunk_prognostic_prior,
-         default = default_shrunk_prog,
-         label = "shrunk prognostic"),
+    list(
+      nlpar = "shprogeffect",
+      class = "b",
+      coef = NULL,
+      user_prior = shrunk_prognostic_prior,
+      default = default_shrunk_prog,
+      label = "shrunk prognostic"
+    ),
 
     # Shrunk Predictive - No intercept (user specifies formulas with ~ 0 + ...)
     # Applied to treatment interactions (effect modifiers) with strong regularization
     # Use 'sd' class for random effects, 'b' class for fixed effects
-    list(nlpar = "shpredeffect",
-         class = if (has_random_effects) "sd" else "b",
-         coef = NULL,
-         user_prior = shrunk_predictive_prior,
-         default = default_shrunk_pred,
-         label = "shrunk predictive",
-         is_random_effect = has_random_effects)
+    list(
+      nlpar = "shpredeffect",
+      class = if (has_random_effects) "sd" else "b",
+      coef = NULL,
+      user_prior = shrunk_predictive_prior,
+      default = default_shrunk_pred,
+      label = "shrunk predictive",
+      is_random_effect = has_random_effects
+    )
   )
 
   # Add mixed notation config ONLY if has_random_effects is TRUE
   # This handles the case: (1+trt||subvar1) + trt:subvar2
   # where trt:subvar2 are fixed effects that need horseshoe priors
   # BUT: Don't add it if user provided an SD prior (which is only for random effects)
-  user_provided_sd_prior <- !is.null(shrunk_predictive_prior) && 
-                             inherits(shrunk_predictive_prior, "brmsprior") &&
-                             all(shrunk_predictive_prior$class == "sd")
-  
+  user_provided_sd_prior <- !is.null(shrunk_predictive_prior) &&
+    inherits(shrunk_predictive_prior, "brmsprior") &&
+    all(shrunk_predictive_prior$class == "sd")
+
   if (has_random_effects && !user_provided_sd_prior) {
-    prior_config <- c(prior_config, list(
-      list(nlpar = "shpredeffect",
-           class = "b",
-           coef = NULL,
-           user_prior = shrunk_predictive_prior,
-           default = default_shrunk_pred,
-           label = "shrunk predictive (fixed effects)",
-           is_mixed_notation_fixed = TRUE)
-    ))
+    prior_config <- c(
+      prior_config,
+      list(
+        list(
+          nlpar = "shpredeffect",
+          class = "b",
+          coef = NULL,
+          user_prior = shrunk_predictive_prior,
+          default = default_shrunk_pred,
+          label = "shrunk predictive (fixed effects)",
+          is_mixed_notation_fixed = TRUE
+        )
+      )
+    )
   }
 
   # Extract random effects structure if present in shrunk predictive component
   random_effects_structure <- list()
   if (has_random_effects) {
-    random_effects_structure <- .extract_random_effects_structure(formula, nlpar = "shpredeffect")
+    random_effects_structure <- .extract_random_effects_structure(
+      formula,
+      nlpar = "shpredeffect"
+    )
   }
 
   defined_nlpars <- names(formula$pforms)
@@ -269,10 +296,13 @@ fit_brms_model <- function(prepared_model,
   for (conf in prior_config) {
     # Only add prior if the nlpar exists in the formula
     if (conf$nlpar %in% defined_nlpars) {
-
       # Skip intercept prior for survival models (Cox models have no intercept)
       # Intercept only exists in unshrunktermeffect for non-survival response types
-      if (!is.null(conf$coef) && conf$coef == "Intercept" && response_type == "survival") {
+      if (
+        !is.null(conf$coef) &&
+          conf$coef == "Intercept" &&
+          response_type == "survival"
+      ) {
         next
       }
 
@@ -283,10 +313,15 @@ fit_brms_model <- function(prepared_model,
 
       # Special handling for random effects in shrunk predictive
       # Check if user provided a brmsprior with class="sd" (for random effects)
-      is_sd_prior_object <- !is.null(conf$user_prior) && inherits(conf$user_prior, "brmsprior") && 
-                            all(conf$user_prior$class == "sd")
-      
-      if (isTRUE(conf$is_random_effect) && length(random_effects_structure) > 0 && !is_sd_prior_object) {
+      is_sd_prior_object <- !is.null(conf$user_prior) &&
+        inherits(conf$user_prior, "brmsprior") &&
+        all(conf$user_prior$class == "sd")
+
+      if (
+        isTRUE(conf$is_random_effect) &&
+          length(random_effects_structure) > 0 &&
+          !is_sd_prior_object
+      ) {
         # For each random effect structure, create specific priors for each coefficient
         # Random effects use normal(0, 1) as the default
         for (re in random_effects_structure) {
@@ -299,9 +334,9 @@ fit_brms_model <- function(prepared_model,
             re_default_str <- "normal(0, 1)"
 
             processed <- .process_and_retarget_prior(
-              user_prior = conf$user_prior,  # Use user's prior if they provided one
+              user_prior = conf$user_prior, # Use user's prior if they provided one
               target_nlpar = conf$nlpar,
-              default_str = re_default_str,  # Default for random effects is normal(0, 1)
+              default_str = re_default_str, # Default for random effects is normal(0, 1)
               target_class = "sd",
               target_coef = coef_name,
               target_group = re$group
@@ -310,8 +345,19 @@ fit_brms_model <- function(prepared_model,
             priors_list <- c(priors_list, list(processed$prior))
 
             if (processed$default_used) {
-              default_messages <- c(default_messages,
-                                  paste0("  - ", conf$label, " (sd, ", re$group, ", ", coef_name, "): ", re_default_str))
+              default_messages <- c(
+                default_messages,
+                paste0(
+                  "  - ",
+                  conf$label,
+                  " (sd, ",
+                  re$group,
+                  ", ",
+                  coef_name,
+                  "): ",
+                  re_default_str
+                )
+              )
             }
           }
         }
@@ -336,15 +382,18 @@ fit_brms_model <- function(prepared_model,
           processed <- .process_and_retarget_prior(
             user_prior = conf$user_prior,
             target_nlpar = conf$nlpar,
-            default_str = conf$default,  # horseshoe(1) for fixed effects
-            target_class = conf$class,  # "b"
+            default_str = conf$default, # horseshoe(1) for fixed effects
+            target_class = conf$class, # "b"
             target_coef = conf$coef
           )
 
           priors_list <- c(priors_list, list(processed$prior))
 
           if (processed$default_used) {
-            default_messages <- c(default_messages, paste0("  - ", conf$label, ": ", conf$default))
+            default_messages <- c(
+              default_messages,
+              paste0("  - ", conf$label, ": ", conf$default)
+            )
           }
         }
       } else {
@@ -363,13 +412,20 @@ fit_brms_model <- function(prepared_model,
           priors_list <- c(priors_list, list(processed$prior))
         }
 
-        if (is.null(conf$user_prior)) {  # User didn't specify a prior
+        if (is.null(conf$user_prior)) {
+          # User didn't specify a prior
           if (!is.null(conf$default)) {
             # Used package default
-            default_messages <- c(default_messages, paste0("  - ", conf$label, ": ", conf$default))
+            default_messages <- c(
+              default_messages,
+              paste0("  - ", conf$label, ": ", conf$default)
+            )
           } else {
             # Using brms default
-            default_messages <- c(default_messages, paste0("  - ", conf$label, ": brms default"))
+            default_messages <- c(
+              default_messages,
+              paste0("  - ", conf$label, ": brms default")
+            )
           }
         }
       }
@@ -382,8 +438,11 @@ fit_brms_model <- function(prepared_model,
   }
 
   # Combine all prior objects into a single brmsprior object
-  final_priors <- if (length(priors_list) > 0) Reduce("+", priors_list) else brms::empty_prior()
-
+  final_priors <- if (length(priors_list) > 0) {
+    Reduce("+", priors_list)
+  } else {
+    brms::empty_prior()
+  }
 
   # --- 4. Call brm() ---
   message("Fitting brms model...")
@@ -432,10 +491,14 @@ fit_brms_model <- function(prepared_model,
 #' @return A list containing `prior` (a `brmsprior` object) and
 #'  `default_used` (a boolean).
 #' @noRd
-.process_and_retarget_prior <- function(user_prior, target_nlpar, default_str,
-                                        target_class = NULL, target_coef = NULL,
-                                        target_group = NULL) {
-
+.process_and_retarget_prior <- function(
+  user_prior,
+  target_nlpar,
+  default_str,
+  target_class = NULL,
+  target_coef = NULL,
+  target_group = NULL
+) {
   # --- Assertions for helper function ---
   checkmate::assert_string(target_nlpar, min.chars = 1)
   checkmate::assert_string(default_str, min.chars = 1, null.ok = TRUE)
@@ -483,7 +546,6 @@ fit_brms_model <- function(prepared_model,
   }
 
   if (inherits(prior_to_use, "brmsprior")) {
-
     modified_prior <- prior_to_use
 
     # Find rows with no nlpar set. These are the ones that need the nlpar added.
@@ -516,7 +578,14 @@ fit_brms_model <- function(prepared_model,
     return(list(prior = modified_prior, default_used = FALSE))
   }
 
-  stop(paste("Prior for", target_nlpar, "must be NULL, a string, or a brmsprior object."), call. = FALSE)
+  stop(
+    paste(
+      "Prior for",
+      target_nlpar,
+      "must be NULL, a string, or a brmsprior object."
+    ),
+    call. = FALSE
+  )
 }
 
 
@@ -571,8 +640,8 @@ fit_brms_model <- function(prepared_model,
   result <- list()
 
   for (i in seq_len(nrow(matches))) {
-    lhs <- stringr::str_squish(matches[i, 2])  # e.g., "1 + trt" or "0 + trt"
-    group <- stringr::str_squish(matches[i, 3])  # e.g., "subvar"
+    lhs <- stringr::str_squish(matches[i, 2]) # e.g., "1 + trt" or "0 + trt"
+    group <- stringr::str_squish(matches[i, 3]) # e.g., "subvar"
 
     # Remove leading 0 + or -1 + if present
     lhs <- stringr::str_remove(lhs, "^(0|\\-1)\\s*\\+\\s*")
@@ -582,9 +651,13 @@ fit_brms_model <- function(prepared_model,
     terms <- stringr::str_squish(stringr::str_split(lhs, "\\+")[[1]])
 
     # Convert "1" to "Intercept" for brms prior specification
-    coefs <- sapply(terms, function(x) {
-      if (x == "1") "Intercept" else x
-    }, USE.NAMES = FALSE)
+    coefs <- sapply(
+      terms,
+      function(x) {
+        if (x == "1") "Intercept" else x
+      },
+      USE.NAMES = FALSE
+    )
 
     result[[length(result) + 1]] <- list(
       group = group,
