@@ -417,7 +417,7 @@ predicted_worst <- tte_all_results %>%
   rename(pred_worst_subgroup = join_key) %>%
   distinct()
 
-predicted_worst <- predicted_worst %>%
+predicted_worst_summary <- predicted_worst %>%
   mutate(
     error = estimate_log - truth_log,
     ci_contains_truth = (truth_log >= ci_lower) & (truth_log <= ci_upper)

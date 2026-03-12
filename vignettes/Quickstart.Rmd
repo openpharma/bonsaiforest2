@@ -34,7 +34,7 @@ The `bonsaiforest2` package consists of 3 core functions which are typically cal
 2.  `summary_subgroup_effects()` - Calculates the marginal subgroup treatment effects.
 3.  `plot()` - Creates a forest plot from the summary object.
 
-The package enables the implementation of both **global models** [@wolbers2025using], that estimate all prognostic and predictive effects in a single unified model using colon notation (e.g., `~ 0 + trt:subgroup`), and **one-way models** [@wang2024bayesian], that estimate treatment slopes varying by subgroup using random effects notation (e.g., `~ (0 + trt || subgroup)`).
+The package enables the implementation of both **global models** [@wolbers2025using], that estimate all prognostic and predictive effects in a single unified model, and **one-way models** [@wang2024bayesian], that estimate treatment fitting a different model for each subgrouping variable.
 
 This vignette demonstrates how to use the package to fit and compare these different modeling formulas. You'll learn how to:
 
@@ -73,7 +73,7 @@ print(head(shrink_data))
 
 # One-way Models
 
-This section demonstrates how to fit separate models, each examining one subgroup variable at a time. In one-way models, we specify treatment effects as random slopes using pipe-pipe notation (e.g., `~ (0 + trt || subgroup)`), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects.
+This section demonstrates how to fit separate models, each examining one subgroup variable at a time. In one-way models, we specify treatment effects as random slopes using pipe-pipe notation (e.g., `~ (0 + trt || subgroup)`), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects. Note that for each model we also include always the subgrouping variable we want to test the treatment effects for also as prognostic.
 
 ## One-way Model: x1 Only
 
@@ -84,6 +84,7 @@ oneway_x1 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ x1,
   shrunk_prognostic_formula = NULL,
   shrunk_predictive_formula = ~ (0 + trt || x1),
   intercept_prior = "normal(0, 10)",
@@ -104,6 +105,7 @@ oneway_x2 <- run_brms_analysis(
   response_type = "continuous",
   response_formula = y ~ trt,
   shrunk_prognostic_formula = NULL,
+    unshrunk_terms_formula = ~ x2,
   shrunk_predictive_formula = ~ (0 + trt || x2),
   intercept_prior = "normal(0, 10)",
   shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
@@ -121,6 +123,7 @@ oneway_x3 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ x3,
   shrunk_prognostic_formula = NULL,
   shrunk_predictive_formula = ~ (0 + trt || x3),
   intercept_prior = "normal(0, 10)",
@@ -155,16 +158,15 @@ This section demonstrates how to fit a single model that includes all subgroup v
 
 ```{r global-fit, message=FALSE, warning=FALSE}
 # Fit a single unified model with ALL subgroup variables simultaneously using global approach
-# - Shrunk prognostic effects: subgroup main effects with strong regularization using one-hot encoding
+# - Unshrunk prognostic effects: subgroup main effects without shrinkage
 # - Shrunk predictive effects: treatment interactions with strong regularization using one-hot encoding
 global_shrinkage_model <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  shrunk_prognostic_formula = ~ 0 + x1 + x2 + x3,
+  unshrunk_terms_formula  = ~ 0 + x1 + x2 + x3,
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   intercept_prior = "normal(0, 10)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
