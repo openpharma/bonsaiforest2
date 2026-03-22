@@ -84,14 +84,13 @@
 <span><span class="va">shrink_data</span> <span class="op">&lt;-</span> <span class="fu">bonsaiforest2</span><span class="fu">::</span><span class="va"><a href="../reference/shrink_data.html">shrink_data</a></span></span>
 <span></span>
 <span><span class="co"># Add log follow-up duration as the offset (accounts for varying exposure time)</span></span>
-<span><span class="va">shrink_data</span><span class="op">$</span><span class="va">log_fup_duration</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">shrink_data</span><span class="op">$</span><span class="va">fup_duration</span><span class="op">)</span></span>
-<span><span class="va">count_data</span> <span class="op">&lt;-</span> <span class="va">shrink_data</span></span></code></pre></div>
+<span><span class="va">shrink_data</span><span class="op">$</span><span class="va">log_fup_duration</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">shrink_data</span><span class="op">$</span><span class="va">fup_duration</span><span class="op">)</span></span></code></pre></div>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Model Fitting with Offset</span></span>
 <span><span class="va">count_model_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
-<span>  data <span class="op">=</span> <span class="va">count_data</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  <span class="co"># Include offset(log_fup_duration) directly in the response formula</span></span>
-<span>  response_formula <span class="op">=</span> <span class="va">count</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="va">log_fup_duration</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span>
+<span>  response_formula <span class="op">=</span> <span class="va">count</span> <span class="op">~</span> <span class="va">trt</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="va">log_fup_duration</span><span class="op">)</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"count"</span>,</span>
 <span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x1</span>,</span>
 <span>  shrunk_prognostic_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>,</span>
@@ -181,8 +180,8 @@
 </h3>
 <p>The following examples demonstrate how to customize priors using the new API. We use the <code>shrink_data</code> package dataset with a time-to-event outcome to show different prior specification strategies, from simple defaults to advanced hierarchical structures.</p>
 <div class="section level4" number="2.2.1">
-<h4 id="dataset-preparation">
-<span class="header-section-number">2.2.1</span> Dataset Preparation<a class="anchor" aria-label="anchor" href="#dataset-preparation"></a>
+<h4 id="model-preparation">
+<span class="header-section-number">2.2.1</span> Model Preparation<a class="anchor" aria-label="anchor" href="#model-preparation"></a>
 </h4>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load library</span></span>
@@ -200,36 +199,35 @@
 <span>  data <span class="op">=</span> <span class="va">sim_data</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/pkg/survival/man/Surv.html" class="external-link">Surv</a></span><span class="op">(</span><span class="va">tt_event</span>, <span class="va">event_yn</span><span class="op">)</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x1</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x2</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"survival"</span></span>
 <span><span class="op">)</span></span>
-<span><span class="co">#&gt; Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span></span>
-<span><span class="co">#&gt; Note: Marginality principle not followed - interaction term 'x1' is used without its main effect. Consider adding 'x1' to prognostic terms for proper model hierarchy.</span></span></code></pre></div>
+<span><span class="co">#&gt; Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().</span></span></code></pre></div>
 </div>
 <div class="section level4" number="2.2.2">
 <h4 id="example-2-using-default-priors">
 <span class="header-section-number">2.2.2</span> Example 2: Using Default Priors<a class="anchor" aria-label="anchor" href="#example-2-using-default-priors"></a>
 </h4>
-<p>The simplest approach: use the package defaults that adapt to your outcome type (horseshoe(1) for shrunk effects, brms defaults for others).</p>
+<p>The simplest approach: use the brms package priors to adjust the shrinkage level of different temrs</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit_ex3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/fit_brms_model.html">fit_brms_model</a></span><span class="op">(</span></span>
 <span>  prepared_model <span class="op">=</span> <span class="va">prepared_model</span>,</span>
 <span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 5)"</span>,</span>
 <span>  unshrunk_prior <span class="op">=</span> <span class="st">"normal(0, 2.5)"</span>,</span>
-<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 1)"</span>,</span>
+<span>  shrunk_prognostic_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 0.5)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 0.5)"</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">1000</span>, warmup <span class="op">=</span> <span class="fl">500</span>, cores <span class="op">=</span> <span class="fl">2</span>, refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Fitting brms model...</span></span>
 <span><span class="co">#&gt; Start sampling</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.6 seconds.</span></span>
-<span><span class="co">#&gt; Chain 2 finished in 4.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.3 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 3.3 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 4.0 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 4.6 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 3.3 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 3.4 seconds.</span></span>
 <span><span class="co">#&gt; Warning: 1 of 1000 (0.0%) transitions ended with a divergence.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span></span>
@@ -238,26 +236,28 @@
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex3</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                        prior class    coef group resp dpar              nlpar</span></span>
-<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b                               shpredeffect</span></span>
-<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b trt:x1a                       shpredeffect</span></span>
-<span><span class="co">#&gt;  horseshoe(scale_global = 1)     b trt:x1b                       shpredeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b                         unshrunktermeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b     trt                 unshrunktermeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b     x2a                 unshrunktermeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b     x2b                 unshrunktermeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b     x2c                 unshrunktermeffect</span></span>
-<span><span class="co">#&gt;                 dirichlet(1) sbhaz                                           </span></span>
-<span><span class="co">#&gt;  lb ub tag       source</span></span>
-<span><span class="co">#&gt;                    user</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;                    user</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;                 default</span></span></code></pre></div>
+<span><span class="co">#&gt;                          prior class           coef group resp dpar</span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 0.5)     b                               </span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 0.5)     b trt:x1_onehota                </span></span>
+<span><span class="co">#&gt;  horseshoe(scale_global = 0.5)     b trt:x1_onehotb                </span></span>
+<span><span class="co">#&gt;                 normal(0, 2.5)     b                               </span></span>
+<span><span class="co">#&gt;                 normal(0, 2.5)     b            trt                </span></span>
+<span><span class="co">#&gt;                 normal(0, 2.5)     b            x1a                </span></span>
+<span><span class="co">#&gt;                 normal(0, 2.5)     b            x1b                </span></span>
+<span><span class="co">#&gt;                 normal(0, 2.5)     b            x2b                </span></span>
+<span><span class="co">#&gt;                 normal(0, 2.5)     b            x2c                </span></span>
+<span><span class="co">#&gt;                   dirichlet(1) sbhaz                               </span></span>
+<span><span class="co">#&gt;               nlpar lb ub tag       source</span></span>
+<span><span class="co">#&gt;        shpredeffect                   user</span></span>
+<span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect                   user</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;                                    default</span></span></code></pre></div>
 </div>
 <div class="section level4" number="2.2.3">
 <h4 id="example-3-using-the-r2d2-shrinkage-prior">
@@ -279,34 +279,36 @@
 <span><span class="co">#&gt; Start sampling</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.2 seconds.</span></span>
-<span><span class="co">#&gt; Chain 2 finished in 3.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 2.3 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.8 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 3.2 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 3.3 seconds.</span></span>
-<span><span class="co">#&gt; Warning: 5 of 1000 (0.0%) transitions ended with a divergence.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 2.5 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 2.9 seconds.</span></span>
+<span><span class="co">#&gt; Warning: 7 of 1000 (1.0%) transitions ended with a divergence.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"\n=== Priors Used ===\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex4</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                             prior class    coef group resp dpar</span></span>
-<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b                        </span></span>
-<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1a                </span></span>
-<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1b                </span></span>
-<span><span class="co">#&gt;                    normal(0, 2.5)     b                        </span></span>
-<span><span class="co">#&gt;                    normal(0, 2.5)     b     trt                </span></span>
-<span><span class="co">#&gt;                    normal(0, 2.5)     b     x2a                </span></span>
-<span><span class="co">#&gt;                    normal(0, 2.5)     b     x2b                </span></span>
-<span><span class="co">#&gt;                    normal(0, 2.5)     b     x2c                </span></span>
-<span><span class="co">#&gt;                      dirichlet(1) sbhaz                        </span></span>
+<span><span class="co">#&gt;                             prior class           coef group resp dpar</span></span>
+<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b                               </span></span>
+<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1_onehota                </span></span>
+<span><span class="co">#&gt;  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1_onehotb                </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b                               </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b            trt                </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b            x1a                </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b            x1b                </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b            x2b                </span></span>
+<span><span class="co">#&gt;                    normal(0, 2.5)     b            x2c                </span></span>
+<span><span class="co">#&gt;                      dirichlet(1) sbhaz                               </span></span>
 <span><span class="co">#&gt;               nlpar lb ub tag       source</span></span>
 <span><span class="co">#&gt;        shpredeffect                   user</span></span>
 <span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
 <span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
 <span><span class="co">#&gt;  unshrunktermeffect                   user</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
 <span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
 <span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
 <span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
@@ -347,38 +349,40 @@
 <span><span class="co">#&gt; Start sampling</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 4.8 seconds.</span></span>
-<span><span class="co">#&gt; Chain 2 finished in 5.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 5.3 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 5.5 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 5.0 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 5.3 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 5.4 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 5.5 seconds.</span></span>
 <span></span>
 <span><span class="co"># View the used priors</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/cat.html" class="external-link">cat</a></span><span class="op">(</span><span class="st">"\n=== Priors Used ===\n"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; === Priors Used ===</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex5</span><span class="op">[[</span><span class="st">"prior"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
-<span><span class="co">#&gt;                        prior class    coef group resp dpar              nlpar</span></span>
-<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b                               shpredeffect</span></span>
-<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b trt:x1a                       shpredeffect</span></span>
-<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b trt:x1b                       shpredeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b                         unshrunktermeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b     trt                 unshrunktermeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b     x2a                 unshrunktermeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b     x2b                 unshrunktermeffect</span></span>
-<span><span class="co">#&gt;               normal(0, 2.5)     b     x2c                 unshrunktermeffect</span></span>
-<span><span class="co">#&gt;                 dirichlet(1) sbhaz                                           </span></span>
-<span><span class="co">#&gt;  lb ub tag       source</span></span>
-<span><span class="co">#&gt;                    user</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;                    user</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;            (vectorized)</span></span>
-<span><span class="co">#&gt;                 default</span></span>
+<span><span class="co">#&gt;                        prior class           coef group resp dpar</span></span>
+<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b                               </span></span>
+<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b trt:x1_onehota                </span></span>
+<span><span class="co">#&gt;  normal(mu_pred, sigma_pred)     b trt:x1_onehotb                </span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b                               </span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b            trt                </span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b            x1a                </span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b            x1b                </span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b            x2b                </span></span>
+<span><span class="co">#&gt;               normal(0, 2.5)     b            x2c                </span></span>
+<span><span class="co">#&gt;                 dirichlet(1) sbhaz                               </span></span>
+<span><span class="co">#&gt;               nlpar lb ub tag       source</span></span>
+<span><span class="co">#&gt;        shpredeffect                   user</span></span>
+<span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;        shpredeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect                   user</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;  unshrunktermeffect           (vectorized)</span></span>
+<span><span class="co">#&gt;                                    default</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">fit_ex5</span><span class="op">[[</span><span class="st">"stanvars"</span><span class="op">]</span><span class="op">]</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [[1]]</span></span>
 <span><span class="co">#&gt; [[1]]$name</span></span>
@@ -483,11 +487,11 @@
 <span><span class="co">#&gt; Start sampling</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 4.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 4.4 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2 finished in 4.8 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 4.7 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 4.6 seconds.</span></span>
 <span><span class="co">#&gt; Total execution time: 4.9 seconds.</span></span>
 <span><span class="co">#&gt; Warning: 2 of 1000 (0.0%) transitions ended with a divergence.</span></span>
 <span><span class="co">#&gt; See https://mc-stan.org/misc/warnings for details.</span></span>
@@ -659,7 +663,7 @@
 <span><span class="co">#&gt; Start sampling</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 2 finished in 1.1 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 1.2 seconds.</span></span>
 <span><span class="co">#&gt; Chain 1 finished in 1.3 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
@@ -787,7 +791,7 @@
 <span><span class="co">#&gt; Start sampling</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 2 finished in 4.2 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 4.1 seconds.</span></span>
 <span><span class="co">#&gt; Chain 1 finished in 4.4 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
@@ -858,12 +862,12 @@
 <span><span class="co">#&gt; Start sampling</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 2 finished in 4.1 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 4.0 seconds.</span></span>
 <span><span class="co">#&gt; Chain 1 finished in 4.8 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
 <span><span class="co">#&gt; Mean chain execution time: 4.4 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 4.8 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 4.9 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Analysis complete.</span></span></code></pre></div>
 <div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">

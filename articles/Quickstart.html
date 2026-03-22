@@ -92,8 +92,7 @@
 <h2 id="the-data">
 <span class="header-section-number">2</span> The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
 </h2>
-<p>We will use the <code>shrink_data</code> package dataset with a continuous response variable. The relevant outcome is <code>y</code>.</p>
-<p>We consider a model where we want to find the treatment effect (<code>trt</code>) on <code>y</code>. We explore <strong>three subgroup variables</strong> as <strong>predictive</strong> variables (potential treatment effect modifiers):</p>
+<p>We will use the <code>shrink_data</code> package dataset with a continuous response variable. We explore <strong>three subgroup variables</strong>:</p>
 <ul>
 <li>
 <code>x1</code>: Subgroup 1 (categories: a, b)</li>
@@ -124,7 +123,7 @@
 <h2 id="one-way-models">
 <span class="header-section-number">3</span> One-way Models<a class="anchor" aria-label="anchor" href="#one-way-models"></a>
 </h2>
-<p>This section demonstrates how to fit separate models, each examining one subgroup variable at a time. In one-way models, we specify treatment effects as random slopes using pipe-pipe notation (e.g., <code>~ (0 + trt || subgroup)</code>), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects. Note that for each model we also include always the subgrouping variable we want to test the treatment effects for also as prognostic.</p>
+<p>This section shows how to fit separate models, each examining one subgroup variable at a time. In one-way models, we recommend specifying the treatment effects as random slopes using pipe-pipe notation (e.g., <code>~ (0 + trt || subgroup)</code>), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects. Note that for each model we also include always the subgrouping variable we want to test the treatment effects for also as prognostic.</p>
 <div class="section level3" number="3.1">
 <h3 id="one-way-model-x1-only">
 <span class="header-section-number">3.1</span> One-way Model: x1 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x1-only"></a>
@@ -146,11 +145,11 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.4 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 2.5 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2 finished in 2.9 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 2.6 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 2.7 seconds.</span></span>
 <span><span class="co">#&gt; Total execution time: 3.1 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_oneway_x1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x1</span><span class="op">)</span></span>
@@ -197,7 +196,7 @@
 <span><span class="co">#&gt; Chain 2 finished in 1.8 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 1.7 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 1.8 seconds.</span></span>
 <span><span class="co">#&gt; Total execution time: 1.9 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_oneway_x2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x2</span><span class="op">)</span></span></code></pre></div>
@@ -221,12 +220,12 @@
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 1.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 1.4 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2 finished in 1.6 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
 <span><span class="co">#&gt; Mean chain execution time: 1.5 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 1.7 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 1.8 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_oneway_x3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x3</span><span class="op">)</span></span></code></pre></div>
 </div>
@@ -254,7 +253,7 @@
 <h2 id="global-model">
 <span class="header-section-number">4</span> Global Model<a class="anchor" aria-label="anchor" href="#global-model"></a>
 </h2>
-<p>This section demonstrates how to fit a single model that includes all subgroup variables simultaneously using the global approach. All treatment-by-subgroup interactions are estimated in one unified model with colon notation (e.g., <code>~ 0 + trt:subgroup</code>) and strong regularization (Horseshoe prior) applied to the interaction terms.</p>
+<p>This section shows how to fit a single model that includes all subgroup variables simultaneously using the global approach. All treatment-by-subgroup interactions are estimated in one unified model with colon notation (e.g., <code>~ 0 + trt:subgroup</code>) and strong regularization (Horseshoe prior) applied to the interaction terms.</p>
 <div class="section level3" number="4.1">
 <h3 id="global-model-all-subgroups">
 <span class="header-section-number">4.1</span> Global Model: All Subgroups<a class="anchor" aria-label="anchor" href="#global-model-all-subgroups"></a>
@@ -267,21 +266,21 @@
 <span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula  <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>,</span>
+<span>  unshrunk_terms_formula  <span class="op">=</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>,</span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x1</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x2</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x3</span>,</span>
 <span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global = 0.5)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(1)"</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.4 seconds.</span></span>
-<span><span class="co">#&gt; Chain 2 finished in 3.7 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.8 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 3.9 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 3.5 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 3.8 seconds.</span></span></code></pre></div>
+<span><span class="co">#&gt; Mean chain execution time: 3.8 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 4.0 seconds.</span></span></code></pre></div>
 </div>
 <div class="section level3" number="4.2">
 <h3 id="global-model-summary-of-subgroup-effects">
@@ -303,15 +302,15 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 9 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> x1: a     0.469  0.247      0.724</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> x1: b     0.127 -<span style="color: #BB0000;">0.248</span>      0.449</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> x2: a     0.380  0.116      0.627</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> x2: b     0.410  0.167      0.696</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> x2: c     0.279 -<span style="color: #BB0000;">0.002</span><span style="color: #BB0000; text-decoration: underline;">98</span>    0.514</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span> x3: a     0.335  0.053<span style="text-decoration: underline;">4</span>     0.576</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">7</span> x3: b     0.405  0.160      0.690</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">8</span> x3: c     0.376  0.129      0.710</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">9</span> x3: d     0.314  0.031<span style="text-decoration: underline;">0</span>     0.558</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> x1: a     0.473  0.229      0.708</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> x1: b     0.115 -<span style="color: #BB0000;">0.227</span>      0.450</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> x2: a     0.379  0.101      0.624</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> x2: b     0.411  0.165      0.685</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> x2: c     0.272  0.022<span style="text-decoration: underline;">0</span>     0.512</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span> x3: a     0.329  0.042<span style="text-decoration: underline;">9</span>     0.567</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">7</span> x3: b     0.403  0.155      0.721</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">8</span> x3: c     0.381  0.114      0.684</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">9</span> x3: d     0.316  0.008<span style="text-decoration: underline;">51</span>    0.542</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>

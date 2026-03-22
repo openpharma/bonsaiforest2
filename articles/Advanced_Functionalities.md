@@ -35,15 +35,14 @@ shrink_data <- bonsaiforest2::shrink_data
 
 # Add log follow-up duration as the offset (accounts for varying exposure time)
 shrink_data$log_fup_duration <- log(shrink_data$fup_duration)
-count_data <- shrink_data
 ```
 
 ``` r
 # Model Fitting with Offset
 count_model_fit <- run_brms_analysis(
-  data = count_data,
+  data = shrink_data,
   # Include offset(log_fup_duration) directly in the response formula
-  response_formula = count + offset(log_fup_duration) ~ trt,
+  response_formula = count ~ trt + offset(log_fup_duration),
   response_type = "count",
   unshrunk_terms_formula = ~ x1,
   shrunk_prognostic_formula = ~ 0 + x2 + x3,
@@ -98,7 +97,7 @@ API. We use the `shrink_data` package dataset with a time-to-event
 outcome to show different prior specification strategies, from simple
 defaults to advanced hierarchical structures.
 
-#### 2.2.1 Dataset Preparation
+#### 2.2.1 Model Preparation
 
 ``` r
 # Load library
@@ -116,38 +115,36 @@ prepared_model <- prepare_formula_model(
   data = sim_data,
   response_formula = Surv(tt_event, event_yn) ~ trt,
   shrunk_predictive_formula = ~ 0 + trt:x1,
-  unshrunk_terms_formula = ~ x2,
+  unshrunk_terms_formula = ~ x1 + x2,
   response_type = "survival"
 )
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
-#> Note: Marginality principle not followed - interaction term 'x1' is used without its main effect. Consider adding 'x1' to prognostic terms for proper model hierarchy.
 ```
 
 #### 2.2.2 Example 2: Using Default Priors
 
-The simplest approach: use the package defaults that adapt to your
-outcome type (horseshoe(1) for shrunk effects, brms defaults for
-others).
+The simplest approach: use the brms package priors to adjust the
+shrinkage level of different temrs
 
 ``` r
 fit_ex3 <- fit_brms_model(
   prepared_model = prepared_model,
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
-  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 0.5)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 #> Fitting brms model...
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.6 seconds.
-#> Chain 2 finished in 4.5 seconds.
+#> Chain 1 finished in 3.3 seconds.
+#> Chain 2 finished in 3.3 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.0 seconds.
-#> Total execution time: 4.6 seconds.
+#> Mean chain execution time: 3.3 seconds.
+#> Total execution time: 3.4 seconds.
 #> Warning: 1 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -156,26 +153,28 @@ cat("\n=== Priors Used ===\n")
 #> 
 #> === Priors Used ===
 print(fit_ex3[["prior"]])
-#>                        prior class    coef group resp dpar              nlpar
-#>  horseshoe(scale_global = 1)     b                               shpredeffect
-#>  horseshoe(scale_global = 1)     b trt:x1a                       shpredeffect
-#>  horseshoe(scale_global = 1)     b trt:x1b                       shpredeffect
-#>               normal(0, 2.5)     b                         unshrunktermeffect
-#>               normal(0, 2.5)     b     trt                 unshrunktermeffect
-#>               normal(0, 2.5)     b     x2a                 unshrunktermeffect
-#>               normal(0, 2.5)     b     x2b                 unshrunktermeffect
-#>               normal(0, 2.5)     b     x2c                 unshrunktermeffect
-#>                 dirichlet(1) sbhaz                                           
-#>  lb ub tag       source
-#>                    user
-#>            (vectorized)
-#>            (vectorized)
-#>                    user
-#>            (vectorized)
-#>            (vectorized)
-#>            (vectorized)
-#>            (vectorized)
-#>                 default
+#>                          prior class           coef group resp dpar
+#>  horseshoe(scale_global = 0.5)     b                               
+#>  horseshoe(scale_global = 0.5)     b trt:x1_onehota                
+#>  horseshoe(scale_global = 0.5)     b trt:x1_onehotb                
+#>                 normal(0, 2.5)     b                               
+#>                 normal(0, 2.5)     b            trt                
+#>                 normal(0, 2.5)     b            x1a                
+#>                 normal(0, 2.5)     b            x1b                
+#>                 normal(0, 2.5)     b            x2b                
+#>                 normal(0, 2.5)     b            x2c                
+#>                   dirichlet(1) sbhaz                               
+#>               nlpar lb ub tag       source
+#>        shpredeffect                   user
+#>        shpredeffect           (vectorized)
+#>        shpredeffect           (vectorized)
+#>  unshrunktermeffect                   user
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>                                    default
 ```
 
 #### 2.2.3 Example 3: Using the R2D2 Shrinkage Prior
@@ -199,34 +198,36 @@ fit_ex4 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.2 seconds.
-#> Chain 2 finished in 3.2 seconds.
+#> Chain 2 finished in 2.3 seconds.
+#> Chain 1 finished in 2.8 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.2 seconds.
-#> Total execution time: 3.3 seconds.
-#> Warning: 5 of 1000 (0.0%) transitions ended with a divergence.
+#> Mean chain execution time: 2.5 seconds.
+#> Total execution time: 2.9 seconds.
+#> Warning: 7 of 1000 (1.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
 cat("\n=== Priors Used ===\n")
 #> 
 #> === Priors Used ===
 print(fit_ex4[["prior"]])
-#>                             prior class    coef group resp dpar
-#>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b                        
-#>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1a                
-#>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1b                
-#>                    normal(0, 2.5)     b                        
-#>                    normal(0, 2.5)     b     trt                
-#>                    normal(0, 2.5)     b     x2a                
-#>                    normal(0, 2.5)     b     x2b                
-#>                    normal(0, 2.5)     b     x2c                
-#>                      dirichlet(1) sbhaz                        
+#>                             prior class           coef group resp dpar
+#>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b                               
+#>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1_onehota                
+#>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1_onehotb                
+#>                    normal(0, 2.5)     b                               
+#>                    normal(0, 2.5)     b            trt                
+#>                    normal(0, 2.5)     b            x1a                
+#>                    normal(0, 2.5)     b            x1b                
+#>                    normal(0, 2.5)     b            x2b                
+#>                    normal(0, 2.5)     b            x2c                
+#>                      dirichlet(1) sbhaz                               
 #>               nlpar lb ub tag       source
 #>        shpredeffect                   user
 #>        shpredeffect           (vectorized)
 #>        shpredeffect           (vectorized)
 #>  unshrunktermeffect                   user
+#>  unshrunktermeffect           (vectorized)
 #>  unshrunktermeffect           (vectorized)
 #>  unshrunktermeffect           (vectorized)
 #>  unshrunktermeffect           (vectorized)
@@ -270,38 +271,40 @@ fit_ex5 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 4.8 seconds.
-#> Chain 2 finished in 5.2 seconds.
+#> Chain 1 finished in 5.3 seconds.
+#> Chain 2 finished in 5.5 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 5.0 seconds.
-#> Total execution time: 5.3 seconds.
+#> Mean chain execution time: 5.4 seconds.
+#> Total execution time: 5.5 seconds.
 
 # View the used priors
 cat("\n=== Priors Used ===\n")
 #> 
 #> === Priors Used ===
 print(fit_ex5[["prior"]])
-#>                        prior class    coef group resp dpar              nlpar
-#>  normal(mu_pred, sigma_pred)     b                               shpredeffect
-#>  normal(mu_pred, sigma_pred)     b trt:x1a                       shpredeffect
-#>  normal(mu_pred, sigma_pred)     b trt:x1b                       shpredeffect
-#>               normal(0, 2.5)     b                         unshrunktermeffect
-#>               normal(0, 2.5)     b     trt                 unshrunktermeffect
-#>               normal(0, 2.5)     b     x2a                 unshrunktermeffect
-#>               normal(0, 2.5)     b     x2b                 unshrunktermeffect
-#>               normal(0, 2.5)     b     x2c                 unshrunktermeffect
-#>                 dirichlet(1) sbhaz                                           
-#>  lb ub tag       source
-#>                    user
-#>            (vectorized)
-#>            (vectorized)
-#>                    user
-#>            (vectorized)
-#>            (vectorized)
-#>            (vectorized)
-#>            (vectorized)
-#>                 default
+#>                        prior class           coef group resp dpar
+#>  normal(mu_pred, sigma_pred)     b                               
+#>  normal(mu_pred, sigma_pred)     b trt:x1_onehota                
+#>  normal(mu_pred, sigma_pred)     b trt:x1_onehotb                
+#>               normal(0, 2.5)     b                               
+#>               normal(0, 2.5)     b            trt                
+#>               normal(0, 2.5)     b            x1a                
+#>               normal(0, 2.5)     b            x1b                
+#>               normal(0, 2.5)     b            x2b                
+#>               normal(0, 2.5)     b            x2c                
+#>                 dirichlet(1) sbhaz                               
+#>               nlpar lb ub tag       source
+#>        shpredeffect                   user
+#>        shpredeffect           (vectorized)
+#>        shpredeffect           (vectorized)
+#>  unshrunktermeffect                   user
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>                                    default
 print(fit_ex5[["stanvars"]])
 #> [[1]]
 #> [[1]]$name
@@ -413,11 +416,11 @@ fit_specific <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 4.5 seconds.
+#> Chain 1 finished in 4.4 seconds.
 #> Chain 2 finished in 4.8 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.7 seconds.
+#> Mean chain execution time: 4.6 seconds.
 #> Total execution time: 4.9 seconds.
 #> Warning: 2 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
@@ -608,7 +611,7 @@ fit_custom_contrast <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 1.1 seconds.
+#> Chain 2 finished in 1.2 seconds.
 #> Chain 1 finished in 1.3 seconds.
 #> 
 #> Both chains finished successfully.
@@ -750,7 +753,7 @@ fit_continuous_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.2 seconds.
+#> Chain 2 finished in 4.1 seconds.
 #> Chain 1 finished in 4.4 seconds.
 #> 
 #> Both chains finished successfully.
@@ -830,12 +833,12 @@ fit_surv_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.1 seconds.
+#> Chain 2 finished in 4.0 seconds.
 #> Chain 1 finished in 4.8 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 4.4 seconds.
-#> Total execution time: 4.8 seconds.
+#> Total execution time: 4.9 seconds.
 #> 
 #> Analysis complete.
 ```
