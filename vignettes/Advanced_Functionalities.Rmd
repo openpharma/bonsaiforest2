@@ -47,15 +47,14 @@ shrink_data <- bonsaiforest2::shrink_data
 
 # Add log follow-up duration as the offset (accounts for varying exposure time)
 shrink_data$log_fup_duration <- log(shrink_data$fup_duration)
-count_data <- shrink_data
 ```
 
 ```{r}
 # Model Fitting with Offset
 count_model_fit <- run_brms_analysis(
-  data = count_data,
+  data = shrink_data,
   # Include offset(log_fup_duration) directly in the response formula
-  response_formula = count + offset(log_fup_duration) ~ trt,
+  response_formula = count ~ trt + offset(log_fup_duration),
   response_type = "count",
   unshrunk_terms_formula = ~ x1,
   shrunk_prognostic_formula = ~ 0 + x2 + x3,
@@ -86,7 +85,7 @@ Priors are specified using separate parameters for each component.
 
 The following examples demonstrate how to customize priors using the new API. We use the `shrink_data` package dataset with a time-to-event outcome to show different prior specification strategies, from simple defaults to advanced hierarchical structures.
 
-### Dataset Preparation
+### Model Preparation
 
 ```{r}
 # Load library
@@ -104,22 +103,22 @@ prepared_model <- prepare_formula_model(
   data = sim_data,
   response_formula = Surv(tt_event, event_yn) ~ trt,
   shrunk_predictive_formula = ~ 0 + trt:x1,
-  unshrunk_terms_formula = ~ x2,
+  unshrunk_terms_formula = ~ x1 + x2,
   response_type = "survival"
 )
 ```
 
 ### Example 2: Using Default Priors
 
-The simplest approach: use the package defaults that adapt to your outcome type (horseshoe(1) for shrunk effects, brms defaults for others).
+The simplest approach: use the brms package priors to adjust the shrinkage level of different temrs
 
 ```{r}
 fit_ex3 <- fit_brms_model(
   prepared_model = prepared_model,
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
-  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  shrunk_prognostic_prior = "horseshoe(scale_global = 0.5)",
+  shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 
