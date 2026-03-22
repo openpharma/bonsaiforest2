@@ -47,9 +47,7 @@ This example makes use of Bayesian modeling, which requires the installation of 
 
 # The Data
 
-We will use the `shrink_data` package dataset with a continuous response variable. The relevant outcome is `y`.
-
-We consider a model where we want to find the treatment effect (`trt`) on `y`. We explore **three subgroup variables** as **predictive** variables (potential treatment effect modifiers):
+We will use the `shrink_data` package dataset with a continuous response variable. We explore **three subgroup variables**:
 
 -   `x1`: Subgroup 1 (categories: a, b)
 -   `x2`: Subgroup 2 (categories: a, b, c)
@@ -73,7 +71,7 @@ print(head(shrink_data))
 
 # One-way Models
 
-This section demonstrates how to fit separate models, each examining one subgroup variable at a time. In one-way models, we specify treatment effects as random slopes using pipe-pipe notation (e.g., `~ (0 + trt || subgroup)`), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects. Note that for each model we also include always the subgrouping variable we want to test the treatment effects for also as prognostic.
+This section shows how to fit separate models, each examining one subgroup variable at a time. In one-way models, we recommend specifying the treatment effects as random slopes using pipe-pipe notation (e.g., `~ (0 + trt || subgroup)`), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects. Note that for each model we also include always the subgrouping variable we want to test the treatment effects for also as prognostic.
 
 ## One-way Model: x1 Only
 
@@ -152,7 +150,7 @@ plot(combined_oneway, title = "One-way Models: All Subgroup Variables")
 
 # Global Model
 
-This section demonstrates how to fit a single model that includes all subgroup variables simultaneously using the global approach. All treatment-by-subgroup interactions are estimated in one unified model with colon notation (e.g., `~ 0 + trt:subgroup`) and strong regularization (Horseshoe prior) applied to the interaction terms.
+This section shows how to fit a single model that includes all subgroup variables simultaneously using the global approach. All treatment-by-subgroup interactions are estimated in one unified model with colon notation (e.g., `~ 0 + trt:subgroup`) and strong regularization (Horseshoe prior) applied to the interaction terms.
 
 ## Global Model: All Subgroups
 
@@ -164,10 +162,10 @@ global_shrinkage_model <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula  = ~ 0 + x1 + x2 + x3,
+  unshrunk_terms_formula  = ~ 1 + x1 + x2 + x3,
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   intercept_prior = "normal(0, 10)",
-  shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
+  shrunk_predictive_prior = "horseshoe(1)",
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
