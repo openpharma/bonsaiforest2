@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-The `bonsaiforest2` package has been developed to facilitate Bayesian shrinkage estimation of treatment effects in subgroups of randomized clinical trials. It supports both **one-way models**, which fit a separate Bayesian shrinkage model for each subgrouping variable, and **global models**, which fit a Bayesian shrinkage model including all subgroup variables at once (@wolbersUnifiedShrinkage). For both types of models, treatment effect estimates in subgroups are derived via standardization (G-computation). The package supports continuous, binary, time-to-event (Cox), and count outcomes. It leverages `brms` and `Stan`  for model fitting, allowing for a flexible choice of priors including normal, regularized horseshoe, and R2-D2 priors.
+The `bonsaiforest2` package has been developed to facilitate Bayesian shrinkage estimation of treatment effects in subgroups of randomized clinical trials. It supports both **one-way models**, which fit a separate Bayesian shrinkage model for each subgrouping variable, and **global models**, which fit a single model including all subgroup variables at once (@wolbersUnifiedShrinkage). For both types of models, treatment effect estimates in subgroups are derived via standardization (G-computation). The package supports continuous, binary, time-to-event (Cox), and count outcomes. It leverages `brms` and `Stan` for model fitting, allowing for a flexible choice of priors, including normal, regularized horseshoe, and R2-D2.
 
 ## Installation
 
@@ -25,6 +25,8 @@ The latest stable release of `bonsaiforest2` can be installed from the `main` br
 ```{r, eval=FALSE}
 remotes::install_github("openpharma/bonsaiforest2")
 ```
+
+`bonsaiforest2` depends on the [`brms`](https://paulbuerkner.com/brms/) package and a R interface to Stan (e.g.,  [`cmdstanr`](https://mc-stan.org/cmdstanr/))
 
 
 ## Quick Start Example
