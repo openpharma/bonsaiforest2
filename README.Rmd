@@ -1,5 +1,6 @@
 ---
 output: github_document
+bibliography: vignettes/references.bib
 ---
 
 ```{r, include = FALSE}
@@ -15,18 +16,11 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-The `bonsaiforest2` package is used for Bayesian shrinkage estimation of subgroup treatment effects in randomized clinical trials. It supports both one-way models and global modeling approaches for estimating treatment-by-subgroup interactions, with built-in support for continuous, binary, time-to-event (Cox), and count outcomes. The package allows the usage of shrinkage priors including Regularized Horseshoe and R2D2, combined with standardization (G-computation) to provide interpretable marginal treatment effects. By leveraging `brms` and `Stan`, `bonsaiforest2` provides a practical tool for obtaining more stable and reliable subgroup effect estimates in subgroup analyses.
+The `bonsaiforest2` package has been developed to facilitate Bayesian shrinkage estimation of treatment effects in subgroups of randomized clinical trials. It supports both **one-way models**, which fit a separate Bayesian shrinkage model for each subgrouping variable, and **global models**, which fit a Bayesian shrinkage model including all subgroup variables at once (@wolbersUnifiedShrinkage). For both types of models, treatment effect estimates in subgroups are derived via standardization (G-computation). The package supports continuous, binary, time-to-event (Cox), and count outcomes. It leverages `brms` and `Stan`  for model fitting, allowing for a flexible choice of priors including normal, regularized horseshoe, and R2-D2 priors.
 
 ## Installation
 
-You can install the latest stable release of `bonsaiforest2` from [GitHub](https://github.com/openpharma/bonsaiforest2):
-
-```{r, eval=FALSE}
-# install.packages("remotes")
-remotes::install_github("openpharma/bonsaiforest2@v0.1.0-beta")
-```
-
-Or install the development version from the `main` branch:
+The latest stable release of `bonsaiforest2` can be installed from the `main` branch on [GitHub](https://github.com/openpharma/bonsaiforest2):
 
 ```{r, eval=FALSE}
 remotes::install_github("openpharma/bonsaiforest2")
@@ -35,7 +29,7 @@ remotes::install_github("openpharma/bonsaiforest2")
 
 ## Quick Start Example
 
-This example demonstrates Bayesian shrinkage estimation of treatment effects across subgroups using a **global model** with a Regularized Horseshoe prior, applied to the `shrink_data` package dataset with three subgrouping variables.
+This example demonstrates Bayesian shrinkage estimation of treatment effects across subgroups using a **global model** with a regularized horseshoe prior (with default hyperprior parameters from `brms`), applied to the `shrink_data` dataset with three subgrouping variables. 
 
 ```{r example-continuous, message=FALSE, warning=FALSE, results='hide'}
 library(bonsaiforest2)
@@ -43,7 +37,7 @@ library(bonsaiforest2)
 # 1. Load the shrink_data package dataset
 shrink_data <- bonsaiforest2::shrink_data
 
-# 2. Fit fixed effects model with heterogeneous shrinkage
+# 2. Fit global shrinkage model
 fit_fixed <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
@@ -51,8 +45,8 @@ fit_fixed <- run_brms_analysis(
   unshrunk_terms_formula = ~ x1 + x2 + x3,
   shrunk_prognostic_formula = NULL,
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
-  intercept_prior = "normal(0, 5)",
-  unshrunk_prior = "normal(0, 5)",
+  intercept_prior = NULL,
+  unshrunk_prior = NULL,
   shrunk_prognostic_prior = NULL,
   shrunk_predictive_prior = "horseshoe(1)",
   chains = 2, iter = 1000, warmup = 500,
@@ -61,9 +55,12 @@ fit_fixed <- run_brms_analysis(
 ```
 
 ```{r example-summary, message=FALSE, warning=FALSE}
-# 3. Extract and visualize marginal treatment effects by subgroup
+# 3. Extract and visualize standardized treatment effects in subgroups
 subgroup_effects <- summary_subgroup_effects(fit_fixed)
 print(subgroup_effects$estimates)
 plot(subgroup_effects)
 ```
+
+## References
+
 
