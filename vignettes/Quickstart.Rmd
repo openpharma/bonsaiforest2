@@ -30,12 +30,14 @@ knitr::opts_chunk$set(
 
 The `bonsaiforest2` package consists of 3 core functions which are typically called in sequence:
 
-1.  `run_brms_analysis()` - Prepares the model formula and fits the Bayesian shrinkage model using `brms`.
-2.  `summary_subgroup_effects()` - Derives standardized treatment effect estimates from the fitted model and displays them.
-3.  `plot()` - Creates a forest plot from the summary object.
+1.  `run_brms_analysis()` - Prepares the model formula and fits the Bayesian shrinkage model using `brms`
+2.  `summary_subgroup_effects()` - Derives standardized treatment effect estimates from the fitted model and displays them
+3.  `plot()` - Creates a basic forest plot from the summary object
 
-The package supports both **one-way shrinkage models**, which fit a separate Bayesian shrinkage model for each subgrouping variable, and **global shrinkage models**, which fit a single model including all subgrouping variables at once. For both types of models, treatment effect estimates in subgroups are derived via standardization (G-computation)  (@wolbersUnifiedShrinkage).
+The package supports both **one-way shrinkage models**, which fit a separate Bayesian shrinkage model for each subgrouping variable, and **global shrinkage models**, which fit a single model including all subgrouping variables at once. For both types of models, treatment effect estimates in subgroups are derived via standardization (G-computation) .
 The package supports continuous, binary, time-to-event (Cox), and count outcomes. It leverages `brms` and `Stan` for model fitting, allowing for a flexible choice of priors, including normal, regularized horseshoe, and R2-D2.
+
+A comprehensive description of the methodology implemented in this R package can be found in @wolbersUnifiedShrinkage. 
 
 This vignette demonstrates how to use the package to fit and compare these different modeling approaches You'll learn how to:
 
@@ -44,7 +46,7 @@ This vignette demonstrates how to use the package to fit and compare these diffe
 -   Derive standardized treatment effect estimates from the fitted model and displays them
 -   Visualize and compare results from different model specifications
 
-This example assumes that [`bonsaiforest2`](https://github.com/openpharma/bonsaiforest2), [`brms`](https://paulbuerkner.com/brms/), and a R interface to Stan (e.g.,  [`cmdstanr`](https://mc-stan.org/cmdstanr/)) have been installed.
+It assumes that [`bonsaiforest2`](https://github.com/openpharma/bonsaiforest2), [`brms`](https://paulbuerkner.com/brms/), and a R interface to Stan (e.g.,  [`cmdstanr`](https://mc-stan.org/cmdstanr/)) have been installed.
 
 # The Data
 
@@ -73,15 +75,14 @@ In our example, we anchor parameters of the hyperprior in trial assumptions abou
 
 Specifically, we use the following priors for the shrunken predictive effects in the one-way and global models below:
 
-- *One-way shrinkage model*: a normal prior with a half-normal hyperprior with heterogeneity parameter $\phi=\delta_{plan}=0.3$ for the standard deviation
+- *One-way shrinkage model*: a normal prior with a half-normal hyperprior and heterogeneity parameter $\phi=\delta_{plan}=0.3$ for the standard deviation
 - *Global shrinkage models*: a regularized horseshoe priors with parameters `scale_global` $\tau_0 = \delta_{plan}=0.3$, `scale_slab` $s = 2\sigma_{plan} = 2$ and `df_slab` $\nu = 4$
 
 # One-way shrinkage models
 
-One-way shrinkage model for a categorical subgrouping variable `x` with a normal prior for shrunken effects can be written as Bayesian random effects models. In the simplest setting, the model has the following formula: `y ~ trt + x + (0+trt || x)`. Here, `trt` refers to the main treatment effect, `x` to the prognostic effect (to which no shrinkage is applied), and `(0+trt || x)` refers to random predictive treatment effects per subgroups defined by levels of `x`, i.e. subgroup-by-treatment interactions. As discussed, we specify a normal distribution for the random effects representing subgroup-by-treatment interactions with a half-normal hyperprior with heterogeneity parameter $\phi=\delta_{plan}=0.3$ for the standard deviation which induces shrinkage.  
+A simple one-way shrinkage model for a categorical subgrouping variable `x` is a Bayesian regression model of the form `y ~ 1 + trt + x + trt:x` with a normal shrinkage prior applied to the treatment-by-subgroup interactions. For efficient computation, it is preferable, to reformulate the model as a Bayesian random effects model of the form `y ~ 1 + trt + x + (0+trt || x)` where the term `(0+trt || x)` refers to random treatment effects per subgroups defined by levels of `x`, i.e. treatment-by-subgroup interactions. As discussed, we specify a normal distribution for the random effects representing treatment-by-subgroup interactions with a half-normal hyperprior with heterogeneity parameter $\phi=\delta_{plan}=0.3$ for the standard deviation.  
 
-In the code below, we fit three separate models for `x1`, `x2`, and `x3`, respectively.  We extend the simple model described above by including all three subgrouping variables as unshrunken prognostic terms. While this extension is not mandatory, adjustment for prognostic variables can improve the precision treatment effect estimates as illustrated in the simulation study for a continuous endpoint in @wolbersUnifiedShrinkage. 
-
+In the code below, we fit three separate models for `x1`, `x2`, and `x3`, respectively.  We extend the simple model described above by including all three subgrouping variables as unshrunken prognostic terms. While this extension is not mandatory, adjustment for prognostic variables can improve the precision of treatment effect estimates as illustrated in the simulation study for a continuous endpoint in @wolbersUnifiedShrinkage. 
 
 ## One-way model for `x1`
 
@@ -137,7 +138,7 @@ oneway_x3 <- run_brms_analysis(
 summary_oneway_x3 <- summary_subgroup_effects(brms_fit = oneway_x3)
 ```
 
-## Forest plot of results from all three one-way models
+## Forest plot of results from all one-way models
 
 You can combine and visualize results from multiple models using `combine_summaries()`:
 
@@ -154,14 +155,12 @@ plot(combined_oneway, title = "One-way Models: All Subgrouping Variables")
 
 # Global shrinkage model
 
-The global model includes all subgrouping variables as prognostic effects and shrinks soupgroup-by-treatment interactions using a regularized horseshoe prior with parameters  `scale_global` $\tau_0 = \delta_{plan}=0.3$, `scale_slab` $s = 2\sigma_{plan} = 2$ and `df_slab` $\nu = 4$. Standardized treatment effects in subgroup defined by a single the levels of a single subgrouping variable at a time are derived via G-computation. 
+A simple global shrinkage model for our setting has the form ` y~ 1 + trt + x1 + x2 + x3 + trt:x1 + trt:x2 + trt:x3` where a shrinkage prior is applied to all treatment-by-subgroup interaction terms. As discussed, we use a regularized horseshoe prior with parameters `scale_global` $\tau_0 = \delta_{plan}=0.3$, `scale_slab` $s = 2\sigma_{plan} = 2$ and `df_slab` $\nu = 4$ in the example below. Standardized treatment effects in subgroup defined by the levels of a single subgrouping variable at a time are subsequently derived from this model via G-computation. 
 
 ## Model fitting
 
 ```{r global-fit, message=FALSE, warning=FALSE}
 # Fit a single unified model with ALL subgrouping variables simultaneously using global approach
-# - Unshrunk prognostic effects: subgroup main effects without shrinkage
-# - Shrunk predictive effects: treatment interactions with strong regularization using one-hot encoding
 global_shrinkage_model <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
@@ -176,7 +175,7 @@ global_shrinkage_model <- run_brms_analysis(
 
 ## Summary of subgroup effects
 
-The function `summary_subgroup_effects()` derives standardized treatment effects in subgroups from the global model. Internally, subgrouping variables are identified as all terms describing covariate-by-treatment interactions provided in the formulas. 
+The function `summary_subgroup_effects()` derives standardized treatment effects in subgroups from the global model. Internally, subgrouping variables are identified as all terms describing treatment-by-covariate interactions provided in the formulas. 
 
 ```{r global-summary}
 global_summary <- summary_subgroup_effects(brms_fit = global_shrinkage_model)

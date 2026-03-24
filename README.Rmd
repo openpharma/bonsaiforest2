@@ -16,7 +16,9 @@ knitr::opts_chunk$set(
 
 ## Overview
 
-The `bonsaiforest2` package has been developed to facilitate Bayesian shrinkage estimation of treatment effects in subgroups of randomized clinical trials. It supports both **one-way models**, which fit a separate Bayesian shrinkage model for each subgrouping variable, and **global models**, which fit a single model including all subgroup variables at once (@wolbersUnifiedShrinkage). For both types of models, treatment effect estimates in subgroups are derived via standardization (G-computation). The package supports continuous, binary, time-to-event (Cox), and count outcomes. It leverages `brms` and `Stan` for model fitting, allowing for a flexible choice of priors, including normal, regularized horseshoe, and R2-D2.
+The `bonsaiforest2` package has been developed to facilitate Bayesian shrinkage estimation of treatment effects in subgroups of randomized clinical trials. It supports both **one-way models**, which fit a separate Bayesian shrinkage model for each subgrouping variable, and **global models**, which fit a single model including all subgroup variables at once. For both types of models, treatment effect estimates in subgroups are derived via standardization (G-computation). The package supports continuous, binary, time-to-event (Cox), and count outcomes. It leverages `brms` and `Stan` for model fitting, allowing for a flexible choice of priors, including normal, regularized horseshoe, and R2-D2.
+
+A comprehensive description of the methodology implemented in this R package can be found in @wolbersUnifiedShrinkage. 
 
 ## Installation
 
@@ -45,11 +47,7 @@ fit_fixed <- run_brms_analysis(
   response_type = "continuous",
   response_formula = y ~ trt,
   unshrunk_terms_formula = ~ x1 + x2 + x3,
-  shrunk_prognostic_formula = NULL,
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
-  intercept_prior = NULL,
-  unshrunk_prior = NULL,
-  shrunk_prognostic_prior = NULL,
   shrunk_predictive_prior = "horseshoe(1)",
   chains = 2, iter = 1000, warmup = 500,
   backend = "cmdstanr", refresh = 0
