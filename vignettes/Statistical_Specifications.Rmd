@@ -124,4 +124,19 @@ The standardization process follows three steps:
 
 Standardized treatment effect estimates in subgroups are summarized using the median of the posterior draws, accompanied by a 95% credible interval (bounded by the 2.5% and 97.5% quantiles).
 
+# Comparison of One-way vs Global Shrinkage Models
+
+To us, global shrinkage models are a more principled approach than one-way models to obtain treatment effect estimates across a well-defined family of multiple subgrouping variables. 
+
+In terms of actual performance, the following high-level conclusions may be derived from the simulation studies reported in @wolbersUnifiedShrinkage:
+
+- Both one-way and global shrinkage models typically have a substantially lower overall root mean squared error than the standard estimator without shrinkage. They are also more efficient in identifying a non-efficacious subgroup.
+- Global shrinkage models tend to have lower mean-squared error and are less dependent on the choice of prior parameters. 
+- One-way shrinkage models tend to have slightly less bias and better frequentist coverage of associated credible intervals.
+- For both models, hyperprior parameter choices anchored in trial assumptions about the anticipated size of the overall treatment effect (such as the possible default choices described above) performed well.
+
+
+
+
+
 # References {-}
