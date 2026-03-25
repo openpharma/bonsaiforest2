@@ -133,10 +133,7 @@ In terms of actual performance, the following high-level conclusions may be deri
 - Both one-way and global shrinkage models typically have a substantially lower overall root mean squared error than the standard estimator without shrinkage. They are also more efficient in identifying a non-efficacious subgroup.
 - Global shrinkage models tend to have lower mean-squared error and are less dependent on the choice of prior parameters. 
 - One-way shrinkage models tend to have slightly less bias and better frequentist coverage of associated credible intervals.
+- Covariate-adjustment for known prognostic factors can substantially improve the precision of treatment effect estimates in subgroups.
 - For both models, hyperprior parameter choices anchored in trial assumptions about the anticipated size of the overall treatment effect (such as the possible default choices described above) performed well.
-
-
-
-
 
 # References {-}
