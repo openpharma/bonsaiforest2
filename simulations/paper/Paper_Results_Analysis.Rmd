@@ -1,6 +1,5 @@
 ---
-title: "Paper Simulation Results Analysis"
-subtitle: "TTE and Continuous Outcomes - Selected Figures and Tables"
+title: "Replication of Results from the Paper 'Unified implementation and comparison of Bayesian shrinkage methods for treatment effect estimation in subgroups`"
 output: 
   html_document:
     toc: true
@@ -8,6 +7,11 @@ output:
     theme: cosmo
     code_folding: show
 ---
+
+All simulation results from the paper "Unified implementation and comparison of Bayesian shrinkage methods for treatment effect estimation in subgroups" (https://arxiv.org/abs/2603.21967) are stored at https://github.com/openpharma/bonsaiforest2/tree/main/simulations/paper.
+
+This file replicates some of the tables from the paper. 
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, 
@@ -24,33 +28,19 @@ library(kableExtra)
 library(rlang)
 ```
 
----
-
-# TTE Simulation Results for Paper
-
----
-
-## Load TTE Results
+# Results: Simulation for a time-to-event endpoint
 
 ```{r load_tte_results, include=FALSE}
-# Set paths for TTE
-tte_base_path <- "/home/pedreram/bonsaiforest2/simulations/paper/TTE"
-tte_data_file <- file.path(tte_base_path, "tte_results_prepared.rds")
+## Load TTE Results
 
-# Check if prepared data exists
-if (!file.exists(tte_data_file)) {
-  cat("ERROR: TTE prepared data file not found!\n")
-  cat("Please run: Rscript", file.path(tte_base_path, "prepare_tte_results.R\n"))
-  stop("Missing prepared TTE data")
-}
+# Set paths for Github TTE prepared results
+data_url <- "https://github.com/openpharma/bonsaiforest2/raw/refs/heads/main/simulations/paper/TTE/tte_results_prepared.rds"
 
-# Load merged TTE results (with estimates and truth)
-tte_all_results <- readRDS(tte_data_file) 
-
-cat("✓ Loaded TTE merged results from:", tte_data_file, "\n")
-cat("  Rows:", nrow(tte_all_results), "\n")
-cat("  Estimators:", n_distinct(tte_all_results$estimator), "\n")
-cat("  Scenarios:", unique(sort(tte_all_results$scenario_no)), "\n\n")
+#Load the data
+temp_file <- tempfile(fileext = ".rds")
+download.file(data_url, destfile = temp_file, mode = "wb")
+tte_all_results <- readRDS(temp_file)
+unlink(temp_file)
 ```
 
 ```{r tte_calculate_metrics}
@@ -95,36 +85,10 @@ tte_performance_by_scenario <- tte_all_results %>%
     .groups = 'drop'
   ) %>%
   arrange(as.numeric(scenario_no), estimator)
-
-# Separate datasets: main (exclude Global HN) and supplementary (Global HN only)
-tte_is_global_hn <- grepl("Global_HN", tte_performance_by_scenario$estimator)
-tte_performance_main <- tte_performance_by_scenario[!tte_is_global_hn, ]
-tte_performance_supplementary <- tte_performance_by_scenario[tte_is_global_hn, ]
-
-# Overall metrics across all scenarios
-tte_performance_overall <- tte_all_results %>%
-  mutate(
-    error = estimate_log - truth_log,
-    ci_contains_truth = (truth_log >= ci_lower) & (truth_log <= ci_upper)
-  ) %>%
-  group_by(estimator) %>%
-  summarise(
-    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
-    Bias = mean(error, na.rm = TRUE),
-    AbsBias = mean(abs(error), na.rm = TRUE),
-    Coverage = mean(ci_contains_truth, na.rm = TRUE),
-    .groups = 'drop'
-  ) %>%
-  arrange(estimator)
-
-cat("TTE performance metrics calculated.\n")
 ```
 
----
-
-## TTE Helper Functions
-
 ```{r tte_helpers}
+## TTE Helper Functions
 # Beautify estimator names for TTE
 beautify_tte_estimator <- function(estimator_name) {
   dplyr::case_when(
@@ -136,9 +100,13 @@ beautify_tte_estimator <- function(estimator_name) {
     grepl("Global_RHS.*theta0_delta_plan.*s_2", estimator_name) ~ "Global - RHS(τ₀=δ<sub>plan</sub>, s=2)",
         grepl("Global_RHS.*theta0_delta_plan_half_10.*s_2", estimator_name) ~ "Global - RHS(τ₀=δ<sub>plan</sub>/10, s=2)",
     # OVAT HN
-    grepl("OVAT_HN.*phi_1$", estimator_name) ~ "OVAT - HN(φ=1)",
-    grepl("OVAT_HN.*phi_delta_plan_half", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>/2)",
-    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>)",
+    grepl("OVAT_HN.*phi_1$", estimator_name) ~ "One-way - HN(φ=1)",
+    grepl("OVAT_HN.*phi_delta_plan_half", estimator_name) ~ "One-way - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "One-way - HN(φ=δ<sub>plan</sub>)",
+    # Global HN
+    grepl("Global_HN.*phi_1", estimator_name) ~ "Global - HN(φ=1)",
+    grepl("Global_HN.*phi_delta_plan_half", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("Global_HN.*phi_delta_plan$", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>)",
     TRUE ~ estimator_name
   )
 }
@@ -168,14 +136,12 @@ getPercentage <- function(x, digits = 1) {
 }
 ```
 
----
-
-## TTE Figure: Standardized Overall RMSE
+## Standardized overall root mean squared error by simulation scenario
 
 ```{r tte_figure_rmse, fig.width=12, fig.height=6}
 # Prepare data: standardize RMSE within each scenario by baseline (subgroup estimator)
 # Filter to main section (exclude Global HN)
-tte_plot_data <- tte_performance_main %>%
+tte_plot_data <- tte_performance_by_scenario[!grepl("Global_HN", tte_performance_by_scenario$estimator),] %>%
   mutate(
     scenario_no_numeric = as.numeric(scenario_no),
     estimator_display = beautify_tte_estimator(estimator),
@@ -203,9 +169,9 @@ tte_plot_data_standardized <- tte_plot_data %>%
 tte_color_map <- c(
   "Subgroup" = "red",
   "Population" = "orange",
-  "OVAT - HN(φ=1)" = "skyblue",
-  "OVAT - HN(φ=δ<sub>plan</sub>/2)" = "royalblue",
-  "OVAT - HN(φ=δ<sub>plan</sub>)" = "navy",
+  "One-way - HN(φ=1)" = "skyblue",
+  "One-way - HN(φ=δ<sub>plan</sub>/2)" = "royalblue",
+  "One-way - HN(φ=δ<sub>plan</sub>)" = "navy",
   "Global - RHS(τ₀=1, s=2)" = "palegreen1",
   "Global - RHS(τ₀=δ<sub>plan</sub>, s=2)" = "palegreen3",
   "Global - RHS(τ₀=δ<sub>plan</sub>/2, s=2)" = "forestgreen",
@@ -237,9 +203,7 @@ ggplot(tte_plot_data_standardized, aes(x = scenario_label, y = RMSE_standardized
   guides(color = guide_legend(ncol = 2))
 ```
 
----
-
-## TTE Table: Mean (Range) of RMSE, Bias, and Coverage by Scenario
+## Mean (range) of RMSE, bias, and observed coverage of nominal 95% confidence or credible intervals across subgroups by simulation scenario
 
 ```{r tte_table_by_scenario}
 # Create summary table with bias/abs_bias ranges and coverage ranges from subgroup metrics
@@ -334,8 +298,6 @@ tte_pivot_table <- bind_rows(tte_pivot_table,
          `Scenario 1` = "", `Scenario 2` = "", `Scenario 3` = "", `Scenario 4` = "")
 )
 
-
-
 for (est in sort(unique(tte_table_formatted$Estimator))) {
   est_data <- tte_table_formatted %>%
     filter(Estimator == est) %>%
@@ -360,11 +322,7 @@ kbl(tte_pivot_table,
                 full_width = FALSE)
 ```
 
----
-
-## TTE Table: Worst Subgroup Performance (Scenario 2)
-
-### Performance Table for Subgroup 4a (Worst Subgroup in Scenario 2)
+## Performance of estimators in subgroup 4a for scenario 2 where the drug does not work
 
 ```{r tte_worst_subgroup_performance}
 # Subgroup 4a is the worst subgroup in Scenario 2 (AHR = 1.00, highest/least beneficial)
@@ -395,7 +353,7 @@ kbl(tte_subgroup_4a_perf,
                 full_width = FALSE)
 ```
 
-### Worst Subgroup Identification Accuracy
+## Accuracy of correctly identifying the worst subgroup as subgroup 4a for scenario 2 
 
 ```{r tte_worst_accuracy}
 # For each replication and estimator in Scenario 2, identify the subgroup with the highest AHR (worst effect)
@@ -462,35 +420,19 @@ kbl(worst_accuracy,
   )
 ```
 
----
-
-# Continuous Simulation Results for Paper
-
-**NOTE:** This results are the ones excluding X3 from the model fitting (it was excluded from everywhere: data generation and model fitting). Also the Horseshoe model have s=2*sigma_plan
----
-
-## Load Continuous Results
+# Results (including covariate-adjusted estimators): Simulation for a continuous endpoint 
 
 ```{r load_continuous_results, include=FALSE}
-# Set paths for Continuous
-cont_base_path <- "/home/pedreram/bonsaiforest2/simulations/paper/Continuous"
-cont_data_file <- file.path(cont_base_path, "continuous_results_prepared.rds")
+## Load Continuous Results
 
-# Check if prepared data exists
-if (!file.exists(cont_data_file)) {
-  cat("ERROR: Continuous prepared data file not found!\n")
-  cat("Please run: Rscript", file.path(cont_base_path, "prepare_continuous_results.R\n"))
-  stop("Missing prepared Continuous data")
-}
+# Set paths for Github TTE prepared results
+data_url <- "https://github.com/openpharma/bonsaiforest2/raw/refs/heads/main/simulations/paper/Continuous/continuous_results_prepared.rds"
 
-# Load merged Continuous results (with estimates and truth)
-cont_all_results <- readRDS(cont_data_file)
-
-cat("✓ Loaded Continuous merged results from:", cont_data_file, "\n")
-cat("  Rows:", nrow(cont_all_results), "\n")
-cat("  Estimators:", n_distinct(cont_all_results$estimator), "\n")
-cat("  Scenarios:", unique(sort(cont_all_results$scenario_no)), "\n\n")
-
+#Load the data
+temp_file <- tempfile(fileext = ".rds")
+download.file(data_url, destfile = temp_file, mode = "wb")
+cont_all_results <- readRDS(temp_file)
+unlink(temp_file)
 
 cont_all_results <- cont_all_results %>%
   dplyr::select(scenario_no, replication_id,subgroup_var, level, estimator, estimate, ci_lower, ci_upper, truth_trt_effect)
@@ -504,7 +446,8 @@ cont_all_results <- cont_all_results %>%
 # IMPORTANT: Compute signed bias first, then take absolute value (like TTE_Results_Analysis.Rmd)
 cont_subgroup_metrics <- cont_all_results %>%
   mutate(
-    error = estimate - truth_trt_effect
+    error = estimate - truth_trt_effect,
+    ci_contains_truth = (truth_trt_effect >= ci_lower) & (truth_trt_effect <= ci_upper)
   ) %>%
   group_by(scenario_no, estimator, subgroup_var, level) %>%
   summarise(
@@ -512,7 +455,8 @@ cont_subgroup_metrics <- cont_all_results %>%
     estimate_var=var(estimate, na.rm=TRUE),
     RMSE = sqrt(mean(error^2, na.rm = TRUE)),
     bias = mean(error, na.rm = TRUE),  # Signed bias per subgroup
-    abs_bias = abs(bias),  # Take absolute value of signed bias (not mean of abs)
+    abs_bias = abs(bias),  # Take absolute value of signed bias (not mean of abs),
+    coverage = mean(ci_contains_truth, na.rm = TRUE),
     truth_trt_effect = first(truth_trt_effect),
     .groups = 'drop'
   )
@@ -529,11 +473,6 @@ cont_performance_by_scenario <- cont_subgroup_metrics %>%
   ) %>%
   arrange(as.numeric(scenario_no), estimator)
 
-# Separate datasets: main (exclude Global HN) and supplementary (Global HN only)
-cont_is_global_hn <- grepl("Global_HN", cont_performance_by_scenario$estimator)
-cont_performance_main <- cont_performance_by_scenario[!cont_is_global_hn, ]
-cont_performance_supplementary <- cont_performance_by_scenario[cont_is_global_hn, ]
-
 # Overall metrics across all scenarios
 cont_performance_overall <- cont_all_results %>%
   mutate(
@@ -547,52 +486,47 @@ cont_performance_overall <- cont_all_results %>%
     .groups = 'drop'
   ) %>%
   arrange(estimator)
-
-cat("Continuous performance metrics calculated.\n")
 ```
 
----
-
-## Continuous Helper Functions
 
 ```{r cont_helpers}
+## Continuous Helper Functions
+
 # Beautify estimator names for Continuous
 beautify_cont_estimator <- function(estimator_name) {
   dplyr::case_when(
-    estimator_name == "population_with_covariates" ~ "Population with covariates",
+    estimator_name == "population_with_covariates" ~ "Population (adj)",
     estimator_name == "population" ~ "Population",
     estimator_name == "subgroup" ~ "Subgroup",
-    # Global HN
-    grepl("Global_HN.*phi_delta_half", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>/2)",
-    grepl("Global_HN.*phi_sigma_plan", estimator_name) ~ "Global - HN(φ=σ<sub>plan</sub>)",
-    grepl("Global_HN.*phi_delta_plan$", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>)",
     # Global Horseshoe
-        grepl("Global_Horseshoe.*delta_10", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10)",
-            grepl("Global_Horseshoe.*delta_100", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/100)",
+    grepl("Global_Horseshoe.*delta_10", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10)",
+    grepl("Global_Horseshoe.*delta_100", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/100)",
     grepl("Global_Horseshoe.*delta_half", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/2)",
     grepl("Global_Horseshoe.*sigma_plan", estimator_name) ~ "Global - Horseshoe(τ₀ =σ<sub>plan</sub>)",
     grepl("Global_Horseshoe.*delta_plan$", estimator_name) ~ "Global - Horseshoe(τ₀ =δ<sub>plan</sub>)",
-            # OVAT HN Cova Adjusted
-    grepl("OVAT_HN.*phi_delta_halfCov", estimator_name) ~ "OVATCOV - HN(φ=δ<sub>plan</sub>/2)",
-    grepl("OVAT_HN.*phi_sigma_planCov$", estimator_name) ~ "OVATCOV - HN(φ=σ<sub>plan</sub>)",
-    grepl("OVAT_HN.*phi_delta_planCov$", estimator_name) ~ "OVATCOV - HN(φ=δ<sub>plan</sub>)",
+    # OVAT HN Cova Adjusted
+    grepl("OVAT_HN.*phi_delta_halfCov", estimator_name) ~ "One-way (adj) - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("OVAT_HN.*phi_sigma_planCov", estimator_name) ~ "One-way (adj) - HN(φ=σ<sub>plan</sub>)",
+    grepl("OVAT_HN.*phi_delta_planCov", estimator_name) ~ "One-way (adj) - HN(φ=δ<sub>plan</sub>)",
     # OVAT HN
-    grepl("OVAT_HN.*phi_delta_half", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>/2)",
-    grepl("OVAT_HN.*phi_sigma_plan", estimator_name) ~ "OVAT - HN(φ=σ<sub>plan</sub>)",
-    grepl("OVAT_HN.*phi_delta_plan$", estimator_name) ~ "OVAT - HN(φ=δ<sub>plan</sub>)",
+    grepl("OVAT_HN.*phi_delta_half", estimator_name) ~ "One-way - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("OVAT_HN.*phi_sigma_plan", estimator_name) ~ "One-way - HN(φ=σ<sub>plan</sub>)",
+    grepl("OVAT_HN.*phi_delta_plan", estimator_name) ~ "One-way - HN(φ=δ<sub>plan</sub>)",
+    # Global HN
+    grepl("Global_HN.*phi_delta_half", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>/2)",
+    grepl("Global_HN.*phi_sigma_plan", estimator_name) ~ "Global - HN(φ=σ<sub>plan</sub>)",
+    grepl("Global_HN.*phi_delta_plan", estimator_name) ~ "Global - HN(φ=δ<sub>plan</sub>)",
     TRUE ~ estimator_name
   )
 }
 ```
 
----
-
-## Continuous Figure: Standardized Overall RMSE
+## Standardized overall root mean squared error by simulation scenario
 
 ```{r cont_figure_rmse, fig.width=12, fig.height=6}
 # Prepare data: standardize RMSE within each scenario by baseline (subgroup estimator)
 # Filter to main section (exclude Global HN)
-cont_plot_data <- cont_performance_main %>%
+cont_plot_data <- cont_performance_by_scenario[!grepl("Global_HN", cont_performance_by_scenario$estimator),] %>%
   mutate(
     scenario_no_numeric = as.numeric(scenario_no),
     estimator_display = beautify_cont_estimator(estimator)
@@ -615,13 +549,13 @@ cont_plot_data_standardized <- cont_plot_data %>%
 cont_color_map <- c(
   "Subgroup" = "red",
   "Population" = "orange",
-  "Population with covariates" = "yellow",
-  "OVAT - HN(φ=δ<sub>plan</sub>/2)" = "skyblue",
-  "OVAT - HN(φ=δ<sub>plan</sub>)" = "royalblue",
-  "OVAT - HN(φ=σ<sub>plan</sub>)" = "navy",
-  "OVATCOV - HN(φ=δ<sub>plan</sub>/2)" = "violet",
-  "OVATCOV - HN(φ=δ<sub>plan</sub>)" = "purple",
-  "OVATCOV - HN(φ=σ<sub>plan</sub>)" = "purple4",
+  "Population (adj)" = "yellow",
+  "One-way - HN(φ=δ<sub>plan</sub>/2)" = "skyblue",
+  "One-way - HN(φ=δ<sub>plan</sub>)" = "royalblue",
+  "One-way - HN(φ=σ<sub>plan</sub>)" = "navy",
+  "One-way (adj) - HN(φ=δ<sub>plan</sub>/2)" = "violet",
+  "One-way (adj) - HN(φ=δ<sub>plan</sub>)" = "purple",
+  "One-way (adj) - HN(φ=σ<sub>plan</sub>)" = "purple4",
   "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10)" = "palegreen3",
   "Global - Horseshoe(τ₀ =δ<sub>plan</sub>)" = "forestgreen",
   "Global - Horseshoe(τ₀ =σ<sub>plan</sub>)" = "darkgreen"
@@ -653,9 +587,7 @@ ggplot(cont_plot_data_standardized, aes(x = scenario_no_numeric, y = RMSE_standa
   guides(color = guide_legend(ncol = 4))
 ```
 
----
-
-## Continuous Table: Mean (Range) of RMSE, Bias, and Coverage by Scenario
+## Mean (range) of RMSE, bias, and observed coverage of nominal 95% confidence or credible intervals across subgroups by simulation scenario
 
 ```{r cont_table_by_scenario}
 # Create summary table with bias/abs_bias ranges from subgroup metrics
@@ -668,44 +600,9 @@ cont_table_summary <- cont_subgroup_metrics %>%
     RMSE_mean = mean(RMSE, na.rm = TRUE),
     RMSE_min = min(RMSE, na.rm = TRUE),
     RMSE_max = max(RMSE, na.rm = TRUE),
-    Bias_mean = mean(bias, na.rm = TRUE),
-    Bias_min = min(bias, na.rm = TRUE),
-    Bias_max = max(bias, na.rm = TRUE),
     AbsBias_mean = mean(abs_bias, na.rm = TRUE),
     AbsBias_min = min(abs_bias, na.rm = TRUE),
-    AbsBias_max = max(abs_bias, na.rm = TRUE),
-    .groups = 'drop'
-  )
-
-# First: calculate per-subgroup metrics with coverage if available
-cont_subgroup_metrics_full <- cont_all_results %>%
-  mutate(
-    error = estimate - truth_trt_effect,
-    ci_contains_truth = if_else(!is.na(ci_lower) & !is.na(ci_upper),
-                                 (truth_trt_effect >= ci_lower) & (truth_trt_effect <= ci_upper),
-                                 NA)
-  ) %>%
-  group_by(scenario_no, estimator, subgroup_var, level) %>%
-  summarise(
-    n_replications = n(),
-    RMSE = sqrt(mean(error^2, na.rm = TRUE)),
-    abs_bias = abs(mean(error, na.rm = TRUE)),
-    coverage = if_else(all(is.na(ci_contains_truth)), NA_real_, mean(ci_contains_truth, na.rm = TRUE)),
-    truth_trt_effect = first(truth_trt_effect),
-    .groups = 'drop'
-  )
-
-# Update cont_table_summary to include coverage and remove bias
-cont_table_summary <- cont_subgroup_metrics_full %>%
-  filter(!grepl("Global_HN", estimator)) %>%
-  group_by(scenario_no, estimator) %>%
-  summarise(
-    RMSE_mean = mean(RMSE, na.rm = TRUE),
-    RMSE_min = min(RMSE, na.rm = TRUE),
-    RMSE_max = max(RMSE, na.rm = TRUE),
-    AbsBias_mean = mean(abs_bias, na.rm = TRUE),
-    AbsBias_min = min(abs_bias, na.rm = TRUE),
-    AbsBias_max = max(abs_bias, na.rm = TRUE),
+    AbsBias_max = max(abs_bias, na.rm = TRUE),    
     Coverage_mean = mean(coverage, na.rm = TRUE),
     Coverage_min = min(coverage, na.rm = TRUE),
     Coverage_max = max(coverage, na.rm = TRUE),
@@ -802,107 +699,20 @@ kbl(cont_pivot_table,
                 full_width = FALSE)
 ```
 
----
-
-## Continuous Forest Plots: RMSE by Subgroup and Scenario
-
-```{r cont_forest_plot_prep}
-# Prepare data for forest plots: use per-subgroup RMSE
-# Use main estimators (exclude Global HN) for cleaner visualization
-
-cont_forest_data <- cont_subgroup_metrics %>%
-  filter(!grepl("Global_HN", estimator)) %>%
-  mutate(
-    estimator_display = beautify_cont_estimator(estimator),
-    subgroup_label = paste0(subgroup_var, "=", level)
-  ) %>%
-  arrange(as.numeric(scenario_no), estimator_display, subgroup_label)
-
-cat("Forest plot data prepared:\n")
-cat("  Scenarios:", unique(cont_forest_data$scenario_no), "\n")
-cat("  Estimators:", n_distinct(cont_forest_data$estimator_display), "\n")
-cat("  Subgroups per scenario:", n_distinct(cont_forest_data$subgroup_label), "\n")
-```
-
-```{r cont_forest_plot}
-# Create forest plots for each scenario
-# Traditional forest plot style showing RMSE per subgroup
-
-scenarios <- sort(unique(cont_forest_data$scenario_no))
-
-# Use the same color map as the overall RMSE plot
-cont_color_map <- c(
-  "Subgroup" = "red",
-  "Population" = "orange",
-  "OVAT - HN(φ=δ<sub>plan</sub>/2)" = "skyblue",
-  "OVAT - HN(φ=δ<sub>plan</sub>)" = "royalblue",
-  "OVAT - HN(φ=σ<sub>plan</sub>)" = "navy",
-  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/10, s=2*σ<sub>plan</sub>)" = "palegreen1",
-  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>/2, s=2*σ<sub>plan</sub>)" = "palegreen3",
-  "Global - Horseshoe(τ₀ =σ<sub>plan</sub>, s=2*σ<sub>plan</sub>)" = "forestgreen",
-  "Global - Horseshoe(τ₀ =δ<sub>plan</sub>, s=2*σ<sub>plan</sub>)" = "darkgreen"
-)
-
-for (scen in scenarios) {
-  scen_data <- cont_forest_data %>%
-    filter(scenario_no == scen) %>%
-    # Create a combined label for sorting/grouping
-    mutate(
-      subgroup_label_only = paste0(subgroup_var, "=", level)
-    ) %>%
-    # Sort by subgroup for better grouping
-    arrange(subgroup_var, level, estimator_display) %>%
-    mutate(
-      subgroup_label_only = factor(subgroup_label_only, 
-                                    levels = unique(subgroup_label_only))
-    )
-  
-  # Create forest plot
-  p <- ggplot(scen_data, aes(x = RMSE, y = subgroup_label_only, color = estimator_display)) +
-    geom_vline(xintercept = 0, linetype = "dashed", color = "gray70", size = 0.5) +
-    geom_point(size = 4, alpha = 0.8, position = position_dodge(width = 0.5)) +
-    scale_color_manual(values = cont_color_map, name = "Estimator") +
-    labs(
-      title = paste0("Continuous Scenario ", scen, ": RMSE per Subgroup"),
-      subtitle = "Smaller RMSE indicates better estimation accuracy",
-      x = "Root Mean Squared Error (RMSE)",
-      y = "Subgroup"
-    ) +
-    theme_bw() +
-    theme(
-      plot.title = element_text(face = "bold", size = 13),
-      plot.subtitle = element_text(size = 10, color = "gray50"),
-      axis.text.y = element_text(size = 10),
-      axis.text.x = element_text(size = 10),
-      legend.position = "right",
-      legend.text = element_markdown(size = 9),
-      panel.grid.major.y = element_line(color = "gray95", size = 0.3),
-      panel.grid.minor.x = element_blank(),
-      panel.spacing = unit(1, "lines")
-    )
-  
-  print(p)
-}
-```
-
----
-
-## Continuous Table: Performance for Scenario 3 (Strong Heterogeneity)
-
-### Performance Table for X11cat level a (Worst Subgroup in Scenario 3)
+## Performance of estimators in subgroup X11cat.a for scenario 3 with the worst observed efficacy 
 
 ```{r cont_scenario_3_analysis}
 # Scenario 3 typically has strong heterogeneity
 # X11cat level a is the worst subgroup (largest absolute effect)
 # Create performance table for X11cat=a by estimator using cont_subgroup_metrics_full
 
-cont_subgroup_x11cat_a_perf <- cont_subgroup_metrics_full %>%
+cont_subgroup_x11cat_a_perf <- cont_subgroup_metrics %>%
   filter(!grepl("Global_HN", estimator)) %>%
   filter(scenario_no == "3", subgroup_var == "X11cat", level == "a") %>%
   mutate(
     Estimator = beautify_cont_estimator(estimator)
   ) %>%
-  dplyr::select(Estimator, RMSE, abs_bias, coverage, truth_trt_effect, n_replications) %>%
+  dplyr::select(Estimator, RMSE, abs_bias, coverage, truth_trt_effect) %>%
   mutate(
     RMSE = display(RMSE, 2),
     AbsBias = display(abs_bias, 2),
@@ -921,7 +731,7 @@ kbl(cont_subgroup_x11cat_a_perf,
                 full_width = FALSE)
 ```
 
-### Worst Subgroup Identification Accuracy
+## Accuracy of correctly identifying the worst subgroup as subgroup X11cat.a for scenario 3 
 
 ```{r cont_worst_accuracy}
 # For each replication and estimator in Scenario 3, identify the subgroup with the smallest absolute treatment effect (closest to 0 = worst)
@@ -932,7 +742,7 @@ true_worst_subgroup_var <- "X11cat"
 
 predicted_worst_cont <- cont_all_results %>%
   filter(!grepl("Global_HN", estimator)) %>%
-  filter(estimator != "population") %>%
+  filter(!(estimator%in%c("population", "population_with_covariates"))) %>%
   filter(scenario_no == "3", !is.na(estimate)) %>%
   group_by(replication_id, estimator) %>%
   mutate(
@@ -975,74 +785,11 @@ kbl(worst_accuracy_cont,
   )
 ```
 
----
+# Supplementary: Results for global models with a normal prior and a half-normal hyperprior for the standard deviation
 
-# Supplementary: Global HN Model Results
+## Simulations for a time-to-event endpoint 
 
-This section presents detailed results for the Global Horseshoe-Normal (HN) models with varying prior specifications.
-
----
-
-## TTE: Global HN Model Performance
-
-### TTE Figure: Global HN Standardized RMSE
-
-```{r tte_supp_figure_global_hn, fig.width=10, fig.height=6, eval= FALSE}
-# Prepare supplementary data: only Global HN models
-tte_plot_data_supp <- tte_performance_supplementary %>%
-  mutate(
-    scenario_no_numeric = as.numeric(scenario_no),
-    estimator_display = beautify_tte_estimator(estimator),
-    scenario_label = beautify_tte_scenario(scenario_no)
-  )
-
-# Use subgroup estimator as baseline for standardization
-tte_baselines_supp <- tte_performance_by_scenario %>%
-  filter(estimator == "subgroup") %>%
-  dplyr::select(scenario_no, baseline_rmse = RMSE)
-
-# Standardize RMSE
-tte_plot_data_supp_standardized <- tte_plot_data_supp %>%
-  left_join(tte_baselines_supp, by = "scenario_no") %>%
-  mutate(
-    RMSE_standardized = RMSE / baseline_rmse
-  )
-
-# Create plot with manual color scheme
-tte_supp_color_map <- c(
-  "Global - HN(φ=1)" = "lightgray",
-  "Global - HN(φ=δ<sub>plan</sub>/2)" = "gray50",
-  "Global - HN(φ=δ<sub>plan</sub>)" = "darkgray"
-)
-
-ggplot(tte_plot_data_supp_standardized, aes(x = scenario_no_numeric, y = RMSE_standardized, 
-                                             color = estimator_display, group = estimator_display)) +
-  geom_line(size = 1.1) +
-  geom_point(size = 3) +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "gray50", size = 0.8) +
-  scale_x_continuous(breaks = 1:4, limits = c(0.8, 4.2)) +
-  scale_color_manual(values = tte_supp_color_map) +
-  labs(
-    title = "Standardized RMSE for Global Horseshoe-Normal HN Models",
-    subtitle = "TTE: subgroup log(AHR) estimation across scenarios",
-    x = "Scenario",
-    y = "Standardized RMSE (relative to subgroup baseline)",
-    color = "HN Prior"
-  ) +
-  theme_bw() +
-  theme(
-    plot.title = element_text(face = "bold", size = 14),
-    plot.subtitle = element_text(size = 11),
-    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 10),
-    legend.position = "bottom",
-    legend.text = element_markdown(),
-    panel.grid.minor = element_blank()
-  )
-```
-
-### TTE Table: Global HN Performance by Scenario
-
-```{r tte_supp_table_global_hn, eval= FALSE}
+```{r tte_supp_table_global_hn, eval = TRUE}
 # Create summary table for Global HN only
 tte_table_supp_summary <- tte_subgroup_metrics %>%
   filter(grepl("Global_HN", estimator)) %>%
@@ -1058,6 +805,8 @@ tte_table_supp_summary <- tte_subgroup_metrics %>%
     AbsBias_min = min(abs_bias_log, na.rm = TRUE),
     AbsBias_max = max(abs_bias_log, na.rm = TRUE),
     Coverage_mean = mean(coverage, na.rm = TRUE),
+    Coverage_min = min(coverage, na.rm = TRUE),
+    Coverage_max = max(coverage, na.rm = TRUE),
     .groups = 'drop'
   )
 
@@ -1065,17 +814,15 @@ tte_supp_table_data <- tte_table_supp_summary %>%
   mutate(
     Estimator = beautify_tte_estimator(estimator),
     RMSE_display = paste0(display(RMSE_mean, 2), " (", display(RMSE_min, 2), "-", display(RMSE_max, 2), ")"),
-    Bias_range = paste0(display(Bias_mean, 3), " (", display(Bias_min, 3), "-", display(Bias_max, 3), ")"),
     AbsBias_range = paste0(display(AbsBias_mean, 2), " (", display(AbsBias_min, 2), "-", display(AbsBias_max, 2), ")"),
-    Coverage = getPercentage(Coverage_mean, 0)
+    Coverage_display = paste0(getPercentage(Coverage_mean, 0), " (", getPercentage(Coverage_min, 0), "-", getPercentage(Coverage_max, 0), ")")
   ) %>%
   dplyr::select(
     Scenario = scenario_no,
-    Estimator,
+    Estimator = Estimator,
     RMSE = RMSE_display,
-    Bias = Bias_range,
     `|Bias|` = AbsBias_range,
-    Coverage
+    Coverage = Coverage_display
   ) %>%
   arrange(as.numeric(Scenario), Estimator)
 
@@ -1088,67 +835,9 @@ kbl(tte_supp_table_data,
   collapse_rows(columns = 1)
 ```
 
----
+## Simulations for a continuous endpoint 
 
-## Continuous: Global HN Model Performance
-
-### Continuous Figure: Global HN Standardized RMSE
-
-```{r cont_supp_figure_global_hn, fig.width=10, fig.height=6, eval= FALSE}
-# Prepare supplementary data: only Global HN models
-cont_plot_data_supp <- cont_performance_supplementary %>%
-  mutate(
-    scenario_no_numeric = as.numeric(scenario_no),
-    estimator_display = beautify_cont_estimator(estimator)
-  )
-
-# Use subgroup estimator as baseline for standardization
-cont_baselines_supp <- cont_performance_by_scenario %>%
-  filter(estimator == "subgroup") %>%
-  dplyr::select(scenario_no, baseline_rmse = RMSE)
-
-# Standardize RMSE
-cont_plot_data_supp_standardized <- cont_plot_data_supp %>%
-  left_join(cont_baselines_supp, by = "scenario_no") %>%
-  mutate(
-    RMSE_standardized = RMSE / baseline_rmse
-  )
-
-# Create plot with manual color scheme
-cont_supp_color_map <- c(
-  "Global - HN(φ=δ<sub>plan</sub>/2)" = "lightgray",
-  "Global - HN(φ=δ<sub>plan</sub>)" = "gray50",
-  "Global - HN(φ=σ<sub>plan</sub>)" = "darkgray"
-)
-
-ggplot(cont_plot_data_supp_standardized, aes(x = scenario_no_numeric, y = RMSE_standardized, 
-                                              color = estimator_display, group = estimator_display)) +
-  geom_line(size = 1.1) +
-  geom_point(size = 3) +
-  geom_hline(yintercept = 1, linetype = "dashed", color = "gray50", size = 0.8) +
-  scale_x_continuous(breaks = 1:3, limits = c(0.8, 3.2)) +
-  scale_color_manual(values = cont_supp_color_map) +
-  labs(
-    title = "Standardized RMSE for Global Horseshoe-Normal HN Models",
-    subtitle = "Continuous: subgroup treatment effect estimation across scenarios",
-    x = "Scenario",
-    y = "Standardized RMSE (relative to subgroup baseline)",
-    color = "HN Prior"
-  ) +
-  theme_bw() +
-  theme(
-    plot.title = element_text(face = "bold", size = 14),
-    plot.subtitle = element_text(size = 11),
-    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 10),
-    legend.position = "bottom",
-    legend.text = element_markdown(),
-    panel.grid.minor = element_blank()
-  )
-```
-
-### Continuous Table: Global HN Performance by Scenario
-
-```{r cont_supp_table_global_hn, eval= FALSE}
+```{r cont_supp_table_global_hn, eval = TRUE}
 # Create summary table for Global HN only
 cont_table_supp_summary <- cont_subgroup_metrics %>%
   filter(grepl("Global_HN", estimator)) %>%
@@ -1157,12 +846,12 @@ cont_table_supp_summary <- cont_subgroup_metrics %>%
     RMSE_mean = mean(RMSE, na.rm = TRUE),
     RMSE_min = min(RMSE, na.rm = TRUE),
     RMSE_max = max(RMSE, na.rm = TRUE),
-    Bias_mean = mean(bias, na.rm = TRUE),
-    Bias_min = min(bias, na.rm = TRUE),
-    Bias_max = max(bias, na.rm = TRUE),
     AbsBias_mean = mean(abs_bias, na.rm = TRUE),
     AbsBias_min = min(abs_bias, na.rm = TRUE),
     AbsBias_max = max(abs_bias, na.rm = TRUE),
+    Coverage_mean = mean(coverage, na.rm = TRUE),
+    Coverage_min = min(coverage, na.rm = TRUE),
+    Coverage_max = max(coverage, na.rm = TRUE),
     .groups = 'drop'
   )
 
@@ -1170,15 +859,15 @@ cont_supp_table_data <- cont_table_supp_summary %>%
   mutate(
     Estimator = beautify_cont_estimator(estimator),
     RMSE_display = paste0(display(RMSE_mean, 2), " (", display(RMSE_min, 2), "-", display(RMSE_max, 2), ")"),
-    Bias_range = paste0(display(Bias_mean, 4), " (", display(Bias_min, 4), "-", display(Bias_max, 4), ")"),
-    AbsBias_range = paste0(display(AbsBias_mean, 2), " (", display(AbsBias_min, 2), "-", display(AbsBias_max, 2), ")")
+    AbsBias_range = paste0(display(AbsBias_mean, 2), " (", display(AbsBias_min, 2), "-", display(AbsBias_max, 2), ")"),
+    Coverage_display = paste0(getPercentage(Coverage_mean, 0), " (", getPercentage(Coverage_min, 0), "-", getPercentage(Coverage_max, 0), ")")
   ) %>%
   dplyr::select(
     Scenario = scenario_no,
     Estimator,
     RMSE = RMSE_display,
-    Bias = Bias_range,
-    `|Bias|` = AbsBias_range
+    `|Bias|` = AbsBias_range,
+    Coverage = Coverage_display
   ) %>%
   arrange(as.numeric(Scenario), Estimator)
 
@@ -1191,9 +880,4 @@ kbl(cont_supp_table_data,
   collapse_rows(columns = 1)
 ```
 
----
-
-**Document generated**: `r Sys.time()`
-````
-
-**Document generated**: `r Sys.time()`
+**Document generated**: `r Sys.time()` 
