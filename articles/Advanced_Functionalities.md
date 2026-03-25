@@ -1,150 +1,166 @@
 # Advanced Functionalities
 
-This vignette demonstrates advanced functionalities for Bayesian
-shrinkage estimation, including specifying an **offset for count data**,
-customizing **prior distributions**, and using **stratification** in
+This vignette demonstrates advanced functionalities supported by
+`bonsaiforest2` and the underlying `brms` package, including adding an
+**offset to negative binomial regression models** for counts,
+**customizing prior distributions**, and **applying stratification** to
 nuisance parameters.
 
 ## 1 Handling Exposure in Count Outcomes with Offsets
 
-For count data (like disease exacerbations or event rates), the observed
-count often depends on the **exposure time** or **follow-up time**.
-Using an **offset** variable is the standard statistical method to
-properly account for this time variation by modeling the event **rate**
-(count per unit time) instead of the raw count.
+For count data, the observed value often depends on the **exposure
+time** or **follow-up time**. Using an **offset** variable is the
+standard statistical method to properly account for this time variation
+by modeling the event **rate** (count per unit time) instead of the raw
+count.
 
 In `bonsaiforest2`, you can include the offset directly in the
-`response_formula` using the standard `brms` syntax:
-`count + offset(log_fup_duration) ~ trt`.
+`response_formula` using the syntax:
+`count ~ trt + offset(log_fup_duration)`.
 
-### 1.1 Example 1: Count Outcome with Offset (Disease Exacerbations)
+#### Example 1: Count outcome with offset
 
-This scenario models exacerbation counts using a Negative Binomial
-distribution and explicitly accounts for the patient’s follow-up
-duration.
-
-*Scenario*: Modeling count outcomes with exposure-time adjustment using
-the `shrink_data` dataset. Adjust for `x1` (unshrunk prognostic effect)
-and `x2`, `x3` (shrunk prognostic effects). Overall treatment effect on
-the rate scale.
+The example uses the `shrink_data` dataset to illustrate a negative
+binomial model for variable `count` accounting for treatment `trt` and
+the subgrouping variables `x1`, `x2`, and `x3`. Each subject’s follow-up
+time is provided in variable `fup_duration` whose log-transformed value
+is included as an offset.
 
 ``` r
-# Load data and prepare offset variable
+# Load packages and data
 library(bonsaiforest2)
+library(brms)
+#> Loading required package: Rcpp
+#> Loading 'brms' package (version 2.23.0). Useful instructions
+#> can be found by typing help('brms'). A more detailed introduction
+#> to the package is available through vignette('brms_overview').
+#> 
+#> Attaching package: 'brms'
+#> The following object is masked from 'package:stats':
+#> 
+#>     ar
+
 shrink_data <- bonsaiforest2::shrink_data
 
-# Add log follow-up duration as the offset (accounts for varying exposure time)
+# prepare offset variable
 shrink_data$log_fup_duration <- log(shrink_data$fup_duration)
 ```
 
 ``` r
-# Model Fitting with Offset
 count_model_fit <- run_brms_analysis(
   data = shrink_data,
-  # Include offset(log_fup_duration) directly in the response formula
-  response_formula = count ~ trt + offset(log_fup_duration),
   response_type = "count",
-  unshrunk_terms_formula = ~ x1,
-  shrunk_prognostic_formula = ~ 0 + x2 + x3,
-  intercept_prior = "normal(0, 5)",
-  unshrunk_prior = "normal(0, 2.5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
+  response_formula = count ~ trt + offset(log_fup_duration),
+  unshrunk_terms_formula  = ~ 1 + x1 + x2 + x3,
+  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 #> Step 1: Preparing formula and data...
 #> 
 #> Step 2: Fitting the brms model...
+#> Using default priors for unspecified effects:
+#>   - intercept: brms default
+#>   - unshrunk terms: brms default
 #> Fitting brms model...
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 2.6 seconds.
-#> Chain 2 finished in 2.7 seconds.
+#> Chain 1 finished in 3.5 seconds.
+#> Chain 2 finished in 3.4 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.6 seconds.
-#> Total execution time: 2.8 seconds.
-#> Warning: 6 of 1000 (1.0%) transitions ended with a divergence.
+#> Mean chain execution time: 3.4 seconds.
+#> Total execution time: 3.6 seconds.
+#> Warning: 5 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
 #> 
 #> Analysis complete.
+
+count_model_summary <- summary_subgroup_effects(brms_fit = count_model_fit)
+#> --- Calculating specific subgroup effects... ---
+#> Step 1: Identifying subgroups and creating counterfactuals...
+#> ...detected subgroup variable(s): x1_onehot, x2_onehot, x3_onehot
+#> Step 2: Generating posterior predictions...
+#> Step 3: Calculating marginal effects...
+#> Done.
+
+plot(count_model_summary, title = "Global model for count data: All subgrouping variables")
+#> Preparing data for plotting...
+#> Generating plot...
+#> Done.
 ```
+
+![](Advanced_Functionalities_files/figure-html/unnamed-chunk-3-1.png)
 
 ## 2 Customizing Prior Distributions
 
-The choice of prior is central to Bayesian shrinkage. `bonsaiforest2`
-provides sensible defaults, but it allows for full customization using
-dedicated prior arguments: `intercept_prior`, `unshrunk_prior`,
-`shrunk_prognostic_prior`, and `shrunk_predictive_prior`.
+In Bayesian analysis, the choice of priors is important and can
+materially affect the results. For most settings, the `brms` default of
+flat priors for the intercept (`intercept_prior`) and unshrunk terms
+(`unshrunk_prior`, includes the prior for the main treatment effect) are
+sensible and do not need fine-tuning. However, **we recommend that the
+user carefully considers the prior for shrunken terms**, in particular
+those for covariate-by-treatment interactions
+(**`shrunk_predictive_prior`**).
 
-### 2.1 Prior Specification Mechanics
+`bonsaiforest2` gives the user full flexibility to specify priors as
+described via examples below.
 
-Priors are specified using separate parameters for each component.
+The **default priors** used by `bonsaiforest2` are as follows:
 
-| Prior Component       | Parameter Name            | Default Prior                 | Notes                                                                                                                                                    |
-|:----------------------|:--------------------------|:------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Intercept**         | `intercept_prior`         | `NULL` (brms default)         | Optional custom prior                                                                                                                                    |
-| **Unshrunk Terms**    | `unshrunk_prior`          | `NULL` (brms default)         | Optional custom prior                                                                                                                                    |
-| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = 1)` | Strong shrinkage for fixed effects (colon syntax); For random effects (pipe-pipe syntax), automatically uses `normal(0, 1)` on SD scale                  |
-| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = 1)` | Strong shrinkage for fixed effects (colon syntax); For random effects (pipe-pipe syntax), can be specified via `set_prior("normal(0, 1)", class = "sd")` |
+| Prior Component       | Parameter Name            | Default Prior                                                                                                                                                                                                      |     |
+|:----------------------|:--------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----|
+| **Intercept**         | `intercept_prior`         | `NULL` (i.e. `brms` default)                                                                                                                                                                                       |     |
+| **Unshrunk Terms**    | `unshrunk_prior`          | `NULL` (i.e. `brms` default)                                                                                                                                                                                       |     |
+| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with \\\phi=1\\ for the standard deviation instead |     |
+| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with \\\phi=1\\ for the standard deviation instead |     |
 
-### 2.2 Practical Examples of Prior Setting
+The following examples demonstrate how to customize priors in
+`bonsaiforest2`. We use the `shrink_data` package dataset with a
+time-to-event outcome to show different prior specification strategies,
+from simple defaults to advanced hierarchical structures.
 
-The following examples demonstrate how to customize priors using the new
-API. We use the `shrink_data` package dataset with a time-to-event
-outcome to show different prior specification strategies, from simple
-defaults to advanced hierarchical structures.
-
-#### 2.2.1 Model Preparation
+#### 2.0.1 Model Preparation
 
 ``` r
-# Load library
-library(bonsaiforest2)
-
-# 1. Load the shrink_data package dataset
-shrink_data <- bonsaiforest2::shrink_data
-sim_data <- shrink_data
-
-# Ensure trt is a factor with expected levels
-sim_data$trt <- factor(sim_data$trt, levels = c(0, 1))
-
-# 2. Prepare the model formula
+# Prepare basic model formulas
 prepared_model <- prepare_formula_model(
-  data = sim_data,
+  data = shrink_data,
+  response_type = "survival",
   response_formula = Surv(tt_event, event_yn) ~ trt,
-  shrunk_predictive_formula = ~ 0 + trt:x1,
   unshrunk_terms_formula = ~ x1 + x2,
-  response_type = "survival"
+  shrunk_predictive_formula = ~ 0 + trt:x1
 )
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
 ```
 
-#### 2.2.2 Example 2: Using Default Priors
+#### Example 2: Using priors directly supported by `brms`
 
-The simplest approach: use the brms package priors to adjust the
-shrinkage level of different temrs
+The simplest approach: use the priors directly supported by `brms` to
+adjust priors of different terms. Below, we assume that the trial
+targeted a hazard ratio of 0.7, i.e. \\\delta\_{plan}=\|log(0.7)\\, and
+set `scale_global` of the regularized horseshoe prior to this value.
 
 ``` r
-fit_ex3 <- fit_brms_model(
+fit_ex2 <- fit_brms_model(
   prepared_model = prepared_model,
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 0.5)",
-  shrunk_predictive_prior = "horseshoe(scale_global = 0.5)",
+  shrunk_predictive_prior = "horseshoe(scale_global = abs(log(0.7)), scale_slab = 2, df_slab = 4)",
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 #> Fitting brms model...
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.3 seconds.
-#> Chain 2 finished in 3.3 seconds.
+#> Chain 2 finished in 3.1 seconds.
+#> Chain 1 finished in 3.4 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.3 seconds.
-#> Total execution time: 3.4 seconds.
+#> Mean chain execution time: 3.2 seconds.
+#> Total execution time: 3.5 seconds.
 #> Warning: 1 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -152,81 +168,81 @@ fit_ex3 <- fit_brms_model(
 cat("\n=== Priors Used ===\n")
 #> 
 #> === Priors Used ===
-print(fit_ex3[["prior"]])
-#>                          prior class           coef group resp dpar
-#>  horseshoe(scale_global = 0.5)     b                               
-#>  horseshoe(scale_global = 0.5)     b trt:x1_onehota                
-#>  horseshoe(scale_global = 0.5)     b trt:x1_onehotb                
-#>                 normal(0, 2.5)     b                               
-#>                 normal(0, 2.5)     b            trt                
-#>                 normal(0, 2.5)     b            x1a                
-#>                 normal(0, 2.5)     b            x1b                
-#>                 normal(0, 2.5)     b            x2b                
-#>                 normal(0, 2.5)     b            x2c                
-#>                   dirichlet(1) sbhaz                               
-#>               nlpar lb ub tag       source
-#>        shpredeffect                   user
-#>        shpredeffect           (vectorized)
-#>        shpredeffect           (vectorized)
-#>  unshrunktermeffect                   user
-#>  unshrunktermeffect           (vectorized)
-#>  unshrunktermeffect           (vectorized)
-#>  unshrunktermeffect           (vectorized)
-#>  unshrunktermeffect           (vectorized)
-#>  unshrunktermeffect           (vectorized)
-#>                                    default
+print(fit_ex2[["prior"]])
+#>                                                                 prior class
+#>  horseshoe(scale_global = abs(log(0.7)), scale_slab = 2, df_slab = 4)     b
+#>  horseshoe(scale_global = abs(log(0.7)), scale_slab = 2, df_slab = 4)     b
+#>  horseshoe(scale_global = abs(log(0.7)), scale_slab = 2, df_slab = 4)     b
+#>                                                        normal(0, 2.5)     b
+#>                                                        normal(0, 2.5)     b
+#>                                                        normal(0, 2.5)     b
+#>                                                        normal(0, 2.5)     b
+#>                                                        normal(0, 2.5)     b
+#>                                                        normal(0, 2.5)     b
+#>                                                          dirichlet(1) sbhaz
+#>            coef group resp dpar              nlpar lb ub tag       source
+#>                                       shpredeffect                   user
+#>  trt:x1_onehota                       shpredeffect           (vectorized)
+#>  trt:x1_onehotb                       shpredeffect           (vectorized)
+#>                                 unshrunktermeffect                   user
+#>             trt                 unshrunktermeffect           (vectorized)
+#>             x1a                 unshrunktermeffect           (vectorized)
+#>             x1b                 unshrunktermeffect           (vectorized)
+#>             x2b                 unshrunktermeffect           (vectorized)
+#>             x2c                 unshrunktermeffect           (vectorized)
+#>                                                                   default
 ```
 
-#### 2.2.3 Example 3: Using the R2D2 Shrinkage Prior
+#### Example 3: Using the R2-D2 shrinkage prior
 
-The R2D2 prior is useful when you want to control the *global* shrinkage
-via the coefficient of determination (\\R^2\\) rather than a scale
-parameter. This is often more interpretable for stakeholders.
+An alternative global-local shrinkage prior to the regularized horseshoe
+prior is the R2-D2 prior. In the linear regression setting, it can be
+motivated as specifying a prior on the model’s coefficient of
+determination (\\R^2\\) first, and then distributing the prior through
+to the coefficients. The R2-D2 prior is also directly supported by
+`brms` as illustrated below.
 
 ``` r
-# Use a custom R2D2 prior for the shrunk predictive effects (interactions)
-
-fit_ex4 <- fit_brms_model(
+fit_ex3 <- fit_brms_model(
   prepared_model = prepared_model,
-  intercept_prior = "normal(0, 5)",
-  unshrunk_prior = "normal(0, 2.5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
+#> Using default priors for unspecified effects:
+#>   - unshrunk terms: brms default
 #> Fitting brms model...
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 2.3 seconds.
-#> Chain 1 finished in 2.8 seconds.
+#> Chain 1 finished in 2.4 seconds.
+#> Chain 2 finished in 2.4 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.5 seconds.
-#> Total execution time: 2.9 seconds.
-#> Warning: 7 of 1000 (1.0%) transitions ended with a divergence.
+#> Mean chain execution time: 2.4 seconds.
+#> Total execution time: 2.5 seconds.
+#> Warning: 14 of 1000 (1.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
 cat("\n=== Priors Used ===\n")
 #> 
 #> === Priors Used ===
-print(fit_ex4[["prior"]])
+print(fit_ex3[["prior"]])
 #>                             prior class           coef group resp dpar
 #>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b                               
 #>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1_onehota                
 #>  R2D2(mean_R2 = 0.5, prec_R2 = 1)     b trt:x1_onehotb                
-#>                    normal(0, 2.5)     b                               
-#>                    normal(0, 2.5)     b            trt                
-#>                    normal(0, 2.5)     b            x1a                
-#>                    normal(0, 2.5)     b            x1b                
-#>                    normal(0, 2.5)     b            x2b                
-#>                    normal(0, 2.5)     b            x2c                
+#>                            (flat)     b                               
+#>                            (flat)     b            trt                
+#>                            (flat)     b            x1a                
+#>                            (flat)     b            x1b                
+#>                            (flat)     b            x2b                
+#>                            (flat)     b            x2c                
 #>                      dirichlet(1) sbhaz                               
 #>               nlpar lb ub tag       source
 #>        shpredeffect                   user
 #>        shpredeffect           (vectorized)
 #>        shpredeffect           (vectorized)
-#>  unshrunktermeffect                   user
+#>  unshrunktermeffect                default
 #>  unshrunktermeffect           (vectorized)
 #>  unshrunktermeffect           (vectorized)
 #>  unshrunktermeffect           (vectorized)
@@ -235,7 +251,7 @@ print(fit_ex4[["prior"]])
 #>                                    default
 ```
 
-#### 2.2.4 Example 4: Custom Hierarchical Prior (Advanced)
+#### Example 4: Custom hierarchical prior (advanced)
 
 This example demonstrates injecting raw Stan code using `stanvars`. This
 is necessary if you want to implement a hierarchical structure that
@@ -258,7 +274,7 @@ stanvars_full_hierarchical <- brms::stanvar(
 prior_full_hierarchical <- brms::set_prior("normal(mu_pred, sigma_pred)")
 
 # 3. Pass both to fit_brms_model
-fit_ex5 <- fit_brms_model(
+fit_ex4 <- fit_brms_model(
   prepared_model = prepared_model,
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
@@ -276,13 +292,13 @@ fit_ex5 <- fit_brms_model(
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 5.4 seconds.
-#> Total execution time: 5.5 seconds.
+#> Total execution time: 5.6 seconds.
 
 # View the used priors
 cat("\n=== Priors Used ===\n")
 #> 
 #> === Priors Used ===
-print(fit_ex5[["prior"]])
+print(fit_ex4[["prior"]])
 #>                        prior class           coef group resp dpar
 #>  normal(mu_pred, sigma_pred)     b                               
 #>  normal(mu_pred, sigma_pred)     b trt:x1_onehota                
@@ -305,7 +321,7 @@ print(fit_ex5[["prior"]])
 #>  unshrunktermeffect           (vectorized)
 #>  unshrunktermeffect           (vectorized)
 #>                                    default
-print(fit_ex5[["stanvars"]])
+print(fit_ex4[["stanvars"]])
 #> [[1]]
 #> [[1]]$name
 #> [1] ""
@@ -350,42 +366,49 @@ print(fit_ex5[["stanvars"]])
 #> [1] "stanvars"
 ```
 
-#### 2.2.5 Example 5: Coefficient-Specific Priors
+#### Example 5: Coefficient-specific priors
 
-You can set different priors for specific coefficients by passing a
-`brmsprior` object (created with
-[`c()`](https://rdrr.io/r/base/c.html)).
+By default, `bonsaiforest2` uses the same prior for all coefficients
+assigned to the group of “unshrunken terms”, “shrunken prognostic
+terms”, or “shrunken predictive terms”, respectively. However, it is
+possible to fine-tune this by assigning a different prior to one or
+several coefficients within a group.
 
-*Scenario*: Set a general prior for all unshrunk terms, but use a
-tighter prior specifically for treatment-subgroup interactions.
+The example below illustrates this. It includes the interaction `trt*x3`
+as an “unshrunken term” and assigns a tighter prior to the regression
+coefficients for `trt:x3b`, `trt:x3c`, and `trt:x3d`, respectively,
+compared to other coefficients in the same group.
 
-*Key Technique*: Use
+To implement this, we first call
 [`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md)
-to discover the exact coefficient names that will appear in the model.
+to extract the exact coefficient names that will be included in the
+model. Then, we define coefficient-specific priors for these by
+combining
+[`brms::set_prior`](https://paulbuerkner.com/brms/reference/set_prior.html)
+calls.
 
 ``` r
 # 1. Run prepare_formula_model
-prepared_model <- prepare_formula_model(
-  data = sim_data,
+prepared_model_ex5 <- prepare_formula_model(
+  data = shrink_data,
+  response_type = "survival",
   response_formula = Surv(tt_event, event_yn) ~ trt,
+  unshrunk_terms_formula = ~ x1 + trt*x3,
   shrunk_predictive_formula = ~ 0 + trt:x1,
-  unshrunk_terms_formula = ~ x2 + trt*x3,
-  response_type = "survival"
 )
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
-#> Note: Marginality principle not followed - interaction term 'x1' is used without its main effect. Consider adding 'x1' to prognostic terms for proper model hierarchy.
 
 # 2. Inspect the Results
 # A. The generated brms formula object
-print(prepared_model$formula)
+print(prepared_model_ex5$formula)
 #> tt_event | cens(1 - event_yn) + bhaz(Boundary.knots = c(0, 60.500476574435), knots = c(14.0610682872923, 36.1959635027271, 46.047044984117), intercept = FALSE) ~ unshrunktermeffect + shpredeffect 
-#> unshrunktermeffect ~ 0 + x2 + trt * x3 + trt
-#> shpredeffect ~ 0 + trt:x1
+#> unshrunktermeffect ~ 0 + x1 + trt * x3 + trt
+#> shpredeffect ~ 0 + trt:x1_onehot
 
 # B. The processed terms
-print(prepared_model$stan_variable_names$X_unshrunktermeffect)
-#>  [1] "x2a"     "x2b"     "x2c"     "trt"     "x3b"     "x3c"     "x3d"    
-#>  [8] "trt:x3b" "trt:x3c" "trt:x3d"
+print(prepared_model_ex5$stan_variable_names$X_unshrunktermeffect)
+#> [1] "x1a"     "x1b"     "trt"     "x3b"     "x3c"     "x3d"     "trt:x3b"
+#> [8] "trt:x3c" "trt:x3d"
 
 cat("=== Prior Strategy ===\n")
 #> === Prior Strategy ===
@@ -404,11 +427,10 @@ unshrunk_priors_combined <- c(
 )
 
 # Fit the model
-fit_specific <- fit_brms_model(
-  prepared_model = prepared_model,
+fit_ex5 <- fit_brms_model(
+  prepared_model = prepared_model_ex5,
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = unshrunk_priors_combined,  # Pass the combined object
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
@@ -416,12 +438,12 @@ fit_specific <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 4.4 seconds.
-#> Chain 2 finished in 4.8 seconds.
+#> Chain 2 finished in 3.5 seconds.
+#> Chain 1 finished in 4.0 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.6 seconds.
-#> Total execution time: 4.9 seconds.
+#> Mean chain execution time: 3.7 seconds.
+#> Total execution time: 4.1 seconds.
 #> Warning: 2 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -429,49 +451,45 @@ fit_specific <- fit_brms_model(
 cat("\n=== Priors Used ===\n")
 #> 
 #> === Priors Used ===
-print(fit_specific[["prior"]])
-#>                        prior class    coef group resp dpar              nlpar
-#>  horseshoe(scale_global = 1)     b                               shpredeffect
-#>  horseshoe(scale_global = 1)     b trt:x1a                       shpredeffect
-#>  horseshoe(scale_global = 1)     b trt:x1b                       shpredeffect
-#>                 normal(0, 5)     b                         unshrunktermeffect
-#>                 normal(0, 5)     b     trt                 unshrunktermeffect
-#>                 normal(0, 1)     b trt:x3b                 unshrunktermeffect
-#>                 normal(0, 1)     b trt:x3c                 unshrunktermeffect
-#>                 normal(0, 1)     b trt:x3d                 unshrunktermeffect
-#>                 normal(0, 5)     b     x2a                 unshrunktermeffect
-#>                 normal(0, 5)     b     x2b                 unshrunktermeffect
-#>                 normal(0, 5)     b     x2c                 unshrunktermeffect
-#>                 normal(0, 5)     b     x3b                 unshrunktermeffect
-#>                 normal(0, 5)     b     x3c                 unshrunktermeffect
-#>                 normal(0, 5)     b     x3d                 unshrunktermeffect
-#>                 dirichlet(1) sbhaz                                           
-#>  lb ub tag       source
-#>                    user
-#>            (vectorized)
-#>            (vectorized)
-#>                    user
-#>            (vectorized)
-#>                    user
-#>                    user
-#>                    user
-#>            (vectorized)
-#>            (vectorized)
-#>            (vectorized)
-#>            (vectorized)
-#>            (vectorized)
-#>            (vectorized)
-#>                 default
+print(fit_ex5[["prior"]])
+#>                        prior class           coef group resp dpar
+#>  horseshoe(scale_global = 1)     b                               
+#>  horseshoe(scale_global = 1)     b trt:x1_onehota                
+#>  horseshoe(scale_global = 1)     b trt:x1_onehotb                
+#>                 normal(0, 5)     b                               
+#>                 normal(0, 5)     b            trt                
+#>                 normal(0, 1)     b        trt:x3b                
+#>                 normal(0, 1)     b        trt:x3c                
+#>                 normal(0, 1)     b        trt:x3d                
+#>                 normal(0, 5)     b            x1a                
+#>                 normal(0, 5)     b            x1b                
+#>                 normal(0, 5)     b            x3b                
+#>                 normal(0, 5)     b            x3c                
+#>                 normal(0, 5)     b            x3d                
+#>                 dirichlet(1) sbhaz                               
+#>               nlpar lb ub tag       source
+#>        shpredeffect                   user
+#>        shpredeffect           (vectorized)
+#>        shpredeffect           (vectorized)
+#>  unshrunktermeffect                   user
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect                   user
+#>  unshrunktermeffect                   user
+#>  unshrunktermeffect                   user
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>  unshrunktermeffect           (vectorized)
+#>                                    default
 ```
 
-#### 2.2.6 Example 6: Hierarchical Priors with Shared Variance (stanvars)
+#### Example 6: Hierarchical priors with shared variance (stanvars)
 
 Create correlated priors by sharing a common variance parameter
-estimated from the data.
-
-*Use case*: When you believe treatment effects across subgroups should
-be exchangeable, you can pool information by giving them a shared
-variance.
+estimated from the data. This is sensible when you believe treatment
+effects across subgroups are exchangeable and want to borrow information
+across them.
 
 ``` r
 cat("\n=== Hierarchical Prior Structure ===\n")
@@ -483,8 +501,8 @@ cat("  tau ~ half-normal(0, 1)  [shared scale parameter]\n")
 #>   tau ~ half-normal(0, 1)  [shared scale parameter]
 cat("  beta_i ~ N(0, tau) for each coefficient i\n")
 #>   beta_i ~ N(0, tau) for each coefficient i
-cat("This creates exchangeability: coefficients are ~similar but with adaptive variation.\n\n")
-#> This creates exchangeability: coefficients are ~similar but with adaptive variation.
+cat("This creates exchangeability: we assume coefficients are similar but with adaptive variation.\n\n")
+#> This creates exchangeability: we assume coefficients are similar but with adaptive variation.
 
 # Step 1: Declare tau as a parameter to be estimated
 tau_parameter <- brms::stanvar(
@@ -513,11 +531,10 @@ unshrunk_priors_hier <- c(
 
 ``` r
 # Step 4: Fit the hierarchical model
-fit_hier <- fit_brms_model(
-  prepared_model = prepared_model,
+fit_ex6 <- fit_brms_model(
+  prepared_model = prepared_model_ex5,
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = unshrunk_priors_hier,
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
   stanvars = hierarchical_stanvars,
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
@@ -525,250 +542,68 @@ fit_hier <- fit_brms_model(
 
 # View the used priors
 cat("\n=== Priors Used ===\n")
-print(fit_hier[["prior"]])
-print(fit_hier[["stanvars"]])
+print(fit_ex6[["prior"]])
+print(fit_ex6[["stanvars"]])
 ```
 
-## 3 Advanced Model Parameterization
+## 3 Stratification for nuisance parameters
 
-This section demonstrates advanced features for controlling how your
-model represents subgroups.
+Stratified models which assume different residual variances (continuous
+endpoints), overdispersion parameters (count endpoints), or baseline
+hazards (time-to-event endpoints) across strata are also supported in
+`bonsaiforest2` (via `brms`). The argument `stratification_formula`
+defines the grouping factor(s).
 
-### 3.1 Example 7: Custom Contrast Encoding for Shrunk Terms
+#### Example 7: Fully stratified continuous one-way shrinkage model
 
-By default, `bonsaiforest2` uses one-hot encoding (all factor levels, no
-reference category) for shrunk interaction terms specified with
-`~ 0 + ...` syntax, enabling full hierarchical shrinkage of all levels.
-For unshrunk terms, treatment contrasts (k-1 dummy variables with a
-reference level) are used by default. However, you can manually set
-custom contrasts in your data using
-[`contrasts()`](https://rdrr.io/r/stats/contrasts.html), and the library
-will preserve your choice throughout the analysis.
+We fit a one-way model for the continuous outcome `y` in `shrink_data`
+with subgroups defined by the binary covariate `x1` with adjustment for
+`x2` and `x3` as prognostic factors.
 
-*Scenario*: You want to use custom contrast coding for subgroup
-variables, such as Helmert contrasts or sum contrasts, instead of the
-default treatment contrasts. This is useful for specific hypothesis
-structures or when comparing non-orthogonal effects.
-
-*Key Technique*: Set contrasts using
-[`contrasts()`](https://rdrr.io/r/stats/contrasts.html) before calling
-[`prepare_formula_model()`](https://openpharma.github.io/bonsaiforest2/reference/prepare_formula_model.md).
-The library will preserve your choice.
+In the model specification below, we assume separate regression
+coefficients for `x2` and `x3`, respectively, across strata defined by
+`x1` (specified via interaction terms `x1*x2` and `x1*x3`) as well as
+different residual variances across strata (specified via argument
+`stratification_formula`). The only parameter that is shared across
+strata is the shrinkage parameter for treatment effect heterogeneity.
 
 ``` r
-# Use the shrink_data dataset
-shrink_data <- bonsaiforest2::shrink_data
-sample_data_contrast <- shrink_data
-
-# Set Helmert contrasts for the x2 variable (3 levels: a, b, c)
-contrasts(sample_data_contrast$x2) <- contr.helmert(3)
-cat("Contrast matrix for x2:\n")
-#> Contrast matrix for x2:
-print(contrasts(sample_data_contrast$x2))
-#>   [,1] [,2]
-#> a   -1   -1
-#> b    1   -1
-#> c    0    2
-
-# Prepare model 
-prepared_custom_contrast <- prepare_formula_model(
-  data = sample_data_contrast,
-  response_formula = y ~ trt,
-  shrunk_predictive_formula = ~ 0 + trt:x2, 
-  response_type = "continuous"
-)
-#> Note: Marginality principle not followed - interaction term 'x2' is used without its main effect. Consider adding 'x2' to prognostic terms for proper model hierarchy.
-
-# Observe custom contrast in the data
-str(prepared_custom_contrast$data)
-#> 'data.frame':    500 obs. of  11 variables:
-#>  $ id          : int  1 2 3 4 5 6 7 8 9 10 ...
-#>  $ trt         : num  0 1 1 0 1 1 0 0 0 1 ...
-#>  $ x1          : Factor w/ 2 levels "a","b": 1 2 1 2 1 2 1 1 1 1 ...
-#>  $ x2          : Factor w/ 3 levels "a","b","c": 2 3 2 2 2 2 3 3 2 1 ...
-#>   ..- attr(*, "contrasts")= num [1:3, 1:2] -1 1 0 -1 -1 2
-#>   .. ..- attr(*, "dimnames")=List of 2
-#>   .. .. ..$ : chr [1:3] "a" "b" "c"
-#>   .. .. ..$ : NULL
-#>  $ x3          : Factor w/ 4 levels "a","b","c","d": 2 4 4 4 3 1 4 4 1 4 ...
-#>  $ y           : num  5.86 4.46 6.38 5 5.65 ...
-#>  $ response    : num  0 0 1 0 0 0 1 0 0 1 ...
-#>  $ tt_event    : num  22.9 49.1 59.9 21.3 59.8 ...
-#>  $ event_yn    : num  1 0 0 1 0 1 0 1 1 0 ...
-#>  $ fup_duration: num  24 24 24 24 24 24 24 24 24 24 ...
-#>  $ count       : int  1 0 2 1 1 0 0 0 0 1 ...
-
-# Fit the model
-fit_custom_contrast <- fit_brms_model(
-  prepared_model = prepared_custom_contrast,
-  intercept_prior = "normal(0, 5)",
-  unshrunk_prior = "normal(0, 2.5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
-  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
-)
-#> Fitting brms model...
-#> Start sampling
-#> Running MCMC with 2 parallel chains...
-#> 
-#> Chain 2 finished in 1.2 seconds.
-#> Chain 1 finished in 1.3 seconds.
-#> 
-#> Both chains finished successfully.
-#> Mean chain execution time: 1.2 seconds.
-#> Total execution time: 1.4 seconds.
-#> Warning: 2 of 1000 (0.0%) transitions ended with a divergence.
-#> See https://mc-stan.org/misc/warnings for details.
-
-estimate_custom_contrast <- summary_subgroup_effects(fit_custom_contrast)
-#> --- Calculating specific subgroup effects... ---
-#> Step 1: Identifying subgroups and creating counterfactuals...
-#> ...detected subgroup variable(s): x2
-#> Step 2: Generating posterior predictions...
-#> Step 3: Calculating marginal effects...
-#> Done.
-
-print(estimate_custom_contrast)
-#> $estimates
-#> # A tibble: 3 × 4
-#>   Subgroup Median  CI_Lower CI_Upper
-#>   <chr>     <dbl>     <dbl>    <dbl>
-#> 1 x2: a     0.378  0.153       0.655
-#> 2 x2: b     0.441  0.203       0.731
-#> 3 x2: c     0.282 -0.000312    0.550
-#> 
-#> $response_type
-#> [1] "continuous"
-#> 
-#> $ci_level
-#> [1] 0.95
-#> 
-#> $trt_var
-#> [1] "trt"
-#> 
-#> attr(,"class")
-#> [1] "subgroup_summary"
-```
-
-### 3.2 Example 8: Prediction on New Data
-
-After fitting a model, you can use `brms::predict()` to generate
-predictions for new patients.
-
-*Scenario*: We’ve fitted a treatment effect model and want to predict
-outcomes for new patients with different characteristics.
-
-``` r
-# Use the fitted model from Example 7
-# Generate new data for prediction
-set.seed(789)
-new_patients <- data.frame(
-  id = 1:20,
-  trt = rep(0:1, length.out = 20),
-  x2 = factor(rep(c("a", "b", "c"), length.out = 20), levels = c("a", "b", "c"))
-)
-
-# IMPORTANT: Set the same contrasts as in Example 7
-# The prediction data must use the same encoding as the training data
-contrasts(new_patients$x2) <- contr.helmert(3)
-
-# Prepare new data
-prepared_custom_contrast <- prepare_formula_model(
-  data = new_patients,
-  response_formula = y ~ trt,
-  shrunk_predictive_formula = ~ 0 + trt:x2, 
-  response_type = "continuous"
-)
-#> Note: Marginality principle not followed - interaction term 'x2' is used without its main effect. Consider adding 'x2' to prognostic terms for proper model hierarchy.
-#> Warning: Could not extract Stan variable names. Error: The following variables can neither be found in 'data' nor in 'data2':
-#> 'y'
-
-# Generate predictions using brms::predict
-# This returns posterior predictive samples
-predictions <- predict(fit_custom_contrast, newdata = prepared_custom_contrast$data, summary = TRUE)
-
-head(predictions)
-#>      Estimate Est.Error     Q2.5    Q97.5
-#> [1,] 5.419561  1.125105 3.165091 7.515665
-#> [2,] 5.862782  1.084850 3.807817 8.040690
-#> [3,] 5.414205  1.087779 3.365337 7.651618
-#> [4,] 5.841834  1.154566 3.590417 8.100206
-#> [5,] 5.487413  1.111793 3.242018 7.568826
-#> [6,] 5.731516  1.115848 3.411121 7.919469
-```
-
-## 4 Stratification for Nuisance Parameters
-
-In many trials, parameters like the observation error variance
-(\\\sigma^2\\ for continuous outcomes) or the baseline hazard function
-(\\h_0(t)\\ for survival outcomes) are known to vary by site, country,
-or other factors. Stratification models this known heterogeneity by
-fitting these nuisance parameters separately for each level of a
-grouping variable.
-
-Use the `stratification_formula` argument to define the grouping
-factor(s).
-
-### 4.1 Example 9: Stratified Continuous Model
-
-*Scenario*: We model outcomes where the observation error **standard
-deviation** \\\sigma\\ differs by site. Stratification uses `brms`
-distributional formulas to estimate separate residual variance
-parameters for each site, allowing for heterogeneity in measurement
-noise or outcome variability across sites.
-
-``` r
-shrink_data <- bonsaiforest2::shrink_data
-set.seed(42)
-# Add a site variable based on x3 subgroup levels
-sample_data_strat_cont <- shrink_data
-sample_data_strat_cont$site <- factor(
-  ifelse(shrink_data$x3 %in% c("a", "b"), "A",
-    ifelse(shrink_data$x3 == "c", "B", "C"))
-)
-```
-
-``` r
-# Model Fitting with Stratified Model
-
-fit_continuous_stratified <- run_brms_analysis(
-  data = sample_data_strat_cont,
-  response_formula = y ~ trt,
+# model with x1*x2 and x1*x3 (separate regression coef per level of x1 for x2 and x3), and separate variance per x1 strata
+oneway_x1_flex_strat <- run_brms_analysis(
+  data = shrink_data,
   response_type = "continuous",
-  shrunk_predictive_formula = ~ 0 + trt:x1,
-  stratification_formula = ~ site,
-  intercept_prior = "normal(0, 5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
-  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  response_formula = y ~ trt,
+  stratification_formula = ~ x1,
+  unshrunk_terms_formula = ~ x1 + x1*x2 + x1*x3, 
+  shrunk_predictive_formula = ~ (0 + trt || x1),
+  shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
+  chains = 2, iter = 2000, warmup = 1000, cores = 2,
+  refresh = 0, backend = "cmdstanr"
 )
 #> Step 1: Preparing formula and data...
-#> Applying stratification: estimating sigma by 'site'.
-#> Note: Marginality principle not followed - interaction term 'x1' is used without its main effect. Consider adding 'x1' to prognostic terms for proper model hierarchy.
+#> Applying stratification: estimating sigma by 'x1'.
 #> 
 #> Step 2: Fitting the brms model...
 #> Using default priors for unspecified effects:
+#>   - intercept: brms default
 #>   - unshrunk terms: brms default
 #> Fitting brms model...
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.1 seconds.
-#> Chain 1 finished in 4.4 seconds.
+#> Chain 2 finished in 4.0 seconds.
+#> Chain 1 finished in 4.2 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.3 seconds.
-#> Total execution time: 4.5 seconds.
-#> Warning: 5 of 1000 (0.0%) transitions ended with a divergence.
-#> See https://mc-stan.org/misc/warnings for details.
+#> Mean chain execution time: 4.1 seconds.
+#> Total execution time: 4.3 seconds.
 #> 
 #> Analysis complete.
 ```
 
 ``` r
-strat_continuous_summary <- summary_subgroup_effects(
-  brms_fit = fit_continuous_stratified
-  # All parameters automatically extracted!
+summary_oneway_x1_flex_strat <- summary_subgroup_effects(
+  brms_fit = oneway_x1_flex_strat
 )
 #> --- Calculating specific subgroup effects... ---
 #> Step 1: Identifying subgroups and creating counterfactuals...
@@ -777,54 +612,35 @@ strat_continuous_summary <- summary_subgroup_effects(
 #> Step 3: Calculating marginal effects...
 #> Done.
 
-print(strat_continuous_summary$estimates)
+print(summary_oneway_x1_flex_strat$estimates)
 #> # A tibble: 2 × 4
 #>   Subgroup Median CI_Lower CI_Upper
 #>   <chr>     <dbl>    <dbl>    <dbl>
-#> 1 x1: a     0.697    0.495   0.894 
-#> 2 x1: b    -0.284   -0.555  -0.0206
-plot(strat_continuous_summary, title = "Stratified Continuous: Subgroup Effects")
-#> Preparing data for plotting...
-#> Generating plot...
-#> Done.
+#> 1 x1: a     0.496    0.260    0.726
+#> 2 x1: b     0.126   -0.199    0.429
 ```
 
-![](Advanced_Functionalities_files/figure-html/unnamed-chunk-15-1.png)
+#### Example 8: Stratified one-way survival model
 
-### 4.2 Example 10: Stratified Survival Model
-
-*Scenario*: We model a time-to-event outcome with stratified baseline
-hazard by country using a piecewise exponential model. Stratification
-via `stratification_formula = ~ country` allows the baseline hazard to
-differ by country, accommodating regional differences in baseline risk
-or standard of care.
+Assume that the primary analysis of the trial was stratified by variable
+`x2`. A corresponding one-way model for `x1` which uses a Cox model
+stratified by `x2` is fitted below.
 
 ``` r
-shrink_data <- bonsaiforest2::shrink_data
-set.seed(123)
-# Add a country variable derived from x1 levels
-surv_data_strat <- shrink_data
-surv_data_strat$country <- factor(ifelse(shrink_data$x1 == "a", "A", "B"))
-surv_data_strat$trt <- factor(surv_data_strat$trt, levels = c(0, 1))
-```
-
-``` r
-# Model Fitting with Stratified Baseline Hazard
-fit_surv_stratified <- run_brms_analysis(
-  data = surv_data_strat,
-  response_formula = Surv(tt_event, event_yn) ~ trt,
+# Model fitting with stratified baseline hazard
+fit_surv_oneway_x1_strat <- run_brms_analysis(
+  data = shrink_data,
   response_type = "survival",
-  shrunk_predictive_formula = ~ 0 + trt:x2,
-  stratification_formula = ~ country,
-  intercept_prior = "normal(0, 5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
-  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
+  response_formula = Surv(tt_event, event_yn) ~ trt,
+  stratification_formula = ~ x2,
+  unshrunk_terms_formula = ~ x1 + x3, 
+  shrunk_predictive_formula = ~ (0 + trt || x1),
+  shrunk_predictive_prior = set_prior("normal(0, abs(log(0.7)))", class = "sd"),
   chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
 )
 #> Step 1: Preparing formula and data...
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
-#> Applying stratification: estimating separate baseline hazards by 'country'.
-#> Note: Marginality principle not followed - interaction term 'x2' is used without its main effect. Consider adding 'x2' to prognostic terms for proper model hierarchy.
+#> Applying stratification: estimating separate baseline hazards by 'x2'.
 #> 
 #> Step 2: Fitting the brms model...
 #> Using default priors for unspecified effects:
@@ -833,55 +649,49 @@ fit_surv_stratified <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.0 seconds.
-#> Chain 1 finished in 4.8 seconds.
+#> Chain 2 finished in 3.7 seconds.
+#> Chain 1 finished in 3.9 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.4 seconds.
-#> Total execution time: 4.9 seconds.
+#> Mean chain execution time: 3.8 seconds.
+#> Total execution time: 4.0 seconds.
 #> 
 #> Analysis complete.
-```
 
-``` r
-strat_surv_summary <- summary_subgroup_effects(
-  brms_fit = fit_surv_stratified
-  # All parameters automatically extracted!
-)
+summary_surv_oneway_x1_strat <- summary_subgroup_effects(fit_surv_oneway_x1_strat)
 #> --- Calculating specific subgroup effects... ---
 #> Step 1: Identifying subgroups and creating counterfactuals...
-#> ...detected subgroup variable(s): x2
+#> ...detected subgroup variable(s): x1
 #> Step 2: Generating posterior predictions...
+#> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Warning: Dropping 'draws_df' class as required metadata was removed.
 #> Step 3: Calculating marginal effects...
 #> Done.
 
-print(strat_surv_summary$estimates)
-#> # A tibble: 3 × 4
+print(summary_surv_oneway_x1_strat$estimates)
+#> # A tibble: 2 × 4
 #>   Subgroup Median CI_Lower CI_Upper
 #>   <chr>     <dbl>    <dbl>    <dbl>
-#> 1 x2: a     0.598    0.416    0.815
-#> 2 x2: b     0.611    0.418    0.826
-#> 3 x2: c     0.881    0.619    1.19
-plot(strat_surv_summary, title = "Stratified Survival: Subgroup Effects (AHR)")
+#> 1 x1: a     0.383    0.266    0.536
+#> 2 x1: b     0.700    0.491    0.980
+
+plot(summary_surv_oneway_x1_strat)
 #> Preparing data for plotting...
 #> Generating plot...
 #> Done.
 ```
 
-![](Advanced_Functionalities_files/figure-html/ex6-summary-plot-1.png)
+![](Advanced_Functionalities_files/figure-html/unnamed-chunk-13-1.png)
 
-## 5 Summary
+## 4 Summary
 
-This vignette demonstrated advanced functionalities in `bonsaiforest2`:
+This vignette demonstrated several advanced functionalities supported by
+`bonsaiforest2`:
 
 1.  **Offset variables** for count outcomes with varying exposure times
 2.  **Custom prior specification** with flexible prior constraints
-3.  **One-hot encoding** for full factor representation in interactions
-4.  **Coefficient-specific priors** for fine-grained control
-5.  **Hierarchical priors** with shared variance using `stanvars`
-6.  **Stratification** for nuisance parameters that vary by groups
+3.  **Stratification** for nuisance parameters that vary across groups
 
 These features provide researchers with powerful tools for complex trial
 analyses while maintaining the principled Bayesian shrinkage framework.

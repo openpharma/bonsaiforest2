@@ -72,36 +72,32 @@
 <p>The <code>bonsaiforest2</code> package consists of 3 core functions which are typically called in sequence:</p>
 <ol style="list-style-type: decimal">
 <li>
-<code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> - Prepares the model formula and fits the Bayesian model using <code>brms</code>.</li>
+<code><a href="../reference/run_brms_analysis.html">run_brms_analysis()</a></code> - Prepares the model formula and fits the Bayesian shrinkage model using <code>brms</code>
+</li>
 <li>
-<code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> - Calculates the marginal subgroup treatment effects.</li>
+<code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> - Derives standardized treatment effect estimates from the fitted model and displays them</li>
 <li>
-<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> - Creates a forest plot from the summary object.</li>
+<code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> - Creates a basic forest plot from the summary object</li>
 </ol>
-<p>The package enables the implementation of both <strong>global models</strong> <span class="citation">(<a href="#ref-wolbers2025using">Wolbers et al. 2025</a>)</span>, that estimate all prognostic and predictive effects in a single unified model, and <strong>one-way models</strong> <span class="citation">(<a href="#ref-wang2024bayesian">Wang et al. 2024</a>)</span>, that estimate treatment fitting a different model for each subgrouping variable.</p>
-<p>This vignette demonstrates how to use the package to fit and compare these different modeling formulas. You’ll learn how to:</p>
+<p>The package supports both <strong>one-way shrinkage models</strong>, which fit a separate Bayesian shrinkage model for each subgrouping variable, and <strong>global shrinkage models</strong>, which fit a single model including all subgrouping variables at once. For both types of models, treatment effect estimates in subgroups are derived via standardization (G-computation) .
+The package supports continuous, binary, time-to-event (Cox), and count outcomes. It leverages <code>brms</code> and <code>Stan</code> for model fitting, allowing for a flexible choice of priors, including normal, regularized horseshoe, and R2-D2.</p>
+<p>A comprehensive description of the methodology implemented in this R package can be found in <span class="citation">Wolbers et al. (<a href="#ref-wolbersUnifiedShrinkage">2026</a>)</span>.</p>
+<p>This vignette demonstrates how to use the package to fit and compare these different modeling approaches You’ll learn how to:</p>
 <ul>
-<li>Fit one-way models (random effects with treatment slopes varying by subgroup)</li>
-<li>Fit global models (all subgroup variables in one unified model)</li>
-<li>Generate summaries of subgroup treatment effects</li>
+<li>Fit one-way models</li>
+<li>Fit global models</li>
+<li>Derive standardized treatment effect estimates from the fitted model and displays them</li>
 <li>Visualize and compare results from different model specifications</li>
 </ul>
-<p>This example makes use of Bayesian modeling, which requires the installation of the <a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a> package and a working Stan installation (e.g., via <a href="https://mc-stan.org/cmdstanr/" class="external-link"><code>cmdstanr</code></a>).</p>
+<p>It assumes that <a href="https://github.com/openpharma/bonsaiforest2" class="external-link"><code>bonsaiforest2</code></a>, <a href="https://paulbuerkner.com/brms/" class="external-link"><code>brms</code></a>, and a R interface to Stan (e.g., <a href="https://mc-stan.org/cmdstanr/" class="external-link"><code>cmdstanr</code></a>) have been installed.</p>
 </div>
 <div class="section level2" number="2">
 <h2 id="the-data">
 <span class="header-section-number">2</span> The Data<a class="anchor" aria-label="anchor" href="#the-data"></a>
 </h2>
-<p>We will use the <code>shrink_data</code> package dataset with a continuous response variable. We explore <strong>three subgroup variables</strong>:</p>
-<ul>
-<li>
-<code>x1</code>: Subgroup 1 (categories: a, b)</li>
-<li>
-<code>x2</code>: Subgroup 2 (categories: a, b, c)</li>
-<li>
-<code>x3</code>: Subgroup 3 (categories: a, b, c, d)</li>
-</ul>
-<p>First, let’s load the libraries and the data.</p>
+<p>We will use the simulated <code>shrink_data</code> dataset which is included in the package.
+For this vignette, we will use the continuous outcome variable <code>y</code>, the treatment assignment <code>trt</code>, and three categorical subgrouping variables <code>x1</code>, <code>x2</code>, and <code>x3</code>.</p>
+<p>Let’s load the libraries and the data.</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Load the main package</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://openpharma.github.io/bonsaiforest2/">bonsaiforest2</a></span><span class="op">)</span></span>
@@ -120,37 +116,50 @@
 <span><span class="co">#&gt; 6  6   1  b  b  a 5.427096        0 22.81750        1           24     0</span></span></code></pre></div>
 </div>
 <div class="section level2" number="3">
-<h2 id="one-way-models">
-<span class="header-section-number">3</span> One-way Models<a class="anchor" aria-label="anchor" href="#one-way-models"></a>
+<h2 id="choice-of-hyperprior-parameters">
+<span class="header-section-number">3</span> Choice of hyperprior parameters<a class="anchor" aria-label="anchor" href="#choice-of-hyperprior-parameters"></a>
 </h2>
-<p>This section shows how to fit separate models, each examining one subgroup variable at a time. In one-way models, we recommend specifying the treatment effects as random slopes using pipe-pipe notation (e.g., <code>~ (0 + trt || subgroup)</code>), which allows treatment effects to vary by subgroup with automatic hierarchical regularization via random effects. Note that for each model we also include always the subgrouping variable we want to test the treatment effects for also as prognostic.</p>
-<div class="section level3" number="3.1">
-<h3 id="one-way-model-x1-only">
-<span class="header-section-number">3.1</span> One-way Model: x1 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x1-only"></a>
+<p>In our example, we anchor parameters of the hyperprior in trial assumptions about the anticipated size of the overall treatment effect and the standard deviation as proposed by <span class="citation">Wolbers et al. (<a href="#ref-wolbersUnifiedShrinkage">2026</a>)</span>. We assume that the data is from a randomized trial which targeted a treatment effect of <span class="math inline">\(\delta_{plan}=0.3\)</span> and assumed a standard deviation of <span class="math inline">\(\sigma_{plan}=1\)</span>.</p>
+<p>Specifically, we use the following priors for the shrunken predictive effects in the one-way and global models below:</p>
+<ul>
+<li>
+<em>One-way shrinkage model</em>: a normal prior with a half-normal hyperprior and heterogeneity parameter <span class="math inline">\(\phi=\delta_{plan}=0.3\)</span> for the standard deviation</li>
+<li>
+<em>Global shrinkage models</em>: a regularized horseshoe priors with parameters <code>scale_global</code> <span class="math inline">\(\tau_0 = \delta_{plan}=0.3\)</span>, <code>scale_slab</code> <span class="math inline">\(s = 2\sigma_{plan} = 2\)</span> and <code>df_slab</code> <span class="math inline">\(\nu = 4\)</span>
+</li>
+</ul>
+</div>
+<div class="section level2" number="4">
+<h2 id="one-way-shrinkage-models">
+<span class="header-section-number">4</span> One-way shrinkage models<a class="anchor" aria-label="anchor" href="#one-way-shrinkage-models"></a>
+</h2>
+<p>A simple one-way shrinkage model for a categorical subgrouping variable <code>x</code> is a Bayesian regression model of the form <code>y ~ 1 + trt + x + trt:x</code> with a normal shrinkage prior applied to the treatment-by-subgroup interactions. For efficient computation, it is preferable, to reformulate the model as a Bayesian random effects model of the form <code>y ~ 1 + trt + x + (0+trt || x)</code> where the term <code>(0+trt || x)</code> refers to random treatment effects per subgroups defined by levels of <code>x</code>, i.e. treatment-by-subgroup interactions. As discussed, we specify a normal distribution for the random effects representing treatment-by-subgroup interactions with a half-normal hyperprior with heterogeneity parameter <span class="math inline">\(\phi=\delta_{plan}=0.3\)</span> for the standard deviation.</p>
+<p>In the code below, we fit three separate models for <code>x1</code>, <code>x2</code>, and <code>x3</code>, respectively. We extend the simple model described above by including all three subgrouping variables as unshrunken prognostic terms. While this extension is not mandatory, adjustment for prognostic variables can improve the precision of treatment effect estimates as illustrated in the simulation study for a continuous endpoint in <span class="citation">Wolbers et al. (<a href="#ref-wolbersUnifiedShrinkage">2026</a>)</span>.</p>
+<div class="section level3" number="4.1">
+<h3 id="one-way-model-for-x1">
+<span class="header-section-number">4.1</span> One-way model for <code>x1</code><a class="anchor" aria-label="anchor" href="#one-way-model-for-x1"></a>
 </h3>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Fit model with only x1 as subgroup variable using one-way approach</span></span>
-<span><span class="co"># Random effects notation (0 + trt || x1) estimates varying treatment slopes by x1</span></span>
+<code class="sourceCode R"><span><span class="co"># Fit one-way model using only x1 as a predictive subgrouping variable</span></span>
+<span><span class="co"># Random effects notation (0 + trt || x1) estimates varying treatment slopes by levels of x1</span></span>
 <span><span class="va">oneway_x1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x1</span>,</span>
-<span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span><span class="va">x3</span>, </span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">x1</span><span class="op">)</span>,</span>
-<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 0.3)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 2.5 seconds.</span></span>
-<span><span class="co">#&gt; Chain 2 finished in 2.9 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 1.9 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 2.4 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 2.7 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 3.1 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 2.2 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 2.6 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_oneway_x1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x1</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/print.html" class="external-link">print</a></span><span class="op">(</span><span class="va">summary_oneway_x1</span><span class="op">)</span></span>
@@ -158,8 +167,8 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 2 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> x1: a    0.527     0.300    0.744</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> x1: b    0.016<span style="text-decoration: underline;">8</span>   -<span style="color: #BB0000;">0.289</span>    0.344</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> x1: a    0.487     0.264    0.701</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> x1: b    0.093<span style="text-decoration: underline;">7</span>   -<span style="color: #BB0000;">0.246</span>    0.414</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>
@@ -173,65 +182,61 @@
 <span><span class="co">#&gt; attr(,"class")</span></span>
 <span><span class="co">#&gt; [1] "subgroup_summary"</span></span></code></pre></div>
 </div>
-<div class="section level3" number="3.2">
-<h3 id="one-way-model-x2-only">
-<span class="header-section-number">3.2</span> One-way Model: x2 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x2-only"></a>
+<div class="section level3" number="4.2">
+<h3 id="one-way-model-for-x2">
+<span class="header-section-number">4.2</span> One-way model for <code>x2</code><a class="anchor" aria-label="anchor" href="#one-way-model-for-x2"></a>
 </h3>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">oneway_x2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>    unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x2</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span><span class="va">x3</span>,</span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">x2</span><span class="op">)</span>,</span>
-<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 0.3)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 1.7 seconds.</span></span>
-<span><span class="co">#&gt; Chain 2 finished in 1.8 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 1.5 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 1.5 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 1.8 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 1.9 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 1.5 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 1.6 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_oneway_x2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x2</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3" number="3.3">
-<h3 id="one-way-model-x3-only">
-<span class="header-section-number">3.3</span> One-way Model: x3 Only<a class="anchor" aria-label="anchor" href="#one-way-model-x3-only"></a>
+<div class="section level3" number="4.3">
+<h3 id="one-way-model-for-x3">
+<span class="header-section-number">4.3</span> One-way model for <code>x3</code><a class="anchor" aria-label="anchor" href="#one-way-model-for-x3"></a>
 </h3>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">oneway_x3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
-<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x3</span>,</span>
-<span>  shrunk_prognostic_formula <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  unshrunk_terms_formula <span class="op">=</span> <span class="op">~</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span><span class="va">x3</span>,</span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="op">(</span><span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span> <span class="op">||</span> <span class="va">x3</span><span class="op">)</span>,</span>
-<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 1)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="fu"><a href="https://paulbuerkner.com/brms/reference/set_prior.html" class="external-link">set_prior</a></span><span class="op">(</span><span class="st">"normal(0, 0.3)"</span>, class <span class="op">=</span> <span class="st">"sd"</span><span class="op">)</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 1.4 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 1.5 seconds.</span></span>
 <span><span class="co">#&gt; Chain 2 finished in 1.6 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
-<span><span class="co">#&gt; Mean chain execution time: 1.5 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 1.8 seconds.</span></span>
+<span><span class="co">#&gt; Mean chain execution time: 1.6 seconds.</span></span>
+<span><span class="co">#&gt; Total execution time: 1.7 seconds.</span></span>
 <span></span>
 <span><span class="va">summary_oneway_x3</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">oneway_x3</span><span class="op">)</span></span></code></pre></div>
 </div>
-<div class="section level3" number="3.4">
-<h3 id="one-way-models-visualizing-all-models">
-<span class="header-section-number">3.4</span> One-way Models: Visualizing All Models<a class="anchor" aria-label="anchor" href="#one-way-models-visualizing-all-models"></a>
+<div class="section level3" number="4.4">
+<h3 id="forest-plot-of-results-from-all-one-way-models">
+<span class="header-section-number">4.4</span> Forest plot of results from all one-way models<a class="anchor" aria-label="anchor" href="#forest-plot-of-results-from-all-one-way-models"></a>
 </h3>
 <p>You can combine and visualize results from multiple models using <code><a href="../reference/combine_summaries.html">combine_summaries()</a></code>:</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
@@ -242,51 +247,48 @@
 <span>  <span class="st">"x3"</span> <span class="op">=</span> <span class="va">summary_oneway_x3</span></span>
 <span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">combined_oneway</span>, title <span class="op">=</span> <span class="st">"One-way Models: All Subgroup Variables"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">combined_oneway</span>, title <span class="op">=</span> <span class="st">"One-way Models: All Subgrouping Variables"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
 <span><span class="co">#&gt; Done.</span></span></code></pre></div>
 <p><img src="Quickstart_files/figure-html/compare-all-oneway-1.png"><!-- --></p>
 </div>
 </div>
-<div class="section level2" number="4">
-<h2 id="global-model">
-<span class="header-section-number">4</span> Global Model<a class="anchor" aria-label="anchor" href="#global-model"></a>
+<div class="section level2" number="5">
+<h2 id="global-shrinkage-model">
+<span class="header-section-number">5</span> Global shrinkage model<a class="anchor" aria-label="anchor" href="#global-shrinkage-model"></a>
 </h2>
-<p>This section shows how to fit a single model that includes all subgroup variables simultaneously using the global approach. All treatment-by-subgroup interactions are estimated in one unified model with colon notation (e.g., <code>~ 0 + trt:subgroup</code>) and strong regularization (Horseshoe prior) applied to the interaction terms.</p>
-<div class="section level3" number="4.1">
-<h3 id="global-model-all-subgroups">
-<span class="header-section-number">4.1</span> Global Model: All Subgroups<a class="anchor" aria-label="anchor" href="#global-model-all-subgroups"></a>
+<p>A simple global shrinkage model for our setting has the form <code>y~ 1 + trt + x1 + x2 + x3 + trt:x1 + trt:x2 + trt:x3</code> where a shrinkage prior is applied to all treatment-by-subgroup interaction terms. As discussed, we use a regularized horseshoe prior with parameters <code>scale_global</code> <span class="math inline">\(\tau_0 = \delta_{plan}=0.3\)</span>, <code>scale_slab</code> <span class="math inline">\(s = 2\sigma_{plan} = 2\)</span> and <code>df_slab</code> <span class="math inline">\(\nu = 4\)</span> in the example below. Standardized treatment effects in subgroup defined by the levels of a single subgrouping variable at a time are subsequently derived from this model via G-computation.</p>
+<div class="section level3" number="5.1">
+<h3 id="model-fitting">
+<span class="header-section-number">5.1</span> Model fitting<a class="anchor" aria-label="anchor" href="#model-fitting"></a>
 </h3>
 <div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="co"># Fit a single unified model with ALL subgroup variables simultaneously using global approach</span></span>
-<span><span class="co"># - Unshrunk prognostic effects: subgroup main effects without shrinkage</span></span>
-<span><span class="co"># - Shrunk predictive effects: treatment interactions with strong regularization using one-hot encoding</span></span>
+<code class="sourceCode R"><span><span class="co"># Fit a single unified model with ALL subgrouping variables simultaneously using global approach</span></span>
 <span><span class="va">global_shrinkage_model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/run_brms_analysis.html">run_brms_analysis</a></span><span class="op">(</span></span>
 <span>  data <span class="op">=</span> <span class="va">shrink_data</span>,</span>
 <span>  response_type <span class="op">=</span> <span class="st">"continuous"</span>,</span>
 <span>  response_formula <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="va">trt</span>,</span>
 <span>  unshrunk_terms_formula  <span class="op">=</span> <span class="op">~</span> <span class="fl">1</span> <span class="op">+</span> <span class="va">x1</span> <span class="op">+</span> <span class="va">x2</span> <span class="op">+</span> <span class="va">x3</span>,</span>
 <span>  shrunk_predictive_formula <span class="op">=</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x1</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x2</span> <span class="op">+</span> <span class="va">trt</span><span class="op">:</span><span class="va">x3</span>,</span>
-<span>  intercept_prior <span class="op">=</span> <span class="st">"normal(0, 10)"</span>,</span>
-<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(1)"</span>,</span>
+<span>  shrunk_predictive_prior <span class="op">=</span> <span class="st">"horseshoe(scale_global=0.3, scale_slab = 2, df_slab = 4, autoscale = FALSE)"</span>,</span>
 <span>  chains <span class="op">=</span> <span class="fl">2</span>, iter <span class="op">=</span> <span class="fl">2000</span>, warmup <span class="op">=</span> <span class="fl">1000</span>, cores <span class="op">=</span> <span class="fl">2</span>,</span>
 <span>  refresh <span class="op">=</span> <span class="fl">0</span>, backend <span class="op">=</span> <span class="st">"cmdstanr"</span></span>
 <span><span class="op">)</span></span>
 <span><span class="co">#&gt; Running MCMC with 2 parallel chains...</span></span>
 <span><span class="co">#&gt; </span></span>
-<span><span class="co">#&gt; Chain 1 finished in 3.8 seconds.</span></span>
-<span><span class="co">#&gt; Chain 2 finished in 3.9 seconds.</span></span>
+<span><span class="co">#&gt; Chain 1 finished in 3.7 seconds.</span></span>
+<span><span class="co">#&gt; Chain 2 finished in 3.8 seconds.</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; Both chains finished successfully.</span></span>
 <span><span class="co">#&gt; Mean chain execution time: 3.8 seconds.</span></span>
-<span><span class="co">#&gt; Total execution time: 4.0 seconds.</span></span></code></pre></div>
+<span><span class="co">#&gt; Total execution time: 3.9 seconds.</span></span></code></pre></div>
 </div>
-<div class="section level3" number="4.2">
-<h3 id="global-model-summary-of-subgroup-effects">
-<span class="header-section-number">4.2</span> Global Model: Summary of Subgroup Effects<a class="anchor" aria-label="anchor" href="#global-model-summary-of-subgroup-effects"></a>
+<div class="section level3" number="5.2">
+<h3 id="summary-of-subgroup-effects">
+<span class="header-section-number">5.2</span> Summary of subgroup effects<a class="anchor" aria-label="anchor" href="#summary-of-subgroup-effects"></a>
 </h3>
-<p>Use <code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> to generate marginal treatment effects for each subgroup. The function automatically extracts all treatment interactions from the fitted model:</p>
+<p>The function <code><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects()</a></code> derives standardized treatment effects in subgroups from the global model. Internally, subgrouping variables are identified as all terms describing treatment-by-covariate interactions provided in the formulas.</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">global_summary</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/summary_subgroup_effects.html">summary_subgroup_effects</a></span><span class="op">(</span>brms_fit <span class="op">=</span> <span class="va">global_shrinkage_model</span><span class="op">)</span></span>
 <span><span class="co">#&gt; --- Calculating specific subgroup effects... ---</span></span>
@@ -302,15 +304,15 @@
 <span><span class="co">#&gt; <span style="color: #949494;"># A tibble: 9 × 4</span></span></span>
 <span><span class="co">#&gt;   Subgroup Median CI_Lower CI_Upper</span></span>
 <span><span class="co">#&gt;   <span style="color: #949494; font-style: italic;">&lt;chr&gt;</span>     <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span>    <span style="color: #949494; font-style: italic;">&lt;dbl&gt;</span></span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> x1: a     0.473  0.229      0.708</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> x1: b     0.115 -<span style="color: #BB0000;">0.227</span>      0.450</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> x2: a     0.379  0.101      0.624</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> x2: b     0.411  0.165      0.685</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> x2: c     0.272  0.022<span style="text-decoration: underline;">0</span>     0.512</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span> x3: a     0.329  0.042<span style="text-decoration: underline;">9</span>     0.567</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">7</span> x3: b     0.403  0.155      0.721</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">8</span> x3: c     0.381  0.114      0.684</span></span>
-<span><span class="co">#&gt; <span style="color: #BCBCBC;">9</span> x3: d     0.316  0.008<span style="text-decoration: underline;">51</span>    0.542</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">1</span> x1: a     0.468   0.232     0.699</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">2</span> x1: b     0.118  -<span style="color: #BB0000;">0.256</span>     0.459</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">3</span> x2: a     0.383   0.113     0.630</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">4</span> x2: b     0.400   0.166     0.687</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">5</span> x2: c     0.270  -<span style="color: #BB0000;">0.015</span><span style="color: #BB0000; text-decoration: underline;">1</span>    0.511</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">6</span> x3: a     0.336   0.080<span style="text-decoration: underline;">6</span>    0.558</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">7</span> x3: b     0.392   0.146     0.680</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">8</span> x3: c     0.365   0.134     0.660</span></span>
+<span><span class="co">#&gt; <span style="color: #BCBCBC;">9</span> x3: d     0.309   0.036<span style="text-decoration: underline;">1</span>    0.542</span></span>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt; $response_type</span></span>
 <span><span class="co">#&gt; [1] "continuous"</span></span>
@@ -324,28 +326,24 @@
 <span><span class="co">#&gt; attr(,"class")</span></span>
 <span><span class="co">#&gt; [1] "subgroup_summary"</span></span></code></pre></div>
 </div>
-<div class="section level3" number="4.3">
+<div class="section level3" number="5.3">
 <h3 id="global-model-visualization">
-<span class="header-section-number">4.3</span> Global Model: Visualization<a class="anchor" aria-label="anchor" href="#global-model-visualization"></a>
+<span class="header-section-number">5.3</span> Global Model: Visualization<a class="anchor" aria-label="anchor" href="#global-model-visualization"></a>
 </h3>
-<p>Use the <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function to create a forest plot from the summary object:</p>
+<p>The <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function creates a basic forest plot from the summary object:</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">global_summary</span>, title <span class="op">=</span> <span class="st">"Global Model: All Subgroup Variables"</span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">global_summary</span>, title <span class="op">=</span> <span class="st">"Global Model: All subgrouping variables"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Preparing data for plotting...</span></span>
 <span><span class="co">#&gt; Generating plot...</span></span>
 <span><span class="co">#&gt; Done.</span></span></code></pre></div>
 <p><img src="Quickstart_files/figure-html/global-plot-1.png"><!-- --></p>
 </div>
 </div>
-<div class="section level2" number="5">
+<div class="section level2" number="6">
 <h2 id="comparing-multiple-models-in-one-plot">
-<span class="header-section-number">5</span> Comparing Multiple Models in One Plot<a class="anchor" aria-label="anchor" href="#comparing-multiple-models-in-one-plot"></a>
+<span class="header-section-number">6</span> Comparing Multiple Models in One Plot<a class="anchor" aria-label="anchor" href="#comparing-multiple-models-in-one-plot"></a>
 </h2>
-<p>The <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function supports comparing multiple models side-by-side. Pass a named list of <code>subgroup_summary</code> objects to create a comparative forest plot.</p>
-<div class="section level3" number="5.1">
-<h3 id="example-comparing-one-way-vs-global-models">
-<span class="header-section-number">5.1</span> Example: Comparing One-way vs Global Models<a class="anchor" aria-label="anchor" href="#example-comparing-one-way-vs-global-models"></a>
-</h3>
+<p>The <code><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot()</a></code> function supports comparing multiple models side-by-side by passing a in a forest plot by passing a named list of <code>subgroup_summary</code> objects.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># Combine summaries for comparison</span></span>
 <span><span class="va">combined</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/combine_summaries.html">combine_summaries</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -359,13 +357,13 @@
 <span><span class="co">#&gt; Generating plot...</span></span>
 <span><span class="co">#&gt; Done.</span></span></code></pre></div>
 <p><img src="Quickstart_files/figure-html/compare-models-1.png"><!-- --></p>
+</div>
+<div class="section level2">
+<h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
+</h2>
 <div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0">
-<div id="ref-wang2024bayesian" class="csl-entry">
-Wang, Yun, Wenda Tu, William Koh, James Travis, Robert Abugov, Kiya Hamilton, Mengjie Zheng, Roberto Crackel, Pablo Bonangelino, and Mark Rothmann. 2024. <span>“<span class="nocase">Bayesian hierarchical models for subgroup analysis</span>.”</span> <em>Pharmaceutical Statistics</em> 23: 1065–83.
-</div>
-<div id="ref-wolbers2025using" class="csl-entry">
-Wolbers, Marcel, Mar Vázquez Rabuñal, Ke Li, Kaspar Rufibach, and Daniel Sabanés Bové. 2025. <span>“<span class="nocase">Using shrinkage methods to estimate treatment effects in overlapping subgroups in randomized clinical trials with a time-to-event endpoint</span>.”</span> <em>Statistical Methods in Medical Research</em>, 1–12.
-</div>
+<div id="ref-wolbersUnifiedShrinkage" class="csl-entry">
+Wolbers, Marcel, Miriam Pedrera Gómez, Alex Ocampo, and Isaac Gravestock. 2026. <span>“Unified Implementation and Comparison of Bayesian Shrinkage Methods for Treatment Effect Estimation in Subgroups.”</span> <em>arXiv Preprint arXiv:2603.21967</em>. <a href="https://arxiv.org/abs/2603.21967" class="external-link">https://arxiv.org/abs/2603.21967</a>.
 </div>
 </div>
 </div>

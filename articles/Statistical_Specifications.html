@@ -65,20 +65,32 @@
 
     
     
+<p><strong>A comprehensive description of the statistical methodology is provided in <span class="citation">Wolbers et al. (<a href="#ref-wolbersUnifiedShrinkage">2026</a>)</span>. In this vignette, we only provide an overview.</strong></p>
 <div class="section level2" number="1">
 <h2 id="introduction">
 <span class="header-section-number">1</span> Introduction<a class="anchor" aria-label="anchor" href="#introduction"></a>
 </h2>
-<p>The <code>bonsaiforest2</code> package implements a flexible, two-step Bayesian framework for estimating subgroup treatment effects in randomized controlled trials (RCTs). The approach is designed to handle both isolated subgroup analyses and complex, overlapping subgroup structures while mitigating the risk of false-positive findings through Bayesian shrinkage.</p>
-<p>The estimation process consists of two primary steps:
-1. <strong>Model Fitting:</strong> Fitting a Bayesian conditional outcome model to the trial data.
-2. <strong>Standardization:</strong> Deriving marginal treatment effect estimates for subgroups via G-computation (marginalizing over the covariate distribution within the subgroup).</p>
+<p>The <code>bonsaiforest2</code> package implements Bayesian shrinkage models for treatment effect estimation in subgroups or randomized clinical trials. It supports two approaches to Bayesian shrinkage: <strong>One-way shrinkage models</strong> fit a Bayesian hierarchical model for one subgrouping variable at a time (<span class="citation">Wang et al. (<a href="#ref-wang2024bayesian">2024</a>)</span>), typically requiring multiple model fits to obtain effects for all subgroups of interest. <strong>Global shrinkage models</strong> fit a single model including treatment interactions for all subgroups jointly (<span class="citation">Wolbers et al. (<a href="#ref-wolbers2025using">2025</a>)</span>).</p>
+<p>The estimation process consists of two steps:</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Model Fitting:</strong> Fit a Bayesian model to the trial data, i.e. a one-way or a global model</li>
+<li>
+<strong>Standardization:</strong> Derive standardized treatment effect estimates for subgroups via G-computation (marginalizing over the covariate distribution within the subgroup)</li>
+</ol>
 </div>
 <div class="section level2" number="2">
-<h2 id="modeling-frameworks">
-<span class="header-section-number">2</span> Modeling Frameworks<a class="anchor" aria-label="anchor" href="#modeling-frameworks"></a>
+<h2 id="model-specification-and-fitting-step">
+<span class="header-section-number">2</span> Model Specification and Fitting Step<a class="anchor" aria-label="anchor" href="#model-specification-and-fitting-step"></a>
 </h2>
-<p>The package supports two primary modeling approaches:</p>
+<div class="section level3" number="2.1">
+<h3 id="notation">
+<span class="header-section-number">2.1</span> Notation<a class="anchor" aria-label="anchor" href="#notation"></a>
+</h3>
+<p>We denote the subjects included in the trial by the subscript <span class="math inline">\(i\)</span> (<span class="math inline">\(i = 1,\ldots , N\)</span>) and their treatment assignment by <span class="math inline">\(z_i\)</span> taking values of 0 for control and 1 for intervention.
+For the <strong>one-way shrinkage model</strong>, assume that we are interested in treatment effects in subgroups defined by the levels of a single categorical subgrouping variable <span class="math inline">\(x\)</span> with <span class="math inline">\(K\)</span> levels.
+For <strong>global shrinkage models</strong>, assume that subgroups are deﬁned by the levels of <span class="math inline">\(p\)</span> categorical subgrouping variables <span class="math inline">\(x_j\)</span> <span class="math inline">\((j = 1,\ldots , p)\)</span>, respectively. Each variable <span class="math inline">\(x_j\)</span> has <span class="math inline">\(l_j\)</span> levels, resulting in a total of <span class="math inline">\(K = \sum_{j=1}^p l_j\)</span> subgroups defined by a single variable at a time. For both models, denote indicators for each of the <span class="math inline">\(K\)</span> subgroups by <span class="math inline">\(s_{ik}\)</span> (i.e., <span class="math inline">\(s_{ik}=1\)</span> if subject <span class="math inline">\(i\)</span> belongs to the subgroup <span class="math inline">\(k\)</span>, and <span class="math inline">\(s_{ik}=0\)</span> otherwise, with <span class="math inline">\(k=1,\ldots, K\)</span>).
+In addition, the model might be adjusted for additional baseline covariates denoted by <span class="math inline">\(u_{il}\)</span> (<span class="math inline">\(l=1,\ldots,L\)</span>).</p>
 <table class="table">
 <colgroup>
 <col width="33%">
@@ -87,35 +99,36 @@
 </colgroup>
 <thead><tr class="header">
 <th align="left">Feature</th>
-<th align="left">One-Way Shrinkage Model</th>
-<th align="left">Global Shrinkage Model</th>
+<th align="left">One-Way shrinkage Model</th>
+<th align="left">Global shrinkage Model</th>
 </tr></thead>
 <tbody>
 <tr class="odd">
 <td align="left"><strong>Scope</strong></td>
-<td align="left">Fit one model per each of the subgrouping variables</td>
+<td align="left">Fit one model per subgrouping variables</td>
 <td align="left">Fit one model including all the subgrouping variables</td>
 </tr>
 <tr class="even">
 <td align="left"><strong>Subgroups (<span class="math inline">\(K\)</span>)</strong></td>
 <td align="left">
-<span class="math inline">\(K\)</span> levels of the single variable.</td>
-<td align="left">Total <span class="math inline">\(K = \sum_{j=1}^p l_j\)</span> subgroups (overlapping).</td>
+<span class="math inline">\(K\)</span> levels of a single subgrouping variable (disjoint)</td>
+<td align="left">
+<span class="math inline">\(K = \sum_{j=1}^p l_j\)</span> subgroups from <span class="math inline">\(p\)</span> subgrouping variables (overlapping)</td>
 </tr>
 <tr class="odd">
-<td align="left"><strong>Subject Indicators</strong></td>
-<td align="left">Only a single indicator <span class="math inline">\(s_{ik}=1\)</span> per subject.</td>
+<td align="left"><strong>Subgroup Indicators</strong></td>
+<td align="left">Only a single indicator <span class="math inline">\(s_{ik}\)</span> is equal to 1 per subject</td>
 <td align="left">
-<span class="math inline">\(p\)</span> indicators <span class="math inline">\(s_{ik}=1\)</span> per subject.</td>
+<span class="math inline">\(p\)</span> indicators <span class="math inline">\(s_{ik}\)</span> are equal to 1 per subject</td>
 </tr>
 </tbody>
 </table>
 </div>
-<div class="section level2" number="3">
-<h2 id="outcome-model-and-linear-predictor">
-<span class="header-section-number">3</span> Outcome Model and Linear Predictor<a class="anchor" aria-label="anchor" href="#outcome-model-and-linear-predictor"></a>
-</h2>
-<p>The outcome model is a Bayesian regression model. <code>bonsaiforest2</code> supports multiple endpoint types, expressing treatment effects through appropriate standard measures:</p>
+<div class="section level3" number="2.2">
+<h3 id="statistical-model">
+<span class="header-section-number">2.2</span> Statistical model<a class="anchor" aria-label="anchor" href="#statistical-model"></a>
+</h3>
+<p>The outcome model is a Bayesian regression model with a linear predictor structure. <code>bonsaiforest2</code> supports multiple endpoint types and treatment effect measures:</p>
 <ul>
 <li>
 <strong>Continuous:</strong> Linear regression (Mean differences)</li>
@@ -125,18 +138,18 @@
 <strong>Count:</strong> Negative Binomial regression (Rate Ratios, RR) — <em>supports offset terms</em>
 </li>
 <li>
-<strong>Time-to-Event:</strong> Cox regression (Average Hazard Ratios, HR) — <em>uses non-negative M-splines for baseline hazard</em>
+<strong>Time-to-Event:</strong> Cox regression (Average Hazard Ratios, HR) — <em>uses non-negative M-splines for the baseline hazard</em>
 </li>
 </ul>
-<p>Let <span class="math inline">\(i = 1,\ldots , N\)</span> denote subjects, <span class="math inline">\(z_i \in \{0, 1\}\)</span> denote treatment assignment (0 = control, 1 = intervention), <span class="math inline">\(s_{ik}\)</span> denote subgroup indicators, and <span class="math inline">\(u_{il}\)</span> denote additional baseline covariates. The linear predictor <span class="math inline">\(LP_i\)</span> for subject <span class="math inline">\(i\)</span> is structured as follows:</p>
+<p>Regardless of the endpoint type, the linear predictor <span class="math inline">\(LP_i\)</span> for subject <span class="math inline">\(i\)</span> is structured as follows:</p>
 <p><span class="math display">\[LP_i = \alpha_0 + \beta_{0}z_i + \underbrace{\alpha_1 s_{i1}+\ldots + \alpha_K s_{iK} + \alpha_{K+1} u_{i1} +\ldots + \alpha_{K+L}u_{iL} }_{\substack{\text{prognostic effects including} \\ \text{main subgroup effects}}} + \underbrace{\beta_1 s_{i1} z_i +\ldots + \beta_K s_{iK}z_i}_{\substack{\text{predictive effects: subgroup-by-} \\ \text{treatment interactions}}}\]</span></p>
 <p><em>Note: For Cox regression models, the intercept <span class="math inline">\(\alpha_0\)</span> is excluded.</em></p>
 </div>
-<div class="section level2" number="4">
-<h2 id="parameter-grouping-and-prior-distributions">
-<span class="header-section-number">4</span> Parameter Grouping and Prior Distributions<a class="anchor" aria-label="anchor" href="#parameter-grouping-and-prior-distributions"></a>
-</h2>
-<p>To provide maximum flexibility, <code>bonsaiforest2</code> categorizes regression coefficients (excluding the intercept and main treatment effect) into three distinct groups. The encoding and prior strategies differ across these groups:</p>
+<div class="section level3" number="2.3">
+<h3 id="parameter-grouping">
+<span class="header-section-number">2.3</span> Parameter grouping<a class="anchor" aria-label="anchor" href="#parameter-grouping"></a>
+</h3>
+<p>To provide model flexibility, <code>bonsaiforest2</code> allows the user to categorize regression coefficients of the linear predictor (excluding the intercept <span class="math inline">\(\alpha_0\)</span> and main treatment effect <span class="math inline">\(\beta_0\)</span>) into three distinct groups.</p>
 <table class="table">
 <colgroup>
 <col width="25%">
@@ -146,66 +159,122 @@
 </colgroup>
 <thead><tr class="header">
 <th align="left">Parameter Group</th>
-<th align="left">Description</th>
-<th align="left">Encoding</th>
-<th align="left">Prior Strategy</th>
+<th align="left"><strong>Unshrunken Terms</strong></th>
+<th align="left"><strong>Shrunken Prognostic Terms</strong></th>
+<th align="left"><strong>Shrunken Predictive Terms</strong></th>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td align="left"><strong>Unshrunken Terms</strong></td>
-<td align="left">Typically prognostic effects, or predictive terms with strong <em>a priori</em> rationale (e.g., direct drug target biomarkers).</td>
-<td align="left">Dummy encoding (baseline levels omitted to avoid overparameterization).</td>
-<td align="left">Non-informative / Flat priors.</td>
+<td align="left"><strong>Purpose</strong></td>
+<td align="left">Typically consists of all prognostic effects. If there is a strong a priori rationale for treatment effect heterogeneity for some of the subgroups in a global model, e.g., for those defined by biomarkers directly linked to a drug target, then they might also be left unshrunken to reflect this prior knowledge.</td>
+<td align="left">Prognostic terms with shrinkage priors. Often, this group is empty as all prognostic terms are left unshrunken. Prognostic terms might be shrunken if their number is large (relative to the sample size) and regularization is deemed necessary.</td>
+<td align="left">For one-way shrinkage models, this group includes the subgroup-by-treatment interactions for the selected subgrouping variable only. For global models, it encompasses all subgroup-by-treatment interactions (with the possible exception of those grouped as unshrunken terms).</td>
 </tr>
 <tr class="even">
-<td align="left"><strong>Shrunken Prognostic Terms</strong></td>
-<td align="left">Prognostic effects requiring regularization (e.g., due to a large number of terms relative to sample size).</td>
-<td align="left">One-hot encoding (all levels included symmetrically).</td>
-<td align="left">Shrinkage priors (exchangeable within this group).</td>
+<td align="left"><strong>Desing matrix encoding</strong></td>
+<td align="left">Dummy encoding (baseline levels omitted to avoid overparameterization).</td>
+<td align="left">One-hot encoding (all levels included symmetrically)</td>
+<td align="left">One-hot encoding (all levels included symmetrically)</td>
 </tr>
 <tr class="odd">
-<td align="left"><strong>Shrunken Predictive Terms</strong></td>
-<td align="left">Subgroup-by-treatment interactions. For one-way models, this is just the selected variable. For global models, it encompasses all interactions.</td>
-<td align="left">One-hot encoding (all levels included symmetrically).</td>
-<td align="left">Shrinkage priors (exchangeable within this group).</td>
+<td align="left"><strong>Prior distribution</strong></td>
+<td align="left">Non-informative / Flat priors</td>
+<td align="left">Shrinkage priors (exchangeable within this group)</td>
+<td align="left">Shrinkage priors (exchangeable within this group)</td>
 </tr>
 </tbody>
 </table>
-<p>The package utilizes <code>brms</code> (and the Stan backend) to fit these models, allowing for highly flexible prior specifications.</p>
-<div class="section level3" number="4.1">
-<h3 id="priors-for-one-way-shrinkage">
-<span class="header-section-number">4.1</span> Priors for One-Way Shrinkage<a class="anchor" aria-label="anchor" href="#priors-for-one-way-shrinkage"></a>
-</h3>
-<p>For one-way models where the number of subgroups is typically low, coefficients share a common normal prior distribution with a half-normal (HN) prior assigned to the standard deviation:</p>
-<p><span class="math display">\[\beta_1, \ldots, \beta_K \sim N(0,\tau^2) \mbox{ with } \tau \sim HN(\phi)\]</span></p>
-<p>The heterogeneity parameter <span class="math inline">\(\phi\)</span> dictates the degree of shrinkage. As a conservative default, <span class="math inline">\(\phi = |\delta_{plan}|\)</span> (where <span class="math inline">\(\delta_{plan}\)</span> is the target effect size from the trial protocol) ensures that the a priori pairwise differences in treatment effects between subgroups lie between <span class="math inline">\(0.02\cdot|\delta_{plan}|\)</span> and <span class="math inline">\(3.09\cdot |\delta_{plan}|\)</span> with 90% probability.</p>
 </div>
-<div class="section level3" number="4.2">
-<h3 id="priors-for-global-shrinkage">
-<span class="header-section-number">4.2</span> Priors for Global Shrinkage<a class="anchor" aria-label="anchor" href="#priors-for-global-shrinkage"></a>
+<div class="section level3" number="2.4">
+<h3 id="priors-distributions-for-shrunken-predictive-terms">
+<span class="header-section-number">2.4</span> Priors distributions for shrunken predictive terms<a class="anchor" aria-label="anchor" href="#priors-distributions-for-shrunken-predictive-terms"></a>
 </h3>
-<p>Because global models handle a larger number of subgroups (e.g., 10 to 30) we recommend using a Global-local shrinkage prior. <code>bonsaiforest2</code> employs the Regularized Horseshoe prior as a default. This global-local shrinkage prior encourages sparsity for noise while maintaining fat tails to allow true, strong signals to escape shrinkage:</p>
+<p>Our implementation is flexible in terms of prior choices.
+A common choice for one-way shrinkage models (where the number of subgroups is typically low, e.g. 2-5) are normal priors.
+A common choice for global shrinkage models (where the number of subgroups is larger, e.g. 10-30) are regularized horseshoe priors.</p>
+<div class="section level4" number="2.4.1">
+<h4 id="normal-priors-for-one-way-shrinkage-models">
+<span class="header-section-number">2.4.1</span> Normal priors for one-way shrinkage models<a class="anchor" aria-label="anchor" href="#normal-priors-for-one-way-shrinkage-models"></a>
+</h4>
+<p>A normal prior distribution with a half-normal (HN) hyperprior assigned to the standard deviation is the typical choice:</p>
+<p><span class="math display">\[\beta_1, \ldots, \beta_K \sim N(0,\tau^2) \mbox{ with } \tau \sim HN(\phi)\]</span></p>
+<p>The heterogeneity parameter <span class="math inline">\(\phi\)</span> dictates the degree of shrinkage. A possible <strong>default choice</strong> is <span class="math inline">\(\phi = |\delta_{plan}|\)</span> where <span class="math inline">\(\delta_{plan}\)</span> is the target effect size from the trial protocol. This choice implies an a priori assumption that pairwise differences in treatment effects between subgroups (i.e. <span class="math inline">\(|\beta_i-\beta_j|\)</span>) lie between <span class="math inline">\(0.02\cdot|\delta_{plan}|\)</span> and <span class="math inline">\(3.09\cdot |\delta_{plan}|\)</span> with 90% probability. This range seems sufficiently
+wide to remain conservative, even in settings characterized by substantial heterogeneity.</p>
+</div>
+<div class="section level4" number="2.4.2">
+<h4 id="regularized-horseshoe-priors-for-global-shrinkage-models">
+<span class="header-section-number">2.4.2</span> Regularized horseshoe priors for global shrinkage models<a class="anchor" aria-label="anchor" href="#regularized-horseshoe-priors-for-global-shrinkage-models"></a>
+</h4>
+<p>The larger number of subgroups encourages the use of global-local shrinkage priors.
+Global-local shrinkage priors are continuous versions of spike-and-slab priors, i.e., mixture priors of a point mass at zero (the spike) and a continuous distribution which describes the non-zero coefficients (the slab). A common choice is the regularized horseshoe prior which has the following form:</p>
 <p><span class="math display">\[ \beta_k|\lambda_k, \tau, c \sim N(0,\tau^2\tilde{\lambda}_k^2)\mbox{ with } \tilde{\lambda}_k^2 = c^2 \lambda_k^2 / (c^2 + \tau^2 \lambda_k^2)\]</span></p>
-<p>With hyper-priors:
-<span class="math display">\[\tau\sim C^+(0,\tau_0^2), \; \lambda_k \sim C^+(0,1)\; (k=1,\ldots,K), \mbox{ and } c^2 \sim \textrm{Inv-Gamma}(\nu/2,\nu s^2 /2)\]</span></p>
+<p>with hyper-priors:
+<span class="math display">\[\tau\sim C^+(0,\tau_0^2), \; \lambda_k \sim C^+(0,1)\; (k=1,\ldots,K), \mbox{ and } c^2 \sim \textrm{Inv-Gamma}(\nu/2,\nu s^2 /2)\]</span>
+The global shrinkage parameter <span class="math inline">\(\tau\)</span> shrinks all parameters towards zero while the heavy-tailed half-Cauchy prior for <span class="math inline">\(\lambda_k\)</span> allows some parameters to escape this heavy shrinkage.
+The slab-component for the regularized horseshoe which governs shrinkage for larger coefficients is a <span class="math inline">\(Student-t_{\nu}(0,s^2)\)</span> distribution (<span class="citation">Piironen and Vehtari (<a href="#ref-piironen2017">2017</a>)</span>).</p>
+<p>As described in <span class="citation">Wolbers et al. (<a href="#ref-wolbersUnifiedShrinkage">2026</a>)</span>, a possible <strong>default choice</strong> is <span class="math inline">\(\tau_0 = |\delta_{plan}|\)</span> (<code>scale_global</code>), <span class="math inline">\(s = 2\sigma_{plan}\)</span> for continuous and <span class="math inline">\(s=2\)</span> for other endpoints (<code>scale_slab</code>), and <span class="math inline">\(\nu = 4\)</span> (<code>df_slab</code>).</p>
+</div>
+</div>
+<div class="section level3" number="2.5">
+<h3 id="model-fitting">
+<span class="header-section-number">2.5</span> Model fitting<a class="anchor" aria-label="anchor" href="#model-fitting"></a>
+</h3>
+<p>In our implementation, we specify the outcome model using the <code>R</code> package <code>brms</code>, which relies on Stan as the backend for NUTS or Hamiltonian Monte Carlo sampling (<span class="citation">Bürkner (<a href="#ref-bruckner2017">2017</a>)</span>, <span class="citation">Carpenter et al. (<a href="#ref-carpenter2017stan">2017</a>)</span>).</p>
+</div>
+</div>
+<div class="section level2" number="3">
+<h2 id="standardization-step-g-computation">
+<span class="header-section-number">3</span> Standardization Step (G-Computation)<a class="anchor" aria-label="anchor" href="#standardization-step-g-computation"></a>
+</h2>
+<p>The coefficients <span class="math inline">\(\beta_i\)</span> from the regression model cannot be interpreted as standardized treatment effects in subgroups. <code>bonsaiforest2</code> uses standardization to convert them into clinically interpretable treatment effects.</p>
+<p>The standardization process follows three steps:</p>
+<ol style="list-style-type: decimal">
+<li>
+<strong>Prediction:</strong> The fitted regression model is used to predicts potential outcomes for every subject <span class="math inline">\(i\)</span> twice: once assuming hypothetical assignment to control (<span class="math inline">\(z_i=0\)</span>) and once to intervention (<span class="math inline">\(z_i=1\)</span>). For time-to-event data, full survival curves <span class="math inline">\(\hat{S}_{i,C}(t)\)</span> and <span class="math inline">\(\hat{S}_{i,I}(t)\)</span> are predicted.</li>
+<li>
+<strong>Marginalization:</strong> Predicted potential outcomes (or survival curves) are averaged across all subjects <em>within</em> a specific subgroup, resulting in a marginal prediction for the subgroup under both treatment conditions.</li>
+<li>
+<strong>Estimation:</strong> The subgroup treatment effect is calculated by contrasting the marginal intervention prediction against the marginal control prediction (e.g., yielding a marginal mean difference, OR, RR, or average HR).</li>
+</ol>
+<p>Standardized treatment effect estimates in subgroups are summarized using the median of the posterior draws, accompanied by a 95% credible interval (bounded by the 2.5% and 97.5% quantiles).</p>
+</div>
+<div class="section level2" number="4">
+<h2 id="comparison-of-one-way-vs-global-shrinkage-models">
+<span class="header-section-number">4</span> Comparison of One-way vs Global Shrinkage Models<a class="anchor" aria-label="anchor" href="#comparison-of-one-way-vs-global-shrinkage-models"></a>
+</h2>
+<p>To us, global shrinkage models are a more principled approach than one-way models to obtain treatment effect estimates across a well-defined family of multiple subgrouping variables.</p>
+<p>In terms of actual performance, the following high-level conclusions may be derived from the simulation studies reported in <span class="citation">Wolbers et al. (<a href="#ref-wolbersUnifiedShrinkage">2026</a>)</span>:</p>
 <ul>
-<li>
-<strong>Slab parameters (<span class="math inline">\(\nu\)</span>, <span class="math inline">\(s\)</span>):</strong> Default choices are typically <span class="math inline">\(s=2\)</span> and <span class="math inline">\(\nu=4\)</span> for endpoints modeled on the log-scale, providing very weak regularization for the slab.</li>
-<li>
-<strong>Global shrinkage parameter (<span class="math inline">\(\tau_0\)</span>):</strong> Can be calibrated based on the expected magnitudes of regression coefficients and the planned overall treatment effect <span class="math inline">\(|\delta_{plan}|\)</span>.</li>
+<li>Both one-way and global shrinkage models typically have a substantially lower overall root mean squared error than the standard estimator without shrinkage. They are also more efficient in identifying a non-efficacious subgroup.</li>
+<li>Global shrinkage models tend to have lower mean-squared error and are less dependent on the choice of prior parameters.</li>
+<li>One-way shrinkage models tend to have slightly less bias and better frequentist coverage of associated credible intervals.</li>
+<li>Covariate-adjustment for known prognostic factors can substantially improve the precision of treatment effect estimates in subgroups.</li>
+<li>For both models, hyperprior parameter choices anchored in trial assumptions about the anticipated size of the overall treatment effect (such as the possible default choices described above) performed well.</li>
 </ul>
 </div>
-</div>
-<div class="section level2" number="5">
-<h2 id="standardization-g-computation">
-<span class="header-section-number">5</span> Standardization (G-Computation)<a class="anchor" aria-label="anchor" href="#standardization-g-computation"></a>
+<div class="section level2">
+<h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
 </h2>
-<p>Because the linear predictor conditions on covariates, the raw subgroup-by-treatment interaction terms represent conditional effects. <code>bonsaiforest2</code> uses standardization to convert these into clinically interpretable marginal treatment effects.</p>
-<p>The standardization process follows three steps:
-1. <strong>Prediction:</strong> The fitted global model predicts potential outcomes for every subject <span class="math inline">\(i\)</span> twice—once assuming hypothetical assignment to control (<span class="math inline">\(z_i=0\)</span>) and once to intervention (<span class="math inline">\(z_i=1\)</span>). For time-to-event data, full survival curves <span class="math inline">\(\hat{S}_{i,C}(t)\)</span> and <span class="math inline">\(\hat{S}_{i,I}(t)\)</span> are predicted.
-2. <strong>Marginalization:</strong> Predicted potential outcomes (or survival curves) are averaged across all subjects <em>within</em> a specific subgroup, resulting in a marginal prediction for the subgroup under both treatment conditions.
-3. <strong>Estimation:</strong> The subgroup treatment effect is calculated by contrasting the marginal intervention prediction against the marginal control prediction (e.g., yielding a marginal mean difference, OR, RR, or average HR).</p>
-<p>Final treatment effect estimates are summarized using the median of the posterior draws, accompanied by a 95% credible interval (bounded by the 2.5% and 97.5% quantiles).</p>
+<div id="refs" class="references csl-bib-body hanging-indent" entry-spacing="0">
+<div id="ref-bruckner2017" class="csl-entry">
+Bürkner, Paul-Christian. 2017. <span>“<span class="nocase">brms</span>: An <span>R</span> Package for <span>Bayesian</span> Multilevel Models Using <span>Stan</span>.”</span> <em>Journal of Statistical Software</em> 80 (1): 1–28.
+</div>
+<div id="ref-carpenter2017stan" class="csl-entry">
+Carpenter, Bob, Andrew Gelman, Matthew D Hoffman, Daniel Lee, Ben Goodrich, Michael Betancourt, Marcus Brubaker, Jiqiang Guo, Peter Li, and Allen Riddell. 2017. <span>“Stan: A Probabilistic Programming Language.”</span> <em>Journal of Statistical Software</em> 76: 1–32.
+</div>
+<div id="ref-piironen2017" class="csl-entry">
+Piironen, Juho, and Aki Vehtari. 2017. <span>“Sparsity Information and Regularization in the Horseshoe and Other Shrinkage Priors.”</span> <em>Electronic Journal of Statistics</em> 11 (2): 5018–51.
+</div>
+<div id="ref-wang2024bayesian" class="csl-entry">
+Wang, Yun, Wenda Tu, William Koh, James Travis, Robert Abugov, Kiya Hamilton, Mengjie Zheng, Roberto Crackel, Pablo Bonangelino, and Mark Rothmann. 2024. <span>“<span class="nocase">Bayesian hierarchical models for subgroup analysis</span>.”</span> <em>Pharmaceutical Statistics</em> 23: 1065–83.
+</div>
+<div id="ref-wolbersUnifiedShrinkage" class="csl-entry">
+Wolbers, Marcel, Miriam Pedrera Gómez, Alex Ocampo, and Isaac Gravestock. 2026. <span>“Unified Implementation and Comparison of Bayesian Shrinkage Methods for Treatment Effect Estimation in Subgroups.”</span> <em>arXiv Preprint arXiv:2603.21967</em>. <a href="https://arxiv.org/abs/2603.21967" class="external-link">https://arxiv.org/abs/2603.21967</a>.
+</div>
+<div id="ref-wolbers2025using" class="csl-entry">
+Wolbers, Marcel, Mar Vázquez Rabuñal, Ke Li, Kaspar Rufibach, and Daniel Sabanés Bové. 2025. <span>“<span class="nocase">Using shrinkage methods to estimate treatment effects in overlapping subgroups in randomized clinical trials with a time-to-event endpoint</span>.”</span> <em>Statistical Methods in Medical Research</em>, 1–12.
+</div>
+</div>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>

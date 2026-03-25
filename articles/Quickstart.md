@@ -6,43 +6,50 @@ The `bonsaiforest2` package consists of 3 core functions which are
 typically called in sequence:
 
 1.  [`run_brms_analysis()`](https://openpharma.github.io/bonsaiforest2/reference/run_brms_analysis.md) -
-    Prepares the model formula and fits the Bayesian model using `brms`.
+    Prepares the model formula and fits the Bayesian shrinkage model
+    using `brms`
 2.  [`summary_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/summary_subgroup_effects.md) -
-    Calculates the marginal subgroup treatment effects.
+    Derives standardized treatment effect estimates from the fitted
+    model and displays them
 3.  [`plot()`](https://rdrr.io/r/graphics/plot.default.html) - Creates a
-    forest plot from the summary object.
+    basic forest plot from the summary object
 
-The package enables the implementation of both **global models**
-([Wolbers et al. 2025](#ref-wolbers2025using)), that estimate all
-prognostic and predictive effects in a single unified model, and
-**one-way models** ([Wang et al. 2024](#ref-wang2024bayesian)), that
-estimate treatment fitting a different model for each subgrouping
-variable.
+The package supports both **one-way shrinkage models**, which fit a
+separate Bayesian shrinkage model for each subgrouping variable, and
+**global shrinkage models**, which fit a single model including all
+subgrouping variables at once. For both types of models, treatment
+effect estimates in subgroups are derived via standardization
+(G-computation) . The package supports continuous, binary, time-to-event
+(Cox), and count outcomes. It leverages `brms` and `Stan` for model
+fitting, allowing for a flexible choice of priors, including normal,
+regularized horseshoe, and R2-D2.
+
+A comprehensive description of the methodology implemented in this R
+package can be found in Wolbers et al.
+([2026](#ref-wolbersUnifiedShrinkage)).
 
 This vignette demonstrates how to use the package to fit and compare
-these different modeling formulas. You’ll learn how to:
+these different modeling approaches You’ll learn how to:
 
-- Fit one-way models (random effects with treatment slopes varying by
-  subgroup)
-- Fit global models (all subgroup variables in one unified model)
-- Generate summaries of subgroup treatment effects
+- Fit one-way models
+- Fit global models
+- Derive standardized treatment effect estimates from the fitted model
+  and displays them
 - Visualize and compare results from different model specifications
 
-This example makes use of Bayesian modeling, which requires the
-installation of the [`brms`](https://paulbuerkner.com/brms/) package and
-a working Stan installation (e.g., via
-[`cmdstanr`](https://mc-stan.org/cmdstanr/)).
+It assumes that
+[`bonsaiforest2`](https://github.com/openpharma/bonsaiforest2),
+[`brms`](https://paulbuerkner.com/brms/), and a R interface to Stan
+(e.g., [`cmdstanr`](https://mc-stan.org/cmdstanr/)) have been installed.
 
 ## 2 The Data
 
-We will use the `shrink_data` package dataset with a continuous response
-variable. We explore **three subgroup variables**:
+We will use the simulated `shrink_data` dataset which is included in the
+package. For this vignette, we will use the continuous outcome variable
+`y`, the treatment assignment `trt`, and three categorical subgrouping
+variables `x1`, `x2`, and `x3`.
 
-- `x1`: Subgroup 1 (categories: a, b)
-- `x2`: Subgroup 2 (categories: a, b, c)
-- `x3`: Subgroup 3 (categories: a, b, c, d)
-
-First, let’s load the libraries and the data.
+Let’s load the libraries and the data.
 
 ``` r
 # Load the main package
@@ -64,41 +71,72 @@ print(head(shrink_data))
 #> 6  6   1  b  b  a 5.427096        0 22.81750        1           24     0
 ```
 
-## 3 One-way Models
+## 3 Choice of hyperprior parameters
 
-This section shows how to fit separate models, each examining one
-subgroup variable at a time. In one-way models, we recommend specifying
-the treatment effects as random slopes using pipe-pipe notation (e.g.,
-`~ (0 + trt || subgroup)`), which allows treatment effects to vary by
-subgroup with automatic hierarchical regularization via random effects.
-Note that for each model we also include always the subgrouping variable
-we want to test the treatment effects for also as prognostic.
+In our example, we anchor parameters of the hyperprior in trial
+assumptions about the anticipated size of the overall treatment effect
+and the standard deviation as proposed by Wolbers et al.
+([2026](#ref-wolbersUnifiedShrinkage)). We assume that the data is from
+a randomized trial which targeted a treatment effect of
+\\\delta\_{plan}=0.3\\ and assumed a standard deviation of
+\\\sigma\_{plan}=1\\.
 
-### 3.1 One-way Model: x1 Only
+Specifically, we use the following priors for the shrunken predictive
+effects in the one-way and global models below:
+
+- *One-way shrinkage model*: a normal prior with a half-normal
+  hyperprior and heterogeneity parameter \\\phi=\delta\_{plan}=0.3\\ for
+  the standard deviation
+- *Global shrinkage models*: a regularized horseshoe priors with
+  parameters `scale_global` \\\tau_0 = \delta\_{plan}=0.3\\,
+  `scale_slab` \\s = 2\sigma\_{plan} = 2\\ and `df_slab` \\\nu = 4\\
+
+## 4 One-way shrinkage models
+
+A simple one-way shrinkage model for a categorical subgrouping variable
+`x` is a Bayesian regression model of the form `y ~ 1 + trt + x + trt:x`
+with a normal shrinkage prior applied to the treatment-by-subgroup
+interactions. For efficient computation, it is preferable, to
+reformulate the model as a Bayesian random effects model of the form
+`y ~ 1 + trt + x + (0+trt || x)` where the term `(0+trt || x)` refers to
+random treatment effects per subgroups defined by levels of `x`,
+i.e. treatment-by-subgroup interactions. As discussed, we specify a
+normal distribution for the random effects representing
+treatment-by-subgroup interactions with a half-normal hyperprior with
+heterogeneity parameter \\\phi=\delta\_{plan}=0.3\\ for the standard
+deviation.
+
+In the code below, we fit three separate models for `x1`, `x2`, and
+`x3`, respectively. We extend the simple model described above by
+including all three subgrouping variables as unshrunken prognostic
+terms. While this extension is not mandatory, adjustment for prognostic
+variables can improve the precision of treatment effect estimates as
+illustrated in the simulation study for a continuous endpoint in Wolbers
+et al. ([2026](#ref-wolbersUnifiedShrinkage)).
+
+### 4.1 One-way model for `x1`
 
 ``` r
-# Fit model with only x1 as subgroup variable using one-way approach
-# Random effects notation (0 + trt || x1) estimates varying treatment slopes by x1
+# Fit one-way model using only x1 as a predictive subgrouping variable
+# Random effects notation (0 + trt || x1) estimates varying treatment slopes by levels of x1
 oneway_x1 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ x1,
-  shrunk_prognostic_formula = NULL,
+  unshrunk_terms_formula = ~ x1 + x2 +x3, 
   shrunk_predictive_formula = ~ (0 + trt || x1),
-  intercept_prior = "normal(0, 10)",
-  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
+  shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 2.5 seconds.
-#> Chain 2 finished in 2.9 seconds.
+#> Chain 1 finished in 1.9 seconds.
+#> Chain 2 finished in 2.4 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.7 seconds.
-#> Total execution time: 3.1 seconds.
+#> Mean chain execution time: 2.2 seconds.
+#> Total execution time: 2.6 seconds.
 
 summary_oneway_x1 <- summary_subgroup_effects(brms_fit = oneway_x1)
 print(summary_oneway_x1)
@@ -106,8 +144,8 @@ print(summary_oneway_x1)
 #> # A tibble: 2 × 4
 #>   Subgroup Median CI_Lower CI_Upper
 #>   <chr>     <dbl>    <dbl>    <dbl>
-#> 1 x1: a    0.527     0.300    0.744
-#> 2 x1: b    0.0168   -0.289    0.344
+#> 1 x1: a    0.487     0.264    0.701
+#> 2 x1: b    0.0937   -0.246    0.414
 #> 
 #> $response_type
 #> [1] "continuous"
@@ -122,61 +160,57 @@ print(summary_oneway_x1)
 #> [1] "subgroup_summary"
 ```
 
-### 3.2 One-way Model: x2 Only
+### 4.2 One-way model for `x2`
 
 ``` r
 oneway_x2 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  shrunk_prognostic_formula = NULL,
-    unshrunk_terms_formula = ~ x2,
+  unshrunk_terms_formula = ~ x1 + x2 +x3,
   shrunk_predictive_formula = ~ (0 + trt || x2),
-  intercept_prior = "normal(0, 10)",
-  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
+  shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.7 seconds.
-#> Chain 2 finished in 1.8 seconds.
+#> Chain 1 finished in 1.5 seconds.
+#> Chain 2 finished in 1.5 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 1.8 seconds.
-#> Total execution time: 1.9 seconds.
+#> Mean chain execution time: 1.5 seconds.
+#> Total execution time: 1.6 seconds.
 
 summary_oneway_x2 <- summary_subgroup_effects(brms_fit = oneway_x2)
 ```
 
-### 3.3 One-way Model: x3 Only
+### 4.3 One-way model for `x3`
 
 ``` r
 oneway_x3 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
-  unshrunk_terms_formula = ~ x3,
-  shrunk_prognostic_formula = NULL,
+  unshrunk_terms_formula = ~ x1 + x2 +x3,
   shrunk_predictive_formula = ~ (0 + trt || x3),
-  intercept_prior = "normal(0, 10)",
-  shrunk_predictive_prior = set_prior("normal(0, 1)", class = "sd"),
+  shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.4 seconds.
+#> Chain 1 finished in 1.5 seconds.
 #> Chain 2 finished in 1.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 1.5 seconds.
-#> Total execution time: 1.8 seconds.
+#> Mean chain execution time: 1.6 seconds.
+#> Total execution time: 1.7 seconds.
 
 summary_oneway_x3 <- summary_subgroup_effects(brms_fit = oneway_x3)
 ```
 
-### 3.4 One-way Models: Visualizing All Models
+### 4.4 Forest plot of results from all one-way models
 
 You can combine and visualize results from multiple models using
 [`combine_summaries()`](https://openpharma.github.io/bonsaiforest2/reference/combine_summaries.md):
@@ -189,7 +223,7 @@ combined_oneway <- combine_summaries(list(
   "x3" = summary_oneway_x3
 ))
 
-plot(combined_oneway, title = "One-way Models: All Subgroup Variables")
+plot(combined_oneway, title = "One-way Models: All Subgrouping Variables")
 #> Preparing data for plotting...
 #> Generating plot...
 #> Done.
@@ -197,47 +231,49 @@ plot(combined_oneway, title = "One-way Models: All Subgroup Variables")
 
 ![](Quickstart_files/figure-html/compare-all-oneway-1.png)
 
-## 4 Global Model
+## 5 Global shrinkage model
 
-This section shows how to fit a single model that includes all subgroup
-variables simultaneously using the global approach. All
-treatment-by-subgroup interactions are estimated in one unified model
-with colon notation (e.g., `~ 0 + trt:subgroup`) and strong
-regularization (Horseshoe prior) applied to the interaction terms.
+A simple global shrinkage model for our setting has the form
+`y~ 1 + trt + x1 + x2 + x3 + trt:x1 + trt:x2 + trt:x3` where a shrinkage
+prior is applied to all treatment-by-subgroup interaction terms. As
+discussed, we use a regularized horseshoe prior with parameters
+`scale_global` \\\tau_0 = \delta\_{plan}=0.3\\, `scale_slab` \\s =
+2\sigma\_{plan} = 2\\ and `df_slab` \\\nu = 4\\ in the example below.
+Standardized treatment effects in subgroup defined by the levels of a
+single subgrouping variable at a time are subsequently derived from this
+model via G-computation.
 
-### 4.1 Global Model: All Subgroups
+### 5.1 Model fitting
 
 ``` r
-# Fit a single unified model with ALL subgroup variables simultaneously using global approach
-# - Unshrunk prognostic effects: subgroup main effects without shrinkage
-# - Shrunk predictive effects: treatment interactions with strong regularization using one-hot encoding
+# Fit a single unified model with ALL subgrouping variables simultaneously using global approach
 global_shrinkage_model <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
   response_formula = y ~ trt,
   unshrunk_terms_formula  = ~ 1 + x1 + x2 + x3,
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
-  intercept_prior = "normal(0, 10)",
-  shrunk_predictive_prior = "horseshoe(1)",
+  shrunk_predictive_prior = "horseshoe(scale_global=0.3, scale_slab = 2, df_slab = 4, autoscale = FALSE)",
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
   refresh = 0, backend = "cmdstanr"
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.8 seconds.
-#> Chain 2 finished in 3.9 seconds.
+#> Chain 1 finished in 3.7 seconds.
+#> Chain 2 finished in 3.8 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.8 seconds.
-#> Total execution time: 4.0 seconds.
+#> Total execution time: 3.9 seconds.
 ```
 
-### 4.2 Global Model: Summary of Subgroup Effects
+### 5.2 Summary of subgroup effects
 
-Use
+The function
 [`summary_subgroup_effects()`](https://openpharma.github.io/bonsaiforest2/reference/summary_subgroup_effects.md)
-to generate marginal treatment effects for each subgroup. The function
-automatically extracts all treatment interactions from the fitted model:
+derives standardized treatment effects in subgroups from the global
+model. Internally, subgrouping variables are identified as all terms
+describing treatment-by-covariate interactions provided in the formulas.
 
 ``` r
 global_summary <- summary_subgroup_effects(brms_fit = global_shrinkage_model)
@@ -254,15 +290,15 @@ print(global_summary)
 #> # A tibble: 9 × 4
 #>   Subgroup Median CI_Lower CI_Upper
 #>   <chr>     <dbl>    <dbl>    <dbl>
-#> 1 x1: a     0.473  0.229      0.708
-#> 2 x1: b     0.115 -0.227      0.450
-#> 3 x2: a     0.379  0.101      0.624
-#> 4 x2: b     0.411  0.165      0.685
-#> 5 x2: c     0.272  0.0220     0.512
-#> 6 x3: a     0.329  0.0429     0.567
-#> 7 x3: b     0.403  0.155      0.721
-#> 8 x3: c     0.381  0.114      0.684
-#> 9 x3: d     0.316  0.00851    0.542
+#> 1 x1: a     0.468   0.232     0.699
+#> 2 x1: b     0.118  -0.256     0.459
+#> 3 x2: a     0.383   0.113     0.630
+#> 4 x2: b     0.400   0.166     0.687
+#> 5 x2: c     0.270  -0.0151    0.511
+#> 6 x3: a     0.336   0.0806    0.558
+#> 7 x3: b     0.392   0.146     0.680
+#> 8 x3: c     0.365   0.134     0.660
+#> 9 x3: d     0.309   0.0361    0.542
 #> 
 #> $response_type
 #> [1] "continuous"
@@ -277,13 +313,13 @@ print(global_summary)
 #> [1] "subgroup_summary"
 ```
 
-### 4.3 Global Model: Visualization
+### 5.3 Global Model: Visualization
 
-Use the [`plot()`](https://rdrr.io/r/graphics/plot.default.html)
-function to create a forest plot from the summary object:
+The [`plot()`](https://rdrr.io/r/graphics/plot.default.html) function
+creates a basic forest plot from the summary object:
 
 ``` r
-plot(global_summary, title = "Global Model: All Subgroup Variables")
+plot(global_summary, title = "Global Model: All subgrouping variables")
 #> Preparing data for plotting...
 #> Generating plot...
 #> Done.
@@ -291,13 +327,11 @@ plot(global_summary, title = "Global Model: All Subgroup Variables")
 
 ![](Quickstart_files/figure-html/global-plot-1.png)
 
-## 5 Comparing Multiple Models in One Plot
+## 6 Comparing Multiple Models in One Plot
 
 The [`plot()`](https://rdrr.io/r/graphics/plot.default.html) function
-supports comparing multiple models side-by-side. Pass a named list of
-`subgroup_summary` objects to create a comparative forest plot.
-
-### 5.1 Example: Comparing One-way vs Global Models
+supports comparing multiple models side-by-side by passing a in a forest
+plot by passing a named list of `subgroup_summary` objects.
 
 ``` r
 # Combine summaries for comparison
@@ -315,13 +349,9 @@ plot(combined, title = "Comparing One-way vs Global Models")
 
 ![](Quickstart_files/figure-html/compare-models-1.png)
 
-Wang, Yun, Wenda Tu, William Koh, James Travis, Robert Abugov, Kiya
-Hamilton, Mengjie Zheng, Roberto Crackel, Pablo Bonangelino, and Mark
-Rothmann. 2024. “Bayesian hierarchical models for subgroup analysis.”
-*Pharmaceutical Statistics* 23: 1065–83.
+## References
 
-Wolbers, Marcel, Mar Vázquez Rabuñal, Ke Li, Kaspar Rufibach, and Daniel
-Sabanés Bové. 2025. “Using shrinkage methods to estimate treatment
-effects in overlapping subgroups in randomized clinical trials with a
-time-to-event endpoint.” *Statistical Methods in Medical Research*,
-1–12.
+Wolbers, Marcel, Miriam Pedrera Gómez, Alex Ocampo, and Isaac
+Gravestock. 2026. “Unified Implementation and Comparison of Bayesian
+Shrinkage Methods for Treatment Effect Estimation in Subgroups.” *arXiv
+Preprint arXiv:2603.21967*. <https://arxiv.org/abs/2603.21967>.
