@@ -76,13 +76,13 @@ In our example, we anchor parameters of the hyperprior in trial assumptions abou
 Specifically, we use the following priors for the shrunken predictive effects in the one-way and global models below:
 
 - *One-way shrinkage model*: a normal prior with a half-normal hyperprior and heterogeneity parameter $\phi=\delta_{plan}=0.3$ for the standard deviation
-- *Global shrinkage models*: a regularized horseshoe priors with parameters `scale_global` $\tau_0 = \delta_{plan}=0.3$, `scale_slab` $s = 2\sigma_{plan} = 2$ and `df_slab` $\nu = 4$
+- *Global shrinkage models*: a regularized horseshoe priors with parameters $\tau_0 = \delta_{plan}=0.3$ (`scale_global`), $s = 2\sigma_{plan} = 2$ (`scale_slab`) and $\nu = 4$ (`df_slab`)
 
 # One-way shrinkage models
 
 A simple one-way shrinkage model for a categorical subgrouping variable `x` is a Bayesian regression model of the form `y ~ 1 + trt + x + trt:x` with a normal shrinkage prior applied to the treatment-by-subgroup interactions. For efficient computation, it is preferable, to reformulate the model as a Bayesian random effects model of the form `y ~ 1 + trt + x + (0+trt || x)` where the term `(0+trt || x)` refers to random treatment effects per subgroups defined by levels of `x`, i.e. treatment-by-subgroup interactions. As discussed, we specify a normal distribution for the random effects representing treatment-by-subgroup interactions with a half-normal hyperprior with heterogeneity parameter $\phi=\delta_{plan}=0.3$ for the standard deviation.  
 
-In the code below, we fit three separate models for `x1`, `x2`, and `x3`, respectively.  We extend the simple model described above by including all three subgrouping variables as unshrunken prognostic terms. While this extension is not mandatory, adjustment for prognostic variables can improve the precision of treatment effect estimates as illustrated in the simulation study for a continuous endpoint in @wolbersUnifiedShrinkage. 
+In the code below, we fit three separate models for `x1`, `x2`, and `x3`, respectively.  We extend the simple model described above by including all three subgrouping variables as unshrunken prognostic terms. While this extension is not mandatory, adjustment for prognostic variables can improve the precision of treatment effect estimates as illustrated in the simulation study for a continuous endpoint reported in @wolbersUnifiedShrinkage. 
 
 ## One-way model for `x1`
 
@@ -155,7 +155,7 @@ plot(combined_oneway, title = "One-way Models: All Subgrouping Variables")
 
 # Global shrinkage model
 
-A simple global shrinkage model for our setting has the form ` y~ 1 + trt + x1 + x2 + x3 + trt:x1 + trt:x2 + trt:x3` where a shrinkage prior is applied to all treatment-by-subgroup interaction terms. As discussed, we use a regularized horseshoe prior with parameters `scale_global` $\tau_0 = \delta_{plan}=0.3$, `scale_slab` $s = 2\sigma_{plan} = 2$ and `df_slab` $\nu = 4$ in the example below. Standardized treatment effects in subgroup defined by the levels of a single subgrouping variable at a time are subsequently derived from this model via G-computation. 
+A simple global shrinkage model for our setting has the form ` y~ 1 + trt + x1 + x2 + x3 + trt:x1 + trt:x2 + trt:x3` where a shrinkage prior is applied to all treatment-by-subgroup interaction terms. As discussed, we use a regularized horseshoe prior with parameters $\tau_0 = \delta_{plan}=0.3$ (`scale_global`), $s = 2\sigma_{plan} = 2$ (`scale_slab`) and $\nu = 4$ (`df_slab`) in the example below. Standardized treatment effects in subgroup defined by the levels of a single subgrouping variable at a time are subsequently derived from this model via G-computation. 
 
 ## Model fitting
 
