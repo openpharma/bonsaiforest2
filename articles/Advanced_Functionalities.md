@@ -27,6 +27,7 @@ time is provided in variable `fup_duration` whose log-transformed value
 is included as an offset.
 
 ``` r
+
 # Load packages and data
 library(bonsaiforest2)
 library(brms)
@@ -47,6 +48,7 @@ shrink_data$log_fup_duration <- log(shrink_data$fup_duration)
 ```
 
 ``` r
+
 count_model_fit <- run_brms_analysis(
   data = shrink_data,
   response_type = "count",
@@ -66,12 +68,12 @@ count_model_fit <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.5 seconds.
-#> Chain 2 finished in 3.4 seconds.
+#> Chain 2 finished in 2.1 seconds.
+#> Chain 1 finished in 2.1 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.4 seconds.
-#> Total execution time: 3.6 seconds.
+#> Mean chain execution time: 2.1 seconds.
+#> Total execution time: 2.2 seconds.
 #> Warning: 5 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
@@ -110,12 +112,12 @@ described via examples below.
 
 The **default priors** used by `bonsaiforest2` are as follows:
 
-| Prior Component       | Parameter Name            | Default Prior                                                                                                                                                                                                      |     |
-|:----------------------|:--------------------------|:-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----|
-| **Intercept**         | `intercept_prior`         | `NULL` (i.e. `brms` default)                                                                                                                                                                                       |     |
-| **Unshrunk Terms**    | `unshrunk_prior`          | `NULL` (i.e. `brms` default)                                                                                                                                                                                       |     |
-| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with \\\phi=1\\ for the standard deviation instead |     |
-| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with \\\phi=1\\ for the standard deviation instead |     |
+| Prior Component | Parameter Name | Default Prior |  |
+|:---|:---|:---|:---|
+| **Intercept** | `intercept_prior` | `NULL` (i.e. `brms` default) |  |
+| **Unshrunk Terms** | `unshrunk_prior` | `NULL` (i.e. `brms` default) |  |
+| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with \\\phi=1\\ for the standard deviation instead |  |
+| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with \\\phi=1\\ for the standard deviation instead |  |
 
 The following examples demonstrate how to customize priors in
 `bonsaiforest2`. We use the `shrink_data` package dataset with a
@@ -125,6 +127,7 @@ from simple defaults to advanced hierarchical structures.
 #### 2.0.1 Model Preparation
 
 ``` r
+
 # Prepare basic model formulas
 prepared_model <- prepare_formula_model(
   data = shrink_data,
@@ -144,6 +147,7 @@ targeted a hazard ratio of 0.7, i.e. \\\delta\_{plan}=\|log(0.7)\\, and
 set `scale_global` of the regularized horseshoe prior to this value.
 
 ``` r
+
 fit_ex2 <- fit_brms_model(
   prepared_model = prepared_model,
   intercept_prior = "normal(0, 5)",
@@ -155,12 +159,12 @@ fit_ex2 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 3.1 seconds.
-#> Chain 1 finished in 3.4 seconds.
+#> Chain 2 finished in 2.2 seconds.
+#> Chain 1 finished in 2.4 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.2 seconds.
-#> Total execution time: 3.5 seconds.
+#> Mean chain execution time: 2.3 seconds.
+#> Total execution time: 2.5 seconds.
 #> Warning: 1 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -203,6 +207,7 @@ to the coefficients. The R2-D2 prior is also directly supported by
 `brms` as illustrated below.
 
 ``` r
+
 fit_ex3 <- fit_brms_model(
   prepared_model = prepared_model,
   shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
@@ -214,12 +219,12 @@ fit_ex3 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 2.4 seconds.
-#> Chain 2 finished in 2.4 seconds.
+#> Chain 2 finished in 1.5 seconds.
+#> Chain 1 finished in 1.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.4 seconds.
-#> Total execution time: 2.5 seconds.
+#> Mean chain execution time: 1.5 seconds.
+#> Total execution time: 1.6 seconds.
 #> Warning: 14 of 1000 (1.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -259,6 +264,7 @@ is necessary if you want to implement a hierarchical structure that
 parameter across coefficients.
 
 ``` r
+
 # 1. Define new hyperparameters in Stan
 stanvars_full_hierarchical <- brms::stanvar(
   scode = "  real mu_pred;\n  real<lower=0> sigma_pred;\n",
@@ -287,12 +293,12 @@ fit_ex4 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 5.3 seconds.
-#> Chain 2 finished in 5.5 seconds.
+#> Chain 1 finished in 3.5 seconds.
+#> Chain 2 finished in 3.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 5.4 seconds.
-#> Total execution time: 5.6 seconds.
+#> Mean chain execution time: 3.5 seconds.
+#> Total execution time: 3.7 seconds.
 
 # View the used priors
 cat("\n=== Priors Used ===\n")
@@ -388,6 +394,7 @@ combining
 calls.
 
 ``` r
+
 # 1. Run prepare_formula_model
 prepared_model_ex5 <- prepare_formula_model(
   data = shrink_data,
@@ -438,12 +445,12 @@ fit_ex5 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 3.5 seconds.
-#> Chain 1 finished in 4.0 seconds.
+#> Chain 2 finished in 2.2 seconds.
+#> Chain 1 finished in 2.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.7 seconds.
-#> Total execution time: 4.1 seconds.
+#> Mean chain execution time: 2.4 seconds.
+#> Total execution time: 2.7 seconds.
 #> Warning: 2 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -492,6 +499,7 @@ effects across subgroups are exchangeable and want to borrow information
 across them.
 
 ``` r
+
 cat("\n=== Hierarchical Prior Structure ===\n")
 #> 
 #> === Hierarchical Prior Structure ===
@@ -530,6 +538,7 @@ unshrunk_priors_hier <- c(
 ```
 
 ``` r
+
 # Step 4: Fit the hierarchical model
 fit_ex6 <- fit_brms_model(
   prepared_model = prepared_model_ex5,
@@ -568,6 +577,7 @@ different residual variances across strata (specified via argument
 strata is the shrinkage parameter for treatment effect heterogeneity.
 
 ``` r
+
 # model with x1*x2 and x1*x3 (separate regression coef per level of x1 for x2 and x3), and separate variance per x1 strata
 oneway_x1_flex_strat <- run_brms_analysis(
   data = shrink_data,
@@ -591,17 +601,18 @@ oneway_x1_flex_strat <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 4.0 seconds.
-#> Chain 1 finished in 4.2 seconds.
+#> Chain 2 finished in 2.5 seconds.
+#> Chain 1 finished in 2.7 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.1 seconds.
-#> Total execution time: 4.3 seconds.
+#> Mean chain execution time: 2.6 seconds.
+#> Total execution time: 2.7 seconds.
 #> 
 #> Analysis complete.
 ```
 
 ``` r
+
 summary_oneway_x1_flex_strat <- summary_subgroup_effects(
   brms_fit = oneway_x1_flex_strat
 )
@@ -627,6 +638,7 @@ Assume that the primary analysis of the trial was stratified by variable
 stratified by `x2` is fitted below.
 
 ``` r
+
 # Model fitting with stratified baseline hazard
 fit_surv_oneway_x1_strat <- run_brms_analysis(
   data = shrink_data,
@@ -649,12 +661,12 @@ fit_surv_oneway_x1_strat <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 2 finished in 3.7 seconds.
-#> Chain 1 finished in 3.9 seconds.
+#> Chain 2 finished in 2.4 seconds.
+#> Chain 1 finished in 2.5 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.8 seconds.
-#> Total execution time: 4.0 seconds.
+#> Mean chain execution time: 2.4 seconds.
+#> Total execution time: 2.6 seconds.
 #> 
 #> Analysis complete.
 

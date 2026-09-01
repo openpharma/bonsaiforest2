@@ -44,11 +44,11 @@ subgroup \\k\\, and \\s\_{ik}=0\\ otherwise, with \\k=1,\ldots, K\\). In
 addition, the model might be adjusted for additional baseline covariates
 denoted by \\u\_{il}\\ (\\l=1,\ldots,L\\).
 
-| Feature                 | One-Way shrinkage Model                                       | Global shrinkage Model                                                             |
-|:------------------------|:--------------------------------------------------------------|:-----------------------------------------------------------------------------------|
-| **Scope**               | Fit one model per subgrouping variables                       | Fit one model including all the subgrouping variables                              |
-| **Subgroups (\\K\\)**   | \\K\\ levels of a single subgrouping variable (disjoint)      | \\K = \sum\_{j=1}^p l_j\\ subgroups from \\p\\ subgrouping variables (overlapping) |
-| **Subgroup Indicators** | Only a single indicator \\s\_{ik}\\ is equal to 1 per subject | \\p\\ indicators \\s\_{ik}\\ are equal to 1 per subject                            |
+| Feature | One-Way shrinkage Model | Global shrinkage Model |
+|:---|:---|:---|
+| **Scope** | Fit one model per subgrouping variables | Fit one model including all the subgrouping variables |
+| **Subgroups (\\K\\)** | \\K\\ levels of a single subgrouping variable (disjoint) | \\K = \sum\_{j=1}^p l_j\\ subgroups from \\p\\ subgrouping variables (overlapping) |
+| **Subgroup Indicators** | Only a single indicator \\s\_{ik}\\ is equal to 1 per subject | \\p\\ indicators \\s\_{ik}\\ are equal to 1 per subject |
 
 ### 2.2 Statistical model
 
@@ -83,11 +83,11 @@ categorize regression coefficients of the linear predictor (excluding
 the intercept \\\alpha_0\\ and main treatment effect \\\beta_0\\) into
 three distinct groups.
 
-| Parameter Group            | **Unshrunken Terms**                                                                                                                                                                                                                                                                                                   | **Shrunken Prognostic Terms**                                                                                                                                                                                                                     | **Shrunken Predictive Terms**                                                                                                                                                                                                                                                     |
-|:---------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Purpose**                | Typically consists of all prognostic effects. If there is a strong a priori rationale for treatment effect heterogeneity for some of the subgroups in a global model, e.g., for those defined by biomarkers directly linked to a drug target, then they might also be left unshrunken to reflect this prior knowledge. | Prognostic terms with shrinkage priors. Often, this group is empty as all prognostic terms are left unshrunken. Prognostic terms might be shrunken if their number is large (relative to the sample size) and regularization is deemed necessary. | For one-way shrinkage models, this group includes the subgroup-by-treatment interactions for the selected subgrouping variable only. For global models, it encompasses all subgroup-by-treatment interactions (with the possible exception of those grouped as unshrunken terms). |
-| **Desing matrix encoding** | Dummy encoding (baseline levels omitted to avoid overparameterization).                                                                                                                                                                                                                                                | One-hot encoding (all levels included symmetrically)                                                                                                                                                                                              | One-hot encoding (all levels included symmetrically)                                                                                                                                                                                                                              |
-| **Prior distribution**     | Non-informative / Flat priors                                                                                                                                                                                                                                                                                          | Shrinkage priors (exchangeable within this group)                                                                                                                                                                                                 | Shrinkage priors (exchangeable within this group)                                                                                                                                                                                                                                 |
+| Parameter Group | **Unshrunken Terms** | **Shrunken Prognostic Terms** | **Shrunken Predictive Terms** |
+|:---|:---|:---|:---|
+| **Purpose** | Typically consists of all prognostic effects. If there is a strong a priori rationale for treatment effect heterogeneity for some of the subgroups in a global model, e.g., for those defined by biomarkers directly linked to a drug target, then they might also be left unshrunken to reflect this prior knowledge. | Prognostic terms with shrinkage priors. Often, this group is empty as all prognostic terms are left unshrunken. Prognostic terms might be shrunken if their number is large (relative to the sample size) and regularization is deemed necessary. | For one-way shrinkage models, this group includes the subgroup-by-treatment interactions for the selected subgrouping variable only. For global models, it encompasses all subgroup-by-treatment interactions (with the possible exception of those grouped as unshrunken terms). |
+| **Desing matrix encoding** | Dummy encoding (baseline levels omitted to avoid overparameterization). | One-hot encoding (all levels included symmetrically) | One-hot encoding (all levels included symmetrically) |
+| **Prior distribution** | Non-informative / Flat priors | Shrinkage priors (exchangeable within this group) | Shrinkage priors (exchangeable within this group) |
 
 ### 2.4 Priors distributions for shrunken predictive terms
 
@@ -208,19 +208,16 @@ Bürkner, Paul-Christian. 2017. “brms: An R Package for Bayesian
 Multilevel Models Using Stan.” *Journal of Statistical Software* 80 (1):
 1–28.
 
-Carpenter, Bob, Andrew Gelman, Matthew D Hoffman, Daniel Lee, Ben
-Goodrich, Michael Betancourt, Marcus Brubaker, Jiqiang Guo, Peter Li,
-and Allen Riddell. 2017. “Stan: A Probabilistic Programming Language.”
-*Journal of Statistical Software* 76: 1–32.
+Carpenter, Bob, Andrew Gelman, Matthew D Hoffman, et al. 2017. “Stan: A
+Probabilistic Programming Language.” *Journal of Statistical Software*
+76: 1–32.
 
 Piironen, Juho, and Aki Vehtari. 2017. “Sparsity Information and
 Regularization in the Horseshoe and Other Shrinkage Priors.” *Electronic
 Journal of Statistics* 11 (2): 5018–51.
 
-Wang, Yun, Wenda Tu, William Koh, James Travis, Robert Abugov, Kiya
-Hamilton, Mengjie Zheng, Roberto Crackel, Pablo Bonangelino, and Mark
-Rothmann. 2024. “Bayesian hierarchical models for subgroup analysis.”
-*Pharmaceutical Statistics* 23: 1065–83.
+Wang, Yun, Wenda Tu, William Koh, et al. 2024. “Bayesian hierarchical
+models for subgroup analysis.” *Pharmaceutical Statistics* 23: 1065–83.
 
 Wolbers, Marcel, Miriam Pedrera Gómez, Alex Ocampo, and Isaac
 Gravestock. 2026. “Unified Implementation and Comparison of Bayesian

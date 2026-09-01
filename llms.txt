@@ -23,6 +23,7 @@ The latest stable release of `bonsaiforest2` can be installed from the
 `main` branch on [GitHub](https://github.com/openpharma/bonsaiforest2):
 
 ``` r
+
 remotes::install_github("openpharma/bonsaiforest2")
 ```
 
@@ -38,6 +39,7 @@ horseshoe prior (with default hyperprior parameters from `brms`),
 applied to the `shrink_data` dataset with three subgrouping variables.
 
 ``` r
+
 library(bonsaiforest2)
 
 # 1. Load the shrink_data package dataset
@@ -57,6 +59,7 @@ fit_fixed <- run_brms_analysis(
 ```
 
 ``` r
+
 # 3. Extract and visualize standardized treatment effects in subgroups
 subgroup_effects <- summary_subgroup_effects(fit_fixed)
 print(subgroup_effects$estimates)

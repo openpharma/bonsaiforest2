@@ -52,12 +52,14 @@ variables `x1`, `x2`, and `x3`.
 Let’s load the libraries and the data.
 
 ``` r
+
 # Load the main package
 library(bonsaiforest2)
 library(brms)
 ```
 
 ``` r
+
 # Load the shrink_data package dataset
 shrink_data <- bonsaiforest2::shrink_data
 
@@ -88,8 +90,8 @@ effects in the one-way and global models below:
   hyperprior and heterogeneity parameter \\\phi=\delta\_{plan}=0.3\\ for
   the standard deviation
 - *Global shrinkage models*: a regularized horseshoe priors with
-  parameters `scale_global` \\\tau_0 = \delta\_{plan}=0.3\\,
-  `scale_slab` \\s = 2\sigma\_{plan} = 2\\ and `df_slab` \\\nu = 4\\
+  parameters \\\tau_0 = \delta\_{plan}=0.3\\ (`scale_global`), \\s =
+  2\sigma\_{plan} = 2\\ (`scale_slab`) and \\\nu = 4\\ (`df_slab`)
 
 ## 4 One-way shrinkage models
 
@@ -111,12 +113,13 @@ In the code below, we fit three separate models for `x1`, `x2`, and
 including all three subgrouping variables as unshrunken prognostic
 terms. While this extension is not mandatory, adjustment for prognostic
 variables can improve the precision of treatment effect estimates as
-illustrated in the simulation study for a continuous endpoint in Wolbers
-et al. ([2026](#ref-wolbersUnifiedShrinkage)).
+illustrated in the simulation study for a continuous endpoint reported
+in Wolbers et al. ([2026](#ref-wolbersUnifiedShrinkage)).
 
 ### 4.1 One-way model for `x1`
 
 ``` r
+
 # Fit one-way model using only x1 as a predictive subgrouping variable
 # Random effects notation (0 + trt || x1) estimates varying treatment slopes by levels of x1
 oneway_x1 <- run_brms_analysis(
@@ -131,12 +134,12 @@ oneway_x1 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.9 seconds.
-#> Chain 2 finished in 2.4 seconds.
+#> Chain 1 finished in 1.3 seconds.
+#> Chain 2 finished in 1.6 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.2 seconds.
-#> Total execution time: 2.6 seconds.
+#> Mean chain execution time: 1.4 seconds.
+#> Total execution time: 1.6 seconds.
 
 summary_oneway_x1 <- summary_subgroup_effects(brms_fit = oneway_x1)
 print(summary_oneway_x1)
@@ -163,6 +166,7 @@ print(summary_oneway_x1)
 ### 4.2 One-way model for `x2`
 
 ``` r
+
 oneway_x2 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
@@ -175,12 +179,12 @@ oneway_x2 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.5 seconds.
-#> Chain 2 finished in 1.5 seconds.
+#> Chain 1 finished in 1.0 seconds.
+#> Chain 2 finished in 0.9 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 1.5 seconds.
-#> Total execution time: 1.6 seconds.
+#> Mean chain execution time: 0.9 seconds.
+#> Total execution time: 1.0 seconds.
 
 summary_oneway_x2 <- summary_subgroup_effects(brms_fit = oneway_x2)
 ```
@@ -188,6 +192,7 @@ summary_oneway_x2 <- summary_subgroup_effects(brms_fit = oneway_x2)
 ### 4.3 One-way model for `x3`
 
 ``` r
+
 oneway_x3 <- run_brms_analysis(
   data = shrink_data,
   response_type = "continuous",
@@ -200,12 +205,12 @@ oneway_x3 <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 1.5 seconds.
-#> Chain 2 finished in 1.6 seconds.
+#> Chain 1 finished in 1.0 seconds.
+#> Chain 2 finished in 1.0 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 1.6 seconds.
-#> Total execution time: 1.7 seconds.
+#> Mean chain execution time: 1.0 seconds.
+#> Total execution time: 1.0 seconds.
 
 summary_oneway_x3 <- summary_subgroup_effects(brms_fit = oneway_x3)
 ```
@@ -216,6 +221,7 @@ You can combine and visualize results from multiple models using
 [`combine_summaries()`](https://openpharma.github.io/bonsaiforest2/reference/combine_summaries.md):
 
 ``` r
+
 # Combine all one-way models
 combined_oneway <- combine_summaries(list(
   "x1" = summary_oneway_x1,
@@ -236,9 +242,9 @@ plot(combined_oneway, title = "One-way Models: All Subgrouping Variables")
 A simple global shrinkage model for our setting has the form
 `y~ 1 + trt + x1 + x2 + x3 + trt:x1 + trt:x2 + trt:x3` where a shrinkage
 prior is applied to all treatment-by-subgroup interaction terms. As
-discussed, we use a regularized horseshoe prior with parameters
-`scale_global` \\\tau_0 = \delta\_{plan}=0.3\\, `scale_slab` \\s =
-2\sigma\_{plan} = 2\\ and `df_slab` \\\nu = 4\\ in the example below.
+discussed, we use a regularized horseshoe prior with parameters \\\tau_0
+= \delta\_{plan}=0.3\\ (`scale_global`), \\s = 2\sigma\_{plan} = 2\\
+(`scale_slab`) and \\\nu = 4\\ (`df_slab`) in the example below.
 Standardized treatment effects in subgroup defined by the levels of a
 single subgrouping variable at a time are subsequently derived from this
 model via G-computation.
@@ -246,6 +252,7 @@ model via G-computation.
 ### 5.1 Model fitting
 
 ``` r
+
 # Fit a single unified model with ALL subgrouping variables simultaneously using global approach
 global_shrinkage_model <- run_brms_analysis(
   data = shrink_data,
@@ -259,12 +266,12 @@ global_shrinkage_model <- run_brms_analysis(
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.7 seconds.
-#> Chain 2 finished in 3.8 seconds.
+#> Chain 1 finished in 2.5 seconds.
+#> Chain 2 finished in 2.5 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.8 seconds.
-#> Total execution time: 3.9 seconds.
+#> Mean chain execution time: 2.5 seconds.
+#> Total execution time: 2.5 seconds.
 ```
 
 ### 5.2 Summary of subgroup effects
@@ -276,6 +283,7 @@ model. Internally, subgrouping variables are identified as all terms
 describing treatment-by-covariate interactions provided in the formulas.
 
 ``` r
+
 global_summary <- summary_subgroup_effects(brms_fit = global_shrinkage_model)
 #> --- Calculating specific subgroup effects... ---
 #> Step 1: Identifying subgroups and creating counterfactuals...
@@ -319,6 +327,7 @@ The [`plot()`](https://rdrr.io/r/graphics/plot.default.html) function
 creates a basic forest plot from the summary object:
 
 ``` r
+
 plot(global_summary, title = "Global Model: All subgrouping variables")
 #> Preparing data for plotting...
 #> Generating plot...
@@ -334,6 +343,7 @@ supports comparing multiple models side-by-side by passing a in a forest
 plot by passing a named list of `subgroup_summary` objects.
 
 ``` r
+
 # Combine summaries for comparison
 combined <- combine_summaries(list(
   "One-way" = combined_oneway,
