@@ -89,7 +89,7 @@ A common choice for global shrinkage models (where the number of subgroups is la
 
 A normal prior distribution with a half-normal (HN) hyperprior assigned to the standard deviation is the typical choice:
 
-$$ \beta_1, \ldots, \beta_K \sim N(0,\tau^2) \mbox{ with } \tau \sim HN(\phi) $$
+$$\beta_1, \ldots, \beta_K \sim N(0,\tau^2) \text{ with } \tau \sim HN(\phi)$$
 
 The heterogeneity parameter $\phi$ dictates the degree of shrinkage. A possible **default choice** is $\phi = |\delta_{plan}|$ where $\delta_{plan}$ is the target effect size from the trial protocol. This choice implies an a priori assumption that pairwise differences in treatment effects between subgroups (i.e. $|\beta_i-\beta_j|$) lie between $0.02\cdot|\delta_{plan}|$ and $3.09\cdot |\delta_{plan}|$ with 90% probability. This range seems sufficiently
 wide to remain conservative, even in settings characterized by substantial heterogeneity.
@@ -99,10 +99,10 @@ wide to remain conservative, even in settings characterized by substantial heter
 The larger number of subgroups encourages the use of global-local shrinkage priors. 
 Global-local shrinkage priors are continuous versions of spike-and-slab priors, i.e., mixture priors of a point mass at zero (the spike) and a continuous distribution which describes the non-zero coefficients (the slab). A common choice is the regularized horseshoe prior which has the following form: 
 
-$$\beta_k|\lambda_k, \tau, c \sim N(0,\tau^2\tilde{\lambda}_k^2)\mbox{ with } \tilde{\lambda}_k^2 = c^2 \lambda_k^2 / (c^2 + \tau^2 \lambda_k^2)$$
+$$\beta_k|\lambda_k, \tau, c \sim N(0,\tau^2\tilde{\lambda}_k^2)\text{ with } \tilde{\lambda}_k^2 = c^2 \lambda_k^2 / (c^2 + \tau^2 \lambda_k^2)$$
 
 with hyper-priors:
-$$\tau\sim C^+(0,\tau_0^2), \; \lambda_k \sim C^+(0,1)\; (k=1,\ldots,K), \mbox{ and } c^2 \sim \textrm{Inv-Gamma}(\nu/2,\nu s^2 /2).$$
+$$\tau\sim C^+(0,\tau_0^2), \; \lambda_k \sim C^+(0,1)\; (k=1,\ldots,K), \text{ and } c^2 \sim \textrm{Inv-Gamma}(\nu/2,\nu s^2 /2).$$
 The global shrinkage parameter $\tau$ shrinks all parameters towards zero while the heavy-tailed half-Cauchy prior for $\lambda_k$ allows some parameters to escape this heavy shrinkage.
 The slab-component for the regularized horseshoe which governs shrinkage for larger coefficients is a $Student-t_{\nu}(0,s^2)$ distribution (@piironen2017).
 
