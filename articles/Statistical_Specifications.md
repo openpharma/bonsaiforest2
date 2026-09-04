@@ -73,8 +73,7 @@ s\_{i1}+\ldots + \alpha_K s\_{iK} + \alpha\_{K+1} u\_{i1} +\ldots +
 +\ldots + \beta_K s\_{iK}z_i}\_{\substack{\text{predictive effects:
 subgroup-by-} \\ \text{treatment interactions}}}\\
 
-*Note: For Cox regression models, the intercept \\\alpha_0\\ is
-excluded.*
+Note: For Cox regression models, the intercept \\\alpha_0\\ is excluded.
 
 ### 2.3 Parameter grouping
 
@@ -85,7 +84,7 @@ three distinct groups.
 
 | Parameter Group | **Unshrunken Terms** | **Shrunken Prognostic Terms** | **Shrunken Predictive Terms** |
 |:---|:---|:---|:---|
-| **Purpose** | Typically consists of all prognostic effects. If there is a strong a priori rationale for treatment effect heterogeneity for some of the subgroups in a global model, e.g., for those defined by biomarkers directly linked to a drug target, then they might also be left unshrunken to reflect this prior knowledge. | Prognostic terms with shrinkage priors. Often, this group is empty as all prognostic terms are left unshrunken. Prognostic terms might be shrunken if their number is large (relative to the sample size) and regularization is deemed necessary. | For one-way shrinkage models, this group includes the subgroup-by-treatment interactions for the selected subgrouping variable only. For global models, it encompasses all subgroup-by-treatment interactions (with the possible exception of those grouped as unshrunken terms). |
+| **Purpose** | Typically consists of all prognostic effects. If there is a strong a priori rationale for treatment effect heterogeneity for some of the subgroups in a global model, e.g., for those defined by biomarkers directly linked to a drug target, then corresponding subgroup-by-treatment interactions might also be left unshrunken to reflect this prior knowledge. | Prognostic terms with shrinkage priors. Often, this group is empty as all prognostic terms are left unshrunken. Prognostic terms might be shrunken if their number is large (relative to the sample size) and regularization is deemed necessary. | For one-way shrinkage models, this group includes the subgroup-by-treatment interactions for the selected subgrouping variable only. For global models, it encompasses all subgroup-by-treatment interactions (with the possible exception of those grouped as unshrunken terms). |
 | **Desing matrix encoding** | Dummy encoding (baseline levels omitted to avoid overparameterization). | One-hot encoding (all levels included symmetrically) | One-hot encoding (all levels included symmetrically) |
 | **Prior distribution** | Non-informative / Flat priors | Shrinkage priors (exchangeable within this group) | Shrinkage priors (exchangeable within this group) |
 
@@ -102,7 +101,7 @@ are regularized horseshoe priors.
 A normal prior distribution with a half-normal (HN) hyperprior assigned
 to the standard deviation is the typical choice:
 
-\\\beta_1, \ldots, \beta_K \sim N(0,\tau^2) \mbox{ with } \tau \sim
+\\\beta_1, \ldots, \beta_K \sim N(0,\tau^2) \text{ with } \tau \sim
 HN(\phi)\\
 
 The heterogeneity parameter \\\phi\\ dictates the degree of shrinkage. A
@@ -124,13 +123,13 @@ of spike-and-slab priors, i.e., mixture priors of a point mass at zero
 coefficients (the slab). A common choice is the regularized horseshoe
 prior which has the following form:
 
-\\ \beta_k\|\lambda_k, \tau, c \sim
-N(0,\tau^2\tilde{\lambda}\_k^2)\mbox{ with } \tilde{\lambda}\_k^2 = c^2
-\lambda_k^2 / (c^2 + \tau^2 \lambda_k^2)\\
+\\\beta_k\|\lambda_k, \tau, c \sim N(0,\tau^2\tilde{\lambda}\_k^2)\text{
+with } \tilde{\lambda}\_k^2 = c^2 \lambda_k^2 / (c^2 + \tau^2
+\lambda_k^2)\\
 
 with hyper-priors: \\\tau\sim C^+(0,\tau_0^2), \\ \lambda_k \sim
-C^+(0,1)\\ (k=1,\ldots,K), \mbox{ and } c^2 \sim
-\textrm{Inv-Gamma}(\nu/2,\nu s^2 /2)\\ The global shrinkage parameter
+C^+(0,1)\\ (k=1,\ldots,K), \text{ and } c^2 \sim
+\textrm{Inv-Gamma}(\nu/2,\nu s^2 /2).\\ The global shrinkage parameter
 \\\tau\\ shrinks all parameters towards zero while the heavy-tailed
 half-Cauchy prior for \\\lambda_k\\ allows some parameters to escape
 this heavy shrinkage. The slab-component for the regularized horseshoe

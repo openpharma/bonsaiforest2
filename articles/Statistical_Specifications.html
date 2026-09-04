@@ -143,7 +143,7 @@ In addition, the model might be adjusted for additional baseline covariates deno
 </ul>
 <p>Regardless of the endpoint type, the linear predictor <span class="math inline">\(LP_i\)</span> for subject <span class="math inline">\(i\)</span> is structured as follows:</p>
 <p><span class="math display">\[LP_i = \alpha_0 + \beta_{0}z_i + \underbrace{\alpha_1 s_{i1}+\ldots + \alpha_K s_{iK} + \alpha_{K+1} u_{i1} +\ldots + \alpha_{K+L}u_{iL} }_{\substack{\text{prognostic effects including} \\ \text{main subgroup effects}}} + \underbrace{\beta_1 s_{i1} z_i +\ldots + \beta_K s_{iK}z_i}_{\substack{\text{predictive effects: subgroup-by-} \\ \text{treatment interactions}}}\]</span></p>
-<p><em>Note: For Cox regression models, the intercept <span class="math inline">\(\alpha_0\)</span> is excluded.</em></p>
+<p>Note: For Cox regression models, the intercept <span class="math inline">\(\alpha_0\)</span> is excluded.</p>
 </div>
 <div class="section level3" number="2.3">
 <h3 id="parameter-grouping">
@@ -166,7 +166,7 @@ In addition, the model might be adjusted for additional baseline covariates deno
 <tbody>
 <tr class="odd">
 <td align="left"><strong>Purpose</strong></td>
-<td align="left">Typically consists of all prognostic effects. If there is a strong a priori rationale for treatment effect heterogeneity for some of the subgroups in a global model, e.g., for those defined by biomarkers directly linked to a drug target, then they might also be left unshrunken to reflect this prior knowledge.</td>
+<td align="left">Typically consists of all prognostic effects. If there is a strong a priori rationale for treatment effect heterogeneity for some of the subgroups in a global model, e.g., for those defined by biomarkers directly linked to a drug target, then corresponding subgroup-by-treatment interactions might also be left unshrunken to reflect this prior knowledge.</td>
 <td align="left">Prognostic terms with shrinkage priors. Often, this group is empty as all prognostic terms are left unshrunken. Prognostic terms might be shrunken if their number is large (relative to the sample size) and regularization is deemed necessary.</td>
 <td align="left">For one-way shrinkage models, this group includes the subgroup-by-treatment interactions for the selected subgrouping variable only. For global models, it encompasses all subgroup-by-treatment interactions (with the possible exception of those grouped as unshrunken terms).</td>
 </tr>
@@ -197,7 +197,7 @@ A common choice for global shrinkage models (where the number of subgroups is la
 <span class="header-section-number">2.4.1</span> Normal priors for one-way shrinkage models<a class="anchor" aria-label="anchor" href="#normal-priors-for-one-way-shrinkage-models"></a>
 </h4>
 <p>A normal prior distribution with a half-normal (HN) hyperprior assigned to the standard deviation is the typical choice:</p>
-<p><span class="math display">\[\beta_1, \ldots, \beta_K \sim N(0,\tau^2) \mbox{ with } \tau \sim HN(\phi)\]</span></p>
+<p><span class="math display">\[\beta_1, \ldots, \beta_K \sim N(0,\tau^2) \text{ with } \tau \sim HN(\phi)\]</span></p>
 <p>The heterogeneity parameter <span class="math inline">\(\phi\)</span> dictates the degree of shrinkage. A possible <strong>default choice</strong> is <span class="math inline">\(\phi = |\delta_{plan}|\)</span> where <span class="math inline">\(\delta_{plan}\)</span> is the target effect size from the trial protocol. This choice implies an a priori assumption that pairwise differences in treatment effects between subgroups (i.e. <span class="math inline">\(|\beta_i-\beta_j|\)</span>) lie between <span class="math inline">\(0.02\cdot|\delta_{plan}|\)</span> and <span class="math inline">\(3.09\cdot |\delta_{plan}|\)</span> with 90% probability. This range seems sufficiently
 wide to remain conservative, even in settings characterized by substantial heterogeneity.</p>
 </div>
@@ -207,9 +207,9 @@ wide to remain conservative, even in settings characterized by substantial heter
 </h4>
 <p>The larger number of subgroups encourages the use of global-local shrinkage priors.
 Global-local shrinkage priors are continuous versions of spike-and-slab priors, i.e., mixture priors of a point mass at zero (the spike) and a continuous distribution which describes the non-zero coefficients (the slab). A common choice is the regularized horseshoe prior which has the following form:</p>
-<p><span class="math display">\[ \beta_k|\lambda_k, \tau, c \sim N(0,\tau^2\tilde{\lambda}_k^2)\mbox{ with } \tilde{\lambda}_k^2 = c^2 \lambda_k^2 / (c^2 + \tau^2 \lambda_k^2)\]</span></p>
+<p><span class="math display">\[\beta_k|\lambda_k, \tau, c \sim N(0,\tau^2\tilde{\lambda}_k^2)\text{ with } \tilde{\lambda}_k^2 = c^2 \lambda_k^2 / (c^2 + \tau^2 \lambda_k^2)\]</span></p>
 <p>with hyper-priors:
-<span class="math display">\[\tau\sim C^+(0,\tau_0^2), \; \lambda_k \sim C^+(0,1)\; (k=1,\ldots,K), \mbox{ and } c^2 \sim \textrm{Inv-Gamma}(\nu/2,\nu s^2 /2)\]</span>
+<span class="math display">\[\tau\sim C^+(0,\tau_0^2), \; \lambda_k \sim C^+(0,1)\; (k=1,\ldots,K), \text{ and } c^2 \sim \textrm{Inv-Gamma}(\nu/2,\nu s^2 /2).\]</span>
 The global shrinkage parameter <span class="math inline">\(\tau\)</span> shrinks all parameters towards zero while the heavy-tailed half-Cauchy prior for <span class="math inline">\(\lambda_k\)</span> allows some parameters to escape this heavy shrinkage.
 The slab-component for the regularized horseshoe which governs shrinkage for larger coefficients is a <span class="math inline">\(Student-t_{\nu}(0,s^2)\)</span> distribution (<span class="citation">Piironen and Vehtari (<a href="#ref-piironen2017">2017</a>)</span>).</p>
 <p>As described in <span class="citation">Wolbers et al. (<a href="#ref-wolbersUnifiedShrinkage">2026</a>)</span>, a possible <strong>default choice</strong> is <span class="math inline">\(\tau_0 = |\delta_{plan}|\)</span> (<code>scale_global</code>), <span class="math inline">\(s = 2\sigma_{plan}\)</span> for continuous and <span class="math inline">\(s=2\)</span> for other endpoints (<code>scale_slab</code>), and <span class="math inline">\(\nu = 4\)</span> (<code>df_slab</code>).</p>
