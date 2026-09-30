@@ -78,8 +78,8 @@ The **default priors** used by `bonsaiforest2` are as follows:
 |:---|:---|:---|:---|
 | **Intercept** | `intercept_prior` | `NULL` (i.e. `brms` default) | 
 | **Unshrunk Terms** | `unshrunk_prior` | `NULL` (i.e. `brms` default) | 
-| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with $\phi=1$ for the standard deviation instead|
-| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with $\phi=1$ for the standard deviation instead|
+| **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with heterogeneity parameter 1 for the standard deviation instead|
+| **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with heterogeneity parameter 1 for the standard deviation instead|
 
 The following examples demonstrate how to customize priors in `bonsaiforest2`. We use the `shrink_data` package dataset with a time-to-event outcome to show different prior specification strategies, from simple defaults to advanced hierarchical structures.
 
