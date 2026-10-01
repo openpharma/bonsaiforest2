@@ -26,7 +26,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-This vignette demonstrates advanced functionalities supported by `bonsaiforest2` and the underlying `brms` package, including adding an **offset to negative binomial regression models** for counts, **customizing prior distributions**, and **applying stratification** to nuisance parameters.
+This vignette demonstrates advanced functionalities supported by `bonsaiforest2` and the underlying `brms` package, including adding an **offset to negative binomial regression models** for counts, **customizing prior distributions for global shrinkage models** (regularized horseshoe, normal priors with a common or with separate heterogeneity parameters, R2-D2, and coefficient-specific priors), and **applying stratification** to nuisance parameters.
 
 # Handling Exposure in Count Outcomes with Offsets
 
@@ -65,122 +65,161 @@ count_model_summary <- summary_subgroup_effects(brms_fit = count_model_fit)
 plot(count_model_summary, title = "Global model for count data: All subgrouping variables")
 ```
 
-# Customizing Prior Distributions
+# Customizing Prior Distributions for Global Shrinkage Models
 
 In Bayesian analysis, the choice of priors is important and can materially affect the results.
-For most settings, the `brms` default of flat priors for the intercept (`intercept_prior`) and unshrunk terms (`unshrunk_prior`, includes the prior for the main treatment effect) are sensible and do not need fine-tuning. However, **we recommend that the user carefully considers the prior for shrunken terms**, in particular those for covariate-by-treatment interactions (**`shrunk_predictive_prior`**). 
+For most settings, the `brms` default of flat priors for the intercept (`intercept_prior`) and unshrunk terms (`unshrunk_prior`, includes the prior for the main treatment effect) are sensible and do not need fine-tuning. However, **we recommend that the user carefully considers the prior for shrunken terms**, in particular those for covariate-by-treatment interactions (**`shrunk_predictive_prior`**).
 
-`bonsaiforest2` gives the user full flexibility to specify priors as described via examples below. 
+`bonsaiforest2` gives the user full flexibility to specify priors as described via examples below.
 
-The **default priors** used by `bonsaiforest2` are as follows: 
+The **default priors** used by `bonsaiforest2` are as follows:
 
-| Prior Component | Parameter Name | Default Prior | 
-|:---|:---|:---|:---|
-| **Intercept** | `intercept_prior` | `NULL` (i.e. `brms` default) | 
-| **Unshrunk Terms** | `unshrunk_prior` | `NULL` (i.e. `brms` default) | 
+| Prior Component | Parameter Name | Default Prior |
+|:---|:---|:---|
+| **Intercept** | `intercept_prior` | `NULL` (i.e. `brms` default) |
+| **Unshrunk Terms** | `unshrunk_prior` | `NULL` (i.e. `brms` default) |
 | **Shrunk Prognostic** | `shrunk_prognostic_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with heterogeneity parameter 1 for the standard deviation instead|
 | **Shrunk Predictive** | `shrunk_predictive_prior` | `horseshoe(scale_global = 1)`; in case the formula specifies random effects (pipe-pipe syntax), automatically uses a normal prior with a half-normal hyperprior with heterogeneity parameter 1 for the standard deviation instead|
 
-The following examples demonstrate how to customize priors in `bonsaiforest2`. We use the `shrink_data` package dataset with a time-to-event outcome to show different prior specification strategies, from simple defaults to advanced hierarchical structures.
+The following examples demonstrate how to customize priors for **global shrinkage models**, i.e. models which include treatment interactions with all subgrouping variables (`x1`, `x2`, and `x3`) simultaneously. Throughout, we use the same global model for the continuous outcome `y` in `shrink_data` as in the Quickstart vignette, with `x1`, `x2`, and `x3` as unshrunken prognostic terms, and only vary the prior for the shrunken predictive terms. Strong shrinkage priors induce posterior geometries that can be difficult to sample from, so we increase `adapt_delta` to 0.99 (smaller sampler step sizes) to avoid divergent transitions.
 
-### Model Preparation
+### Example 2: Global model with a regularized horseshoe prior {-}
+
+This is the global model from the Quickstart vignette: a regularized horseshoe prior is applied to all treatment-by-subgroup interactions `trt:x1`, `trt:x2`, and `trt:x3`. Its parameters are anchored in the trial assumptions of a targeted treatment effect of $\delta_{plan}=0.3$ and a standard deviation of $\sigma_{plan}=1$, i.e. $\tau_0 = \delta_{plan}=0.3$ (`scale_global`), $s = 2\sigma_{plan} = 2$ (`scale_slab`) and $\nu = 4$ (`df_slab`).
 
 ```{r}
-# Prepare basic model formulas
-prepared_model <- prepare_formula_model(
+fit_global_hs <- run_brms_analysis(
   data = shrink_data,
-  response_type = "survival",
-  response_formula = Surv(tt_event, event_yn) ~ trt,
-  unshrunk_terms_formula = ~ x1 + x2,
-  shrunk_predictive_formula = ~ 0 + trt:x1
-)
-```
-
-### Example 2: Using priors directly supported by `brms` {-}
-
-The simplest approach: use the priors directly supported by `brms` to adjust priors of different terms. 
-Below, we assume that the trial targeted a hazard ratio of 0.7, i.e. $\delta_{plan}=|log(0.7)$, and set `scale_global` of the regularized horseshoe prior to this value.   
-
-```{r}
-fit_ex2 <- fit_brms_model(
-  prepared_model = prepared_model,
-  intercept_prior = "normal(0, 5)",
-  unshrunk_prior = "normal(0, 2.5)",
-  shrunk_predictive_prior = "horseshoe(scale_global = abs(log(0.7)), scale_slab = 2, df_slab = 4)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
-)
-
-# View the priors that were automatically set
-cat("\n=== Priors Used ===\n")
-print(fit_ex2[["prior"]])
-```
-
-### Example 3: Using the R2-D2 shrinkage prior {-}
-
-An alternative global-local shrinkage prior to the regularized horseshoe prior is the R2-D2 prior. 
-In the linear regression setting, it can be motivated as specifying a prior on the model's coefficient of determination ($R^2$) first, and then distributing the prior through to the coefficients. 
-The R2-D2 prior is also directly supported by `brms` as illustrated below. 
-
-```{r}
-fit_ex3 <- fit_brms_model(
-  prepared_model = prepared_model,
-  shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  response_type = "continuous",
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ 1 + x1 + x2 + x3,
+  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
+  shrunk_predictive_prior = "horseshoe(scale_global = 0.3, scale_slab = 2, df_slab = 4, autoscale = FALSE)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr",
+  control = list(adapt_delta = 0.99)
 )
 
 cat("\n=== Priors Used ===\n")
-print(fit_ex3[["prior"]])
+print(fit_global_hs[["prior"]])
 ```
 
-### Example 4: Custom hierarchical prior (advanced) {-}
+The parameter `scale_global` can be tuned to the anticipated size of the treatment effect. For example, if the outcome is time-to-event and the trial targeted a hazard ratio of 0.7, i.e. $\delta_{plan}=|\log(0.7)|$, one would set `scale_global = abs(log(0.7))`.
 
-This example demonstrates injecting raw Stan code using `stanvars`. This is necessary if you want to implement a hierarchical structure that `brms` does not support natively, such as estimating a shared variance parameter across coefficients.
+### Example 3: Global model with a normal prior and a common heterogeneity parameter {-}
+
+An alternative to the regularized horseshoe prior is a normal prior with a single heterogeneity parameter $\phi$ which is shared by all treatment-by-subgroup interactions:
+
+$$
+\beta_j \sim N(0, \phi) \text{ for all interaction coefficients } j, \qquad \phi \sim HN(1),
+$$
+
+where $\phi$ denotes the standard deviation of the normal prior and $HN(1)$ a half-normal distribution with scale 1. This model assumes exchangeability of the treatment-by-subgroup interactions across the levels of *different* subgrouping variables. It is the model reported in the Appendix of @wolbersUnifiedShrinkage.
+
+`brms` does not support such a shared variance parameter for fixed effects natively. We therefore declare $\phi$ as an additional Stan parameter via `stanvars`, add its half-normal hyperprior to the model block, and reference it in `shrunk_predictive_prior`. Because `phi` is declared with `<lower=0>`, the plain `normal_lpdf()` defines the half-normal density up to an additive constant, which does not affect sampling.
 
 ```{r}
-# 1. Define new hyperparameters in Stan
-stanvars_full_hierarchical <- brms::stanvar(
-  scode = "  real mu_pred;\n  real<lower=0> sigma_pred;\n",
+stanvars_common_phi <- brms::stanvar(
+  scode = "  real<lower=0> phi;\n",
   block = "parameters"
 ) +
-  # Add priors for these parameters
   brms::stanvar(
-    scode = "  // Priors on the hierarchical parameters\n  target += normal_lpdf(mu_pred | 0, 4); \n  target += normal_lpdf(sigma_pred | 0, 1) - normal_lccdf(0 | 0, 1); \n",
+    scode = "  target += normal_lpdf(phi | 0, 1);\n",
     block = "model"
   )
 
-# 2. Create prior that references the Stan variables
-prior_full_hierarchical <- brms::set_prior("normal(mu_pred, sigma_pred)")
-
-# 3. Pass both to fit_brms_model
-fit_ex4 <- fit_brms_model(
-  prepared_model = prepared_model,
-  intercept_prior = "normal(0, 5)",
-  unshrunk_prior = "normal(0, 2.5)",
-  shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
-  shrunk_predictive_prior = prior_full_hierarchical,
-  stanvars = stanvars_full_hierarchical,
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+fit_global_normal_common <- run_brms_analysis(
+  data = shrink_data,
+  response_type = "continuous",
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ 1 + x1 + x2 + x3,
+  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
+  shrunk_predictive_prior = brms::set_prior("normal(0, phi)"),
+  stanvars = stanvars_common_phi,
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr",
+  control = list(adapt_delta = 0.99)
 )
 
-# View the used priors
 cat("\n=== Priors Used ===\n")
-print(fit_ex4[["prior"]])
-print(fit_ex4[["stanvars"]])
+print(fit_global_normal_common[["prior"]])
+print(fit_global_normal_common[["stanvars"]])
 ```
 
-### Example 5: Coefficient-specific priors {-}
+### Example 4: Global model with a normal prior and separate heterogeneity parameters per subgrouping variable {-}
 
-By default, `bonsaiforest2` uses the same prior for all coefficients assigned to the group of "unshrunken terms", "shrunken prognostic terms", or "shrunken predictive terms", respectively. However, it is possible to fine-tune this by assigning a different prior to one or several coefficients within a group. 
+Alternatively, each subgrouping variable can be given its own heterogeneity parameter. This is specified with random effects (pipe-pipe syntax) for each subgrouping variable. By default, `bonsaiforest2` then uses a normal prior for the treatment-by-subgroup interactions with a half-normal hyperprior with scale 1 for each standard deviation. The priors printed below show one `sd` parameter per subgrouping variable.
 
-The example below illustrates this. It includes the interaction `trt*x3` as an "unshrunken term" and assigns a tighter prior to the regression coefficients for `trt:x3b`, `trt:x3c`, and `trt:x3d`, respectively, compared to other coefficients in the same group. 
+```{r}
+fit_global_normal_sep <- run_brms_analysis(
+  data = shrink_data,
+  response_type = "continuous",
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ 1 + x1 + x2 + x3,
+  shrunk_predictive_formula = ~ (0 + trt || x1) + (0 + trt || x2) + (0 + trt || x3),
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr",
+  control = list(adapt_delta = 0.99)
+)
+
+cat("\n=== Priors Used ===\n")
+print(fit_global_normal_sep[["prior"]])
+```
+
+In contrast to Example 3, this model assumes exchangeability only across the levels of the *same* subgrouping variable, so the amount of shrinkage is estimated separately for each subgrouping variable.
+
+The default hyperprior can be overridden with `set_prior(..., class = "sd")`, which applies to the standard deviations of all subgrouping variables. Below, we anchor the heterogeneity parameter in the targeted treatment effect $\delta_{plan}=0.3$, as for the one-way models in the Quickstart vignette.
+
+```{r}
+fit_global_normal_sep_tuned <- run_brms_analysis(
+  data = shrink_data,
+  response_type = "continuous",
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ 1 + x1 + x2 + x3,
+  shrunk_predictive_formula = ~ (0 + trt || x1) + (0 + trt || x2) + (0 + trt || x3),
+  shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr",
+  control = list(adapt_delta = 0.99)
+)
+
+cat("\n=== Priors Used ===\n")
+print(fit_global_normal_sep_tuned[["prior"]])
+```
+
+### Example 5: Global model with an R2-D2 prior {-}
+
+An alternative global-local shrinkage prior to the regularized horseshoe prior is the R2-D2 prior.
+In the linear regression setting, it can be motivated as specifying a prior on the model's coefficient of determination ($R^2$) first, and then distributing the prior through to the coefficients.
+The R2-D2 prior is also directly supported by `brms` as illustrated below.
+
+```{r}
+fit_global_r2d2 <- run_brms_analysis(
+  data = shrink_data,
+  response_type = "continuous",
+  response_formula = y ~ trt,
+  unshrunk_terms_formula = ~ 1 + x1 + x2 + x3,
+  shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
+  shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr",
+  control = list(adapt_delta = 0.99)
+)
+
+cat("\n=== Priors Used ===\n")
+print(fit_global_r2d2[["prior"]])
+```
+
+### Example 6: Coefficient-specific priors {-}
+
+The four global models above are our recommended starting points. Beyond these, `bonsaiforest2` offers additional flexibility which is optional and not needed for most analyses.
+
+By default, `bonsaiforest2` uses the same prior for all coefficients assigned to the group of "unshrunken terms", "shrunken prognostic terms", or "shrunken predictive terms", respectively. However, it is possible to fine-tune this by assigning a different prior to one or several coefficients within a group.
+
+The example below illustrates this for a time-to-event outcome. It includes the interaction `trt*x3` as an "unshrunken term" and assigns a tighter prior to the regression coefficients for `trt:x3b`, `trt:x3c`, and `trt:x3d`, respectively, compared to other coefficients in the same group.
 
 To implement this, we first call `prepare_formula_model()` to extract the exact coefficient names that will be included in the model.
-Then, we define coefficient-specific priors for these by combining `brms::set_prior` calls.  
+Then, we define coefficient-specific priors for these by combining `brms::set_prior` calls.
 
 
 ```{r}
 # 1. Run prepare_formula_model
-prepared_model_ex5 <- prepare_formula_model(
+prepared_model_coef_specific <- prepare_formula_model(
   data = shrink_data,
   response_type = "survival",
   response_formula = Surv(tt_event, event_yn) ~ trt,
@@ -190,10 +229,10 @@ prepared_model_ex5 <- prepare_formula_model(
 
 # 2. Inspect the Results
 # A. The generated brms formula object
-print(prepared_model_ex5$formula)
+print(prepared_model_coef_specific$formula)
 
 # B. The processed terms
-print(prepared_model_ex5$stan_variable_names$X_unshrunktermeffect)
+print(prepared_model_coef_specific$stan_variable_names$X_unshrunktermeffect)
 
 cat("=== Prior Strategy ===\n")
 cat("General unshrunk prior: normal(0, 5)\n")
@@ -209,8 +248,8 @@ unshrunk_priors_combined <- c(
 )
 
 # Fit the model
-fit_ex5 <- fit_brms_model(
-  prepared_model = prepared_model_ex5,
+fit_coef_specific <- fit_brms_model(
+  prepared_model = prepared_model_coef_specific,
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = unshrunk_priors_combined,  # Pass the combined object
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
@@ -219,61 +258,8 @@ fit_ex5 <- fit_brms_model(
 
 # View the used priors
 cat("\n=== Priors Used ===\n")
-print(fit_ex5[["prior"]])
+print(fit_coef_specific[["prior"]])
 
-```
-
-### Example 6: Hierarchical priors with shared variance (stanvars) {-}
-
-Create correlated priors by sharing a common variance parameter estimated from the data. This is sensible when you believe treatment effects across subgroups are exchangeable and want to borrow information across them. 
-
-```{r}
-cat("\n=== Hierarchical Prior Structure ===\n")
-cat("Instead of independent priors per coefficient, we pool information through a shared scale:\n")
-cat("  tau ~ half-normal(0, 1)  [shared scale parameter]\n")
-cat("  beta_i ~ N(0, tau) for each coefficient i\n")
-cat("This creates exchangeability: we assume coefficients are similar but with adaptive variation.\n\n")
-
-# Step 1: Declare tau as a parameter to be estimated
-tau_parameter <- brms::stanvar(
-  scode = "  real<lower=0> biomarker_tau;  // Shared scale parameter\n",
-  block = "parameters"
-)
-
-# Step 2: Add prior for tau (using normal truncated to positive values with constraint)
-tau_prior <- brms::stanvar(
-  scode = "  biomarker_tau ~ normal(0, 1);  // Hyperprior on the scale\n",
-  block = "model"
-)
-
-# Combine stanvars
-hierarchical_stanvars <- tau_parameter + tau_prior
-
-# Step 3: Create priors referencing the shared variance parameter
-# Note: We identified these coefficient names using prepare_formula_model above
-unshrunk_priors_hier <- c(
-  brms::set_prior("normal(0, 5)", class = "b"),  # General
-  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:x3b"),
-  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:x3c"),
-  brms::set_prior("normal(0, biomarker_tau)", class = "b", coef = "trt:x3d")
-)
-```
-
-```{r, eval=FALSE}
-# Step 4: Fit the hierarchical model
-fit_ex6 <- fit_brms_model(
-  prepared_model = prepared_model_ex5,
-  intercept_prior = "normal(0, 5)",
-  unshrunk_prior = unshrunk_priors_hier,
-  shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-  stanvars = hierarchical_stanvars,
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
-)
-
-# View the used priors
-cat("\n=== Priors Used ===\n")
-print(fit_ex6[["prior"]])
-print(fit_ex6[["stanvars"]])
 ```
 
 <!-- # Custom contrasts -->
@@ -286,7 +272,7 @@ print(fit_ex6[["stanvars"]])
 <!-- However, it is possible to manually set custom contrasts for your data using `contrasts()`, and the library will preserve your choice throughout the analysis. -->
 
 
-<!-- ### Example 7: Custom contrast encoding for shrunken terms {-} -->
+<!-- ### Example 9: Custom contrast encoding for shrunken terms {-} -->
 
 
 <!-- *Scenario*: You want to use custom contrast coding for subgroup variables, such as Helmert contrasts or sum contrasts, instead of the default treatment contrasts. This is useful for specific hypothesis structures or when comparing non-orthogonal effects. -->
@@ -337,12 +323,12 @@ print(fit_ex6[["stanvars"]])
 <!-- After fitting a model, you can use `brms::predict()` to generate predictions of the linear predictor for new subjects- -->
 
 
-<!-- ### Example 7: Prediction on new data {-} -->
+<!-- ### Example 10: Prediction on new data {-} -->
 
-<!-- We use the model fitted in example 6 to predict outcomes for new patients with different characteristics. -->
+<!-- We use the model fitted in Example 9 to predict outcomes for new patients with different characteristics. -->
 
 <!-- ```{r} -->
-<!-- # Use the fitted model from Example 7 -->
+<!-- # Use the fitted model from Example 9 -->
 <!-- # Generate new data for prediction -->
 <!-- set.seed(789) -->
 <!-- new_patients <- data.frame( -->
@@ -351,7 +337,7 @@ print(fit_ex6[["stanvars"]])
 <!--   x2 = factor(rep(c("a", "b", "c"), length.out = 20), levels = c("a", "b", "c")) -->
 <!-- ) -->
 
-<!-- # IMPORTANT: Set the same contrasts as in Example 7 -->
+<!-- # IMPORTANT: Set the same contrasts as in Example 9 -->
 <!-- # The prediction data must use the same encoding as the training data -->
 <!-- contrasts(new_patients$x2) <- contr.helmert(3) -->
 
@@ -434,7 +420,7 @@ plot(summary_surv_oneway_x1_strat)
 This vignette demonstrated several advanced functionalities supported by `bonsaiforest2`:
 
 1.  **Offset variables** for count outcomes with varying exposure times
-2.  **Custom prior specification** with flexible prior constraints
+2.  **Custom priors for global shrinkage models**: the regularized horseshoe prior, a normal prior with a common heterogeneity parameter across all subgrouping variables (via `stanvars`), a normal prior with separate heterogeneity parameters per subgrouping variable (via random effects), the R2-D2 prior, and, optionally, coefficient-specific priors
 3.  **Stratification** for nuisance parameters that vary across groups
 
 These features provide researchers with powerful tools for complex trial analyses while maintaining the principled Bayesian shrinkage framework.
