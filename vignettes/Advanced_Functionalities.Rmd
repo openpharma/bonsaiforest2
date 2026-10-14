@@ -43,6 +43,11 @@ The example uses the `shrink_data` dataset to illustrate a negative binomial mod
 library(bonsaiforest2)
 library(brms)
 
+# Use cmdstanr by default if available
+if (requireNamespace("cmdstanr", quietly = TRUE)) {
+  prev_backend <- options(brms.backend = "cmdstanr")
+} 
+
 shrink_data <- bonsaiforest2::shrink_data
 
 # prepare offset variable
@@ -57,7 +62,7 @@ count_model_fit <- run_brms_analysis(
   unshrunk_terms_formula  = ~ 1 + x1 + x2 + x3,
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 
 count_model_summary <- summary_subgroup_effects(brms_fit = count_model_fit)
@@ -107,7 +112,7 @@ fit_ex2 <- fit_brms_model(
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
   shrunk_predictive_prior = "horseshoe(scale_global = abs(log(0.7)), scale_slab = 2, df_slab = 4)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 
 # View the priors that were automatically set
@@ -125,7 +130,7 @@ The R2-D2 prior is also directly supported by `brms` as illustrated below.
 fit_ex3 <- fit_brms_model(
   prepared_model = prepared_model,
   shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 
 cat("\n=== Priors Used ===\n")
@@ -159,7 +164,7 @@ fit_ex4 <- fit_brms_model(
   shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = prior_full_hierarchical,
   stanvars = stanvars_full_hierarchical,
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 
 # View the used priors
@@ -214,7 +219,7 @@ fit_ex5 <- fit_brms_model(
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = unshrunk_priors_combined,  # Pass the combined object
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 
 # View the used priors
@@ -267,7 +272,7 @@ fit_ex6 <- fit_brms_model(
   unshrunk_prior = unshrunk_priors_hier,
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
   stanvars = hierarchical_stanvars,
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 
 # View the used priors
@@ -391,7 +396,7 @@ oneway_x1_flex_strat <- run_brms_analysis(
   shrunk_predictive_formula = ~ (0 + trt || x1),
   shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 ```
 
@@ -419,7 +424,7 @@ fit_surv_oneway_x1_strat <- run_brms_analysis(
   unshrunk_terms_formula = ~ x1 + x3, 
   shrunk_predictive_formula = ~ (0 + trt || x1),
   shrunk_predictive_prior = set_prior("normal(0, abs(log(0.7)))", class = "sd"),
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 
 summary_surv_oneway_x1_strat <- summary_subgroup_effects(fit_surv_oneway_x1_strat)
@@ -438,3 +443,9 @@ This vignette demonstrated several advanced functionalities supported by `bonsai
 3.  **Stratification** for nuisance parameters that vary across groups
 
 These features provide researchers with powerful tools for complex trial analyses while maintaining the principled Bayesian shrinkage framework.
+
+
+```{r}
+# reset stan backend
+options(prev_backend)
+```
