@@ -217,7 +217,9 @@ plot(combined, title = "Comparing One-way vs Global Models")
 
 ```{r}
 # reset stan backend
-options(prev_backend)
+if (requireNamespace("cmdstanr", quietly = TRUE)) {
+  options(prev_backend)
+}
 ```
 
 # References
