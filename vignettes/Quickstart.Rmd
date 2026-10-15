@@ -24,6 +24,10 @@ knitr::opts_chunk$set(
     collapse = TRUE,
     comment = "#>"
 )
+
+if (isFALSE(requireNamespace("cmdstanr", quietly = TRUE)) &&  packageVersion("rstan") == "2.32.7") {
+  knitr::opts_chunk$set(eval = FALSE)
+}
 ```
 
 # Introduction
@@ -60,6 +64,10 @@ Let's load the libraries and the data.
 library(bonsaiforest2)
 library(brms)
 
+# Use cmdstanr by default if available
+if (requireNamespace("cmdstanr", quietly = TRUE)) {
+  prev_backend <- options(brms.backend = "cmdstanr")
+} 
 ```
 
 ```{r ex-data}
@@ -97,7 +105,7 @@ oneway_x1 <- run_brms_analysis(
   shrunk_predictive_formula = ~ (0 + trt || x1),
   shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 
 summary_oneway_x1 <- summary_subgroup_effects(brms_fit = oneway_x1)
@@ -115,7 +123,7 @@ oneway_x2 <- run_brms_analysis(
   shrunk_predictive_formula = ~ (0 + trt || x2),
   shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 
 summary_oneway_x2 <- summary_subgroup_effects(brms_fit = oneway_x2)
@@ -132,7 +140,7 @@ oneway_x3 <- run_brms_analysis(
   shrunk_predictive_formula = ~ (0 + trt || x3),
   shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 
 summary_oneway_x3 <- summary_subgroup_effects(brms_fit = oneway_x3)
@@ -169,7 +177,7 @@ global_shrinkage_model <- run_brms_analysis(
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   shrunk_predictive_prior = "horseshoe(scale_global=0.3, scale_slab = 2, df_slab = 4, autoscale = FALSE)",
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 ```
 
@@ -205,6 +213,13 @@ combined <- combine_summaries(list(
 
 # Plot the comparison
 plot(combined, title = "Comparing One-way vs Global Models")
+```
+
+```{r}
+# reset stan backend
+if (requireNamespace("cmdstanr", quietly = TRUE)) {
+  options(prev_backend)
+}
 ```
 
 # References
