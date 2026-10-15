@@ -41,6 +41,11 @@ library(brms)
 #> 
 #>     ar
 
+# Use cmdstanr by default if available
+if (requireNamespace("cmdstanr", quietly = TRUE)) {
+  prev_backend <- options(brms.backend = "cmdstanr")
+} 
+
 shrink_data <- bonsaiforest2::shrink_data
 
 # prepare offset variable
@@ -56,7 +61,7 @@ count_model_fit <- run_brms_analysis(
   unshrunk_terms_formula  = ~ 1 + x1 + x2 + x3,
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 #> Step 1: Preparing formula and data...
 #> 
@@ -73,7 +78,7 @@ count_model_fit <- run_brms_analysis(
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.6 seconds.
-#> Total execution time: 3.7 seconds.
+#> Total execution time: 3.8 seconds.
 #> Warning: 4 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
@@ -153,7 +158,7 @@ fit_ex2 <- fit_brms_model(
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = "normal(0, 2.5)",
   shrunk_predictive_prior = "horseshoe(scale_global = abs(log(0.7)), scale_slab = 2, df_slab = 4)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 #> Fitting brms model...
 #> Start sampling
@@ -164,7 +169,7 @@ fit_ex2 <- fit_brms_model(
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.3 seconds.
-#> Total execution time: 3.4 seconds.
+#> Total execution time: 3.5 seconds.
 #> Warning: 4 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -211,7 +216,7 @@ to the coefficients. The R2-D2 prior is also directly supported by
 fit_ex3 <- fit_brms_model(
   prepared_model = prepared_model,
   shrunk_predictive_prior = "R2D2(mean_R2 = 0.5, prec_R2 = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 #> Using default priors for unspecified effects:
 #>   - unshrunk terms: brms default
@@ -287,7 +292,7 @@ fit_ex4 <- fit_brms_model(
   shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
   shrunk_predictive_prior = prior_full_hierarchical,
   stanvars = stanvars_full_hierarchical,
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 #> Fitting brms model...
 #> Start sampling
@@ -298,7 +303,7 @@ fit_ex4 <- fit_brms_model(
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 6.3 seconds.
-#> Total execution time: 6.5 seconds.
+#> Total execution time: 6.4 seconds.
 #> Warning: 1 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 
@@ -441,14 +446,14 @@ fit_ex5 <- fit_brms_model(
   intercept_prior = "normal(0, 5)",
   unshrunk_prior = unshrunk_priors_combined,  # Pass the combined object
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 #> Fitting brms model...
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
+#> Chain 1 finished in 4.0 seconds.
 #> Chain 2 finished in 3.9 seconds.
-#> Chain 1 finished in 3.9 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.9 seconds.
@@ -546,7 +551,7 @@ fit_ex6 <- fit_brms_model(
   unshrunk_prior = unshrunk_priors_hier,
   shrunk_predictive_prior = "horseshoe(scale_global = 1)",
   stanvars = hierarchical_stanvars,
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 
 # View the used priors
@@ -588,7 +593,7 @@ oneway_x1_flex_strat <- run_brms_analysis(
   shrunk_predictive_formula = ~ (0 + trt || x1),
   shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 #> Step 1: Preparing formula and data...
 #> Applying stratification: estimating sigma by 'x1'.
@@ -605,7 +610,7 @@ oneway_x1_flex_strat <- run_brms_analysis(
 #> Chain 2 finished in 4.8 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.5 seconds.
+#> Mean chain execution time: 4.6 seconds.
 #> Total execution time: 4.9 seconds.
 #> Warning: 2 of 2000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
@@ -650,7 +655,7 @@ fit_surv_oneway_x1_strat <- run_brms_analysis(
   unshrunk_terms_formula = ~ x1 + x3, 
   shrunk_predictive_formula = ~ (0 + trt || x1),
   shrunk_predictive_prior = set_prior("normal(0, abs(log(0.7)))", class = "sd"),
-  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0, backend = "cmdstanr"
+  chains = 2, iter = 1000, warmup = 500, cores = 2, refresh = 0
 )
 #> Step 1: Preparing formula and data...
 #> Response type is 'survival'. Modeling the baseline hazard explicitly using bhaz().
@@ -664,11 +669,11 @@ fit_surv_oneway_x1_strat <- run_brms_analysis(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 1 finished in 3.7 seconds.
-#> Chain 2 finished in 3.9 seconds.
+#> Chain 2 finished in 4.0 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.8 seconds.
-#> Total execution time: 4.0 seconds.
+#> Mean chain execution time: 3.9 seconds.
+#> Total execution time: 4.1 seconds.
 #> 
 #> Analysis complete.
 
@@ -709,3 +714,11 @@ This vignette demonstrated several advanced functionalities supported by
 
 These features provide researchers with powerful tools for complex trial
 analyses while maintaining the principled Bayesian shrinkage framework.
+
+``` r
+
+# reset stan backend
+if (requireNamespace("cmdstanr", quietly = TRUE)) {
+  options(prev_backend)
+}
+```

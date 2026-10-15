@@ -56,6 +56,11 @@ Let’s load the libraries and the data.
 # Load the main package
 library(bonsaiforest2)
 library(brms)
+
+# Use cmdstanr by default if available
+if (requireNamespace("cmdstanr", quietly = TRUE)) {
+  prev_backend <- options(brms.backend = "cmdstanr")
+} 
 ```
 
 ``` r
@@ -130,12 +135,12 @@ oneway_x1 <- run_brms_analysis(
   shrunk_predictive_formula = ~ (0 + trt || x1),
   shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 2.1 seconds.
-#> Chain 2 finished in 2.4 seconds.
+#> Chain 1 finished in 2.2 seconds.
+#> Chain 2 finished in 2.5 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 2.3 seconds.
@@ -175,16 +180,16 @@ oneway_x2 <- run_brms_analysis(
   shrunk_predictive_formula = ~ (0 + trt || x2),
   shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 2 finished in 1.5 seconds.
-#> Chain 1 finished in 1.6 seconds.
+#> Chain 1 finished in 1.7 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 1.6 seconds.
-#> Total execution time: 1.7 seconds.
+#> Total execution time: 1.8 seconds.
 
 summary_oneway_x2 <- summary_subgroup_effects(brms_fit = oneway_x2)
 ```
@@ -201,7 +206,7 @@ oneway_x3 <- run_brms_analysis(
   shrunk_predictive_formula = ~ (0 + trt || x3),
   shrunk_predictive_prior = set_prior("normal(0, 0.3)", class = "sd"),
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 #> Running MCMC with 2 parallel chains...
 #> 
@@ -209,7 +214,7 @@ oneway_x3 <- run_brms_analysis(
 #> Chain 2 finished in 1.7 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 1.6 seconds.
+#> Mean chain execution time: 1.7 seconds.
 #> Total execution time: 1.8 seconds.
 
 summary_oneway_x3 <- summary_subgroup_effects(brms_fit = oneway_x3)
@@ -262,12 +267,12 @@ global_shrinkage_model <- run_brms_analysis(
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   shrunk_predictive_prior = "horseshoe(scale_global=0.3, scale_slab = 2, df_slab = 4, autoscale = FALSE)",
   chains = 2, iter = 2000, warmup = 1000, cores = 2,
-  refresh = 0, backend = "cmdstanr"
+  refresh = 0
 )
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 1 finished in 3.0 seconds.
-#> Chain 2 finished in 4.1 seconds.
+#> Chain 2 finished in 4.0 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.5 seconds.
@@ -358,6 +363,14 @@ plot(combined, title = "Comparing One-way vs Global Models")
 ```
 
 ![](Quickstart_files/figure-html/compare-models-1.png)
+
+``` r
+
+# reset stan backend
+if (requireNamespace("cmdstanr", quietly = TRUE)) {
+  options(prev_backend)
+}
+```
 
 ## References
 
