@@ -10,12 +10,12 @@ Authors@R: c(
     ),
     person(
       "Isaac", "Gravestock",
-      email = "isaac.gravestock@roche.com",
+      email = "isaac.gravestock@bayer.com",
       role = "aut"
     ),
     person(
       "Marcel", "Wolbers",
-      email = "marcel.wolbers@roche.com",
+      email = "marcel.wolbers@bayer.com",
       role = "aut"
     )
   )

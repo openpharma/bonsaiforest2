@@ -24,6 +24,10 @@ knitr::opts_chunk$set(
     collapse = TRUE,
     comment = "#>"
 )
+
+if (isFALSE(requireNamespace("cmdstanr", quietly = TRUE)) &&  packageVersion("rstan") == "2.32.7") {
+  knitr::opts_chunk$set(eval = FALSE)
+}
 ```
 
 # Introduction

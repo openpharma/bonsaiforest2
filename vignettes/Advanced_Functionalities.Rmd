@@ -24,6 +24,10 @@ knitr::opts_chunk$set(
     collapse = TRUE,
     comment = "#>"
 )
+
+if (isFALSE(requireNamespace("cmdstanr", quietly = TRUE)) &&  packageVersion("rstan") == "2.32.7") {
+  knitr::opts_chunk$set(eval = FALSE)
+}
 ```
 
 This vignette demonstrates advanced functionalities supported by `bonsaiforest2` and the underlying `brms` package, including adding an **offset to negative binomial regression models** for counts, **customizing prior distributions**, and **applying stratification** to nuisance parameters.
