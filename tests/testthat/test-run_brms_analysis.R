@@ -1,5 +1,7 @@
 # tests/testthat/test-run_brms_analysis.R
 
+# don't run full MCMC tests on CRAN
+skip_on_cran()
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -11,7 +13,7 @@ run_quick_full_analysis <- function(data, ...) {
       data = data,
       ...,
       chains = 1, iter = 1000, warmup = 50, refresh = 0,
-      backend = "cmdstanr",
+      backend = if (requireNamespace("cmdstanr", quietly = TRUE)) "cmdstanr" else "rstan",
       cores = 1
     )
   )

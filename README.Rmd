@@ -50,7 +50,7 @@ fit_fixed <- run_brms_analysis(
   shrunk_predictive_formula = ~ 0 + trt:x1 + trt:x2 + trt:x3,
   shrunk_predictive_prior = "horseshoe(1)",
   chains = 2, iter = 1000, warmup = 500,
-  backend = "cmdstanr", refresh = 0
+  refresh = 0
 )
 ```
 

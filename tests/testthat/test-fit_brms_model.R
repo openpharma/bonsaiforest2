@@ -1,5 +1,8 @@
 # tests/testthat/test-fit_brms_model.R
 
+# Skip long running MCMC on CRAN
+skip_on_cran()
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -11,7 +14,7 @@ run_quick_brm <- function(prepared_model, ...) {
       prepared_model = prepared_model,
       ...,
       chains = 1, iter = 1000, warmup = 50, refresh = 0,
-      backend = "cmdstanr",
+      backend = if (requireNamespace("cmdstanr", quietly = TRUE)) "cmdstanr" else "rstan",
       cores = 1
     )
   )

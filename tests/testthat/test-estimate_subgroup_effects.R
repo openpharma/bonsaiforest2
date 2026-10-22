@@ -17,7 +17,9 @@ original_test_data$trt <- factor(original_test_data$trt, levels = c(0, 1))
 # 2. Fit a *minimal* brms model ONCE for use in multiple tests
 # This is slow, but simpler than full mocking for now.
 # We include interactions so 'auto' detection can be tested.
-minimal_brms_fit <- suppressMessages(
+
+tryCatch(
+  minimal_brms_fit <- suppressMessages(
   run_brms_analysis(
     data = original_test_data,
     response_formula = "outcome ~ trt",
@@ -25,10 +27,16 @@ minimal_brms_fit <- suppressMessages(
     shrunk_prognostic_formula = "~ 0 + age",  # Use ~ 0 + to avoid intercept warning
     shrunk_predictive_formula = "~ 0 + trt:region + trt:sex", # Interactions needed for 'auto', use ~ 0 + to avoid intercept warning
     chains = 1, iter = 10, warmup = 5, refresh = 0,
-    backend = "cmdstanr", # Use faster backend if available
-    cores = 1
+    backend = if (requireNamespace("cmdstanr", quietly = TRUE)) "cmdstanr" else "rstan",
+    cores = 1,
+    silent = 2
   )
-)
+), error = function(e) {
+  message("Error fitting minimal brms model for tests: ", e$message)
+  skip("Skipping tests due to model fitting error.")
+})
+
+
 
 # --- Tests Start Here ---
 

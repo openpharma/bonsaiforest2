@@ -32,12 +32,12 @@
 #' between \code{z1} and \code{z2}. The three subgroup covariates are obtained
 #' by discretising these latent variables:
 #' \itemize{
-#'   \item \code{x1}: cut of \code{z1} at 0.5 → binary levels \code{a} (≈69\%)
-#'     and \code{b} (≈31\%).
-#'   \item \code{x2}: cut of \code{z2} at −0.5 and 0.5 → three levels
+#'   \item \code{x1}: cut of \code{z1} at 0.5 → binary levels \code{a} (~69\%)
+#'     and \code{b} (~31\%).
+#'   \item \code{x2}: cut of \code{z2} at -0.5 and 0.5 → three levels
 #'     \code{a}, \code{b}, \code{c}. Because \code{z2} is correlated with
 #'     \code{z1}, \code{x2} is also moderately correlated with \code{x1}.
-#'   \item \code{x3}: cut of \code{z3} at −0.66, 0, and 0.66 → four
+#'   \item \code{x3}: cut of \code{z3} at -0.66, 0, and 0.66 → four
 #'     approximately equal-sized levels \code{a}, \code{b}, \code{c}, \code{d}.
 #' }
 #'
