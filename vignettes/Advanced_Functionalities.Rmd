@@ -25,7 +25,8 @@ library(knitr)
 knitr::opts_chunk$set(
     collapse = TRUE,
     comment = "#>",
-    cache = TRUE
+    cache = FALSE,
+    warning = FALSE
 )
 
 if (isFALSE(requireNamespace("cmdstanr", quietly = TRUE)) &&  packageVersion("rstan") == "2.32.7") {
