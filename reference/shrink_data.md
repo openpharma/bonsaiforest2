@@ -70,13 +70,13 @@ then `z2` is replaced by `0.4 * z1 + sqrt(1 - 0.4^2) * z2` to induce a
 correlation of 0.4 between `z1` and `z2`. The three subgroup covariates
 are obtained by discretising these latent variables:
 
-- `x1`: cut of `z1` at 0.5 → binary levels `a` (≈69\\ and `b` (≈31\\
+- `x1`: cut of `z1` at 0.5 → binary levels `a` (~69\\ and `b` (~31\\
 
-- `x2`: cut of `z2` at −0.5 and 0.5 → three levels `a`, `b`, `c`.
+- `x2`: cut of `z2` at -0.5 and 0.5 → three levels `a`, `b`, `c`.
   Because `z2` is correlated with `z1`, `x2` is also moderately
   correlated with `x1`.
 
-- `x3`: cut of `z3` at −0.66, 0, and 0.66 → four approximately
+- `x3`: cut of `z3` at -0.66, 0, and 0.66 → four approximately
   equal-sized levels `a`, `b`, `c`, `d`.
 
 **Continuous outcome (`y`) and binary response (`response`)**

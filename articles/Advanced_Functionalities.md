@@ -73,12 +73,12 @@ count_model_fit <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.7 seconds.
+#> Chain 1 finished in 3.6 seconds.
 #> Chain 2 finished in 3.6 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.6 seconds.
-#> Total execution time: 3.8 seconds.
+#> Total execution time: 3.7 seconds.
 #> Warning: 4 of 1000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
 #> Loading required namespace: rstan
@@ -299,7 +299,7 @@ fit_ex4 <- fit_brms_model(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 1 finished in 6.2 seconds.
-#> Chain 2 finished in 6.3 seconds.
+#> Chain 2 finished in 6.4 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 6.3 seconds.
@@ -452,8 +452,8 @@ fit_ex5 <- fit_brms_model(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 4.0 seconds.
-#> Chain 2 finished in 3.9 seconds.
+#> Chain 2 finished in 3.8 seconds.
+#> Chain 1 finished in 3.9 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.9 seconds.
@@ -606,11 +606,11 @@ oneway_x1_flex_strat <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 4.3 seconds.
+#> Chain 1 finished in 4.2 seconds.
 #> Chain 2 finished in 4.8 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 4.6 seconds.
+#> Mean chain execution time: 4.5 seconds.
 #> Total execution time: 4.9 seconds.
 #> Warning: 2 of 2000 (0.0%) transitions ended with a divergence.
 #> See https://mc-stan.org/misc/warnings for details.
@@ -668,11 +668,11 @@ fit_surv_oneway_x1_strat <- run_brms_analysis(
 #> Start sampling
 #> Running MCMC with 2 parallel chains...
 #> 
-#> Chain 1 finished in 3.7 seconds.
-#> Chain 2 finished in 4.0 seconds.
+#> Chain 1 finished in 3.6 seconds.
+#> Chain 2 finished in 3.9 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 3.9 seconds.
+#> Mean chain execution time: 3.8 seconds.
 #> Total execution time: 4.1 seconds.
 #> 
 #> Analysis complete.

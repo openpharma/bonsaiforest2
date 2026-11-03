@@ -99,12 +99,12 @@ standard-normal variables (<code>z1</code>, <code>z2</code>, <code>z3</code>) ar
 independently, then <code>z2</code> is replaced by
 <code>0.4 * z1 + sqrt(1 - 0.4^2) * z2</code> to induce a correlation of 0.4
 between <code>z1</code> and <code>z2</code>. The three subgroup covariates are obtained
-by discretising these latent variables:</p><ul><li><p><code>x1</code>: cut of <code>z1</code> at 0.5 → binary levels <code>a</code> (≈69\<!-- %) -->
-and <code>b</code> (≈31\<!-- %). --></p></li>
-<li><p><code>x2</code>: cut of <code>z2</code> at −0.5 and 0.5 → three levels
+by discretising these latent variables:</p><ul><li><p><code>x1</code>: cut of <code>z1</code> at 0.5 → binary levels <code>a</code> (~69\<!-- %) -->
+and <code>b</code> (~31\<!-- %). --></p></li>
+<li><p><code>x2</code>: cut of <code>z2</code> at -0.5 and 0.5 → three levels
 <code>a</code>, <code>b</code>, <code>c</code>. Because <code>z2</code> is correlated with
 <code>z1</code>, <code>x2</code> is also moderately correlated with <code>x1</code>.</p></li>
-<li><p><code>x3</code>: cut of <code>z3</code> at −0.66, 0, and 0.66 → four
+<li><p><code>x3</code>: cut of <code>z3</code> at -0.66, 0, and 0.66 → four
 approximately equal-sized levels <code>a</code>, <code>b</code>, <code>c</code>, <code>d</code>.</p></li>
 </ul><p><strong>Continuous outcome (<code>y</code>) and binary response (<code>response</code>)</strong></p>
 <p>$$y = 5 + 0.5 \cdot \mathbf{1}[x_1 = a] + 0.5 \cdot \mathbf{1}[x_3 = b]
