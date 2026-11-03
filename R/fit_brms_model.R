@@ -125,7 +125,6 @@
 #'     unshrunk_prior = "normal(0, 2)",
 #'     shrunk_prognostic_prior = "horseshoe(scale_global = 1)",
 #'     shrunk_predictive_prior = "horseshoe(scale_global = 1)",
-#'     backend = "cmdstanr",
 #'     chains = 2, iter = 1000, warmup = 500, refresh = 0
 #'   )
 #'
