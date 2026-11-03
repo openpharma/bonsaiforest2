@@ -29,3 +29,5 @@ TODO
 ^Good_examples\.txt$
 ^vignettes/JAGS_to_bonsaiforest2_comparison\.Rmd$
 ^data-raw$
+^cran-comments\.md$
+^\.claude$
