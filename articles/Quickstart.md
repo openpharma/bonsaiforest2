@@ -143,8 +143,8 @@ oneway_x1 <- run_brms_analysis(
 #> Chain 2 finished in 2.4 seconds.
 #> 
 #> Both chains finished successfully.
-#> Mean chain execution time: 2.2 seconds.
-#> Total execution time: 2.5 seconds.
+#> Mean chain execution time: 2.3 seconds.
+#> Total execution time: 2.6 seconds.
 
 summary_oneway_x1 <- summary_subgroup_effects(brms_fit = oneway_x1)
 print(summary_oneway_x1)
@@ -185,11 +185,11 @@ oneway_x2 <- run_brms_analysis(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 2 finished in 1.5 seconds.
-#> Chain 1 finished in 1.6 seconds.
+#> Chain 1 finished in 1.7 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 1.6 seconds.
-#> Total execution time: 1.7 seconds.
+#> Total execution time: 1.8 seconds.
 
 summary_oneway_x2 <- summary_subgroup_effects(brms_fit = oneway_x2)
 ```
@@ -272,11 +272,11 @@ global_shrinkage_model <- run_brms_analysis(
 #> Running MCMC with 2 parallel chains...
 #> 
 #> Chain 1 finished in 3.0 seconds.
-#> Chain 2 finished in 3.9 seconds.
+#> Chain 2 finished in 4.1 seconds.
 #> 
 #> Both chains finished successfully.
 #> Mean chain execution time: 3.5 seconds.
-#> Total execution time: 4.0 seconds.
+#> Total execution time: 4.2 seconds.
 ```
 
 ### 5.2 Summary of subgroup effects
@@ -376,5 +376,6 @@ if (requireNamespace("cmdstanr", quietly = TRUE)) {
 
 Wolbers, Marcel, Miriam Pedrera Gómez, Alex Ocampo, and Isaac
 Gravestock. 2026. “Unified Implementation and Comparison of Bayesian
-Shrinkage Methods for Treatment Effect Estimation in Subgroups.” *arXiv
-Preprint arXiv:2603.21967*. <https://arxiv.org/abs/2603.21967>.
+Shrinkage Methods for Treatment Effect Estimation in Subgroups.”
+*Pharmaceutical Statistics* 25 (6): e70137.
+<https://doi.org/10.1002/pst.70137>.

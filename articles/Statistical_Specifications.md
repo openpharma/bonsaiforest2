@@ -220,8 +220,9 @@ models for subgroup analysis.” *Pharmaceutical Statistics* 23: 1065–83.
 
 Wolbers, Marcel, Miriam Pedrera Gómez, Alex Ocampo, and Isaac
 Gravestock. 2026. “Unified Implementation and Comparison of Bayesian
-Shrinkage Methods for Treatment Effect Estimation in Subgroups.” *arXiv
-Preprint arXiv:2603.21967*. <https://arxiv.org/abs/2603.21967>.
+Shrinkage Methods for Treatment Effect Estimation in Subgroups.”
+*Pharmaceutical Statistics* 25 (6): e70137.
+<https://doi.org/10.1002/pst.70137>.
 
 Wolbers, Marcel, Mar Vázquez Rabuñal, Ke Li, Kaspar Rufibach, and Daniel
 Sabanés Bové. 2025. “Using shrinkage methods to estimate treatment
